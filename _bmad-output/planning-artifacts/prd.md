@@ -6,6 +6,7 @@ stepsCompleted:
   - step-04-journeys
   - step-05-domain
   - step-06-innovation
+  - step-07-project-type
 inputDocuments:
   - _bmad-output/planning-artifacts/product-brief-ai-learning-hub-2026-01-31.md
   - _bmad-output/planning-artifacts/research/domain-ai-genai-learning-workflows-research-2026-02-02.md
@@ -371,3 +372,142 @@ These innovations are philosophical bets, not technical risks. Validation focuse
 | Collective intelligence requires scale | V1 works perfectly as single-user; collective features are V2+ when/if user base grows |
 | AI agent use case is too niche | API serves power users even without full agentic adoption; MCP is additive |
 | "Relevance not popularity" is technically hard | V1 search is basic; relevance algorithms are V2 scope with time to iterate |
+
+## API-First Platform Requirements
+
+AI Learning Hub is an **API-first serverless platform** with web interfaces for human users. This is not "mobile-first responsive design" — it's **"API-first with mobile and desktop interfaces."**
+
+### Architecture Priority Order
+
+1. **API-first (Programmatic/Agentic)** — The API is the product. External consumers (Dev's agents, future MCP) and internal operations (admin CLI, observability) are first-class citizens. Every capability is API-accessible before it gets a UI.
+
+2. **Mobile-second (Human capture)** — iOS Shortcut + PWA share target for frictionless capture. Humans save content on the go; the API receives it.
+
+3. **Desktop-third (Human workspace)** — Rich project management, Markdown editing, search. Humans organize and build here; the API powers it.
+
+| Traditional "Mobile-First" | AI Learning Hub "API-First" |
+|---------------------------|----------------------------|
+| Design for mobile screens, enhance for desktop | Design for programmatic access, add UIs for humans |
+| Mobile web app is the product | API is the product |
+| Desktop is progressive enhancement | Web UIs are convenience layers over the API |
+| Responsive breakpoints drive architecture | API contract stability drives architecture |
+
+### Why API-First Matters
+
+- **Dev's Learning Scout Agent** doesn't care about responsive design — it cares about predictable endpoints and good error handling
+- **Stephen's admin CLI** doesn't use the web UI — it calls the same APIs
+- **V2's MCP server** wraps the existing API — no new backend needed
+- **Future integrations** (Obsidian plugin, browser extension, Raycast) consume the API directly
+
+The web app is one client among many. The API is the platform.
+
+### API Backend Requirements
+
+#### Authentication Model
+
+| Method | Use Case | Implementation |
+|--------|----------|----------------|
+| Session auth (Clerk/Auth0) | Web app users | JWT tokens, secure cookies |
+| API keys | Programmatic access | Full-access and capture-only tiers |
+| Rate limiting | Abuse prevention | 100 req/min per key, read/write split |
+
+#### API Design Principles
+
+- **REST conventions** — predictable resource URLs, standard HTTP methods
+- **JSON throughout** — request and response bodies
+- **OpenAPI spec** — generated from contract tests, serves as documentation
+- **No URL versioning** — additive-only changes; breaking changes coordinated directly at boutique scale (AWS-style approach)
+- **MCP-ready / Agentic-ready** — consistent naming, typed schemas, predictable patterns that translate to MCP tools in V2
+
+#### Core Endpoints (V1)
+
+| Resource | Endpoints | Notes |
+|----------|-----------|-------|
+| Saves | CRUD + list/filter/search | Paginated, filterable by type/status/project |
+| Projects | CRUD + list/filter | Folder support, status transitions |
+| Tutorials | CRUD + status updates | Lifecycle: saved → started → completed |
+| Tags | CRUD + bulk operations | User-scoped |
+| Links | Create/delete (save↔project) | Many-to-many relationship |
+| User | Profile, settings, API keys | Self-service key management |
+| Admin | Analytics, user activity, system status | Internal APIs for operator workflows |
+
+#### Error Handling
+
+- **Standard HTTP status codes** — 200, 201, 400, 401, 403, 404, 429, 500
+- **Structured error responses** — `{ error: { code, message, details } }`
+- **429 responses** include `Retry-After` header for agent-friendly backoff
+- **Correlation IDs** in all responses for debugging
+
+#### Rate Limiting
+
+| Tier | Read Limit | Write Limit | Notes |
+|------|------------|-------------|-------|
+| Standard | 100/min | 100/min | Web app users |
+| API Key (full) | 100/min | 100/min | Dev persona |
+| API Key (capture-only) | 100/min | 20/min | Limited write scope |
+
+Separate read/write counters prevent read-heavy agents from blocking saves.
+
+### Web Application Requirements
+
+#### Browser Support
+
+| Browser | Support Level | Notes |
+|---------|---------------|-------|
+| Chrome (desktop + mobile) | Full | Primary development target |
+| Safari (desktop + iOS) | Full | Critical for iOS Shortcut integration |
+| Firefox | Full | Standard modern browser |
+| Edge | Full | Chromium-based, follows Chrome |
+| IE11 | None | Not supported |
+
+#### Responsive Design
+
+- **Mobile-first** CSS approach — capture flows designed for phone-in-hand
+- **Desktop-enhanced** — project workspace optimized for larger screens
+- **Breakpoints:**
+  - Mobile: < 768px (capture, browse, quick actions)
+  - Tablet: 768px - 1024px (hybrid)
+  - Desktop: > 1024px (full workspace with side panels)
+
+#### Performance Targets
+
+| Metric | Target | Measurement |
+|--------|--------|-------------|
+| First Contentful Paint | < 1.5s | Lighthouse |
+| Time to Interactive | < 3s | Lighthouse |
+| Largest Contentful Paint | < 2.5s | Lighthouse |
+| Cumulative Layout Shift | < 0.1 | Lighthouse |
+| Save action (iOS Shortcut) | < 2s | E2E test |
+
+#### SEO Strategy
+
+- **Public landing page** with moderate SEO optimization
+  - Meta tags, Open Graph, structured data
+  - Clear value proposition for organic discovery
+  - Invite request flow for waitlist
+- **Authenticated app** — no SEO needed for internal pages
+- **V3 consideration** — published learning trails will need SEO; foundation laid in V1
+
+#### Accessibility
+
+Lighter-touch accessibility appropriate for boutique scale:
+- Semantic HTML throughout
+- Keyboard navigation for all interactive elements
+- Sufficient color contrast (WCAG AA contrast ratios)
+- Focus indicators visible
+- Form labels and error messages accessible
+- No formal WCAG audit in V1; revisit if user base grows
+
+### PWA Requirements
+
+- Service worker for offline awareness (not full offline mode in V1)
+- Web app manifest for "Add to Home Screen"
+- Share target registration for Android share sheet
+- iOS Shortcut remains primary mobile capture path (more reliable than PWA share target on iOS)
+
+### Infrastructure Alignment
+
+- **Frontend:** S3 + CloudFront (static hosting, global CDN)
+- **Backend:** API Gateway + Lambda (serverless, pay-per-use)
+- **Database:** DynamoDB (single-table design with search index table)
+- **All within $50/month** cost envelope at boutique scale
