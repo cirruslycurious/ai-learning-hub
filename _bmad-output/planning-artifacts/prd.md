@@ -8,6 +8,7 @@ stepsCompleted:
   - step-06-innovation
   - step-07-project-type
   - step-08-scoping
+  - step-09-functional
 inputDocuments:
   - _bmad-output/planning-artifacts/product-brief-ai-learning-hub-2026-01-31.md
   - _bmad-output/planning-artifacts/research/domain-ai-genai-learning-workflows-research-2026-02-02.md
@@ -705,3 +706,179 @@ V1 is declared complete when ALL of the following are true:
 - [ ] Security implementation checklist complete (all items verified)
 
 No partial credit. No "soft launch." V1 is V1 when it's all done.
+
+## Functional Requirements
+
+### User Management
+
+- FR1: Users can sign up using social authentication (Google)
+- FR2: Users can sign in using existing social authentication
+- FR3: Users can sign out from all devices
+- FR4: Users can view and edit their profile settings
+- FR5: Users can generate API keys for programmatic access
+- FR6: Users can revoke API keys immediately
+- FR7: Users can generate capture-only API keys (limited to POST /saves only)
+- FR8: Users can redeem invite codes during signup
+- FR9: Existing users can generate invite codes to share
+
+### Save Management
+
+- FR10: Users can save URLs from any source (web, mobile share sheet, API)
+- FR11: Users can view all their saves in a unified list
+- FR12: Users can filter saves by resource type (podcast, blog, video, tutorial, etc.)
+- FR13: Users can filter saves by project linkage (linked, unlinked)
+- FR14: Users can search saves by title and source
+- FR15: Users can delete saves
+- FR16: Users can edit save metadata (title, notes, type)
+- FR17: System automatically enriches saves with metadata (title, favicon, description)
+- FR18: Users can view saves in three domain views (Resource Library, Tutorial Tracker, My Projects)
+- FR19: Users can sort saves by date saved, date last accessed, or title
+
+### Project Management
+
+- FR20: Users can create new projects
+- FR21: Users can view all their projects
+- FR22: Users can edit project details (name, description, status)
+- FR23: Users can delete projects
+- FR24: Users can organize projects into folders
+- FR25: Users can change project status (exploring, building, paused, completed)
+- FR26: Users can add Markdown notes to projects
+- FR27: Users can view and edit project notes with Markdown rendering
+- FR28: Users can tag projects with custom tags
+- FR29: Users can filter projects by status
+- FR30: Users can filter projects by folder
+- FR31: Users can search projects by name and tags
+- FR32: Users can sort projects by date created, date modified, or title
+
+### Resource-Project Linking
+
+- FR33: Users can link saves to projects
+- FR34: Users can unlink saves from projects
+- FR35: Users can view all saves linked to a specific project
+- FR36: Users can view which projects a save is linked to
+- FR37: Users can link multiple saves to a project in a single action (desktop only)
+- FR38: Users can link a save to multiple projects
+
+### Tutorial Lifecycle
+
+- FR39: Users can mark a save as a tutorial
+- FR40: Users can track tutorial status (saved, started, in-progress, completed)
+- FR41: Users can view all tutorials across projects
+- FR42: Users can filter tutorials by status
+- FR43: Users can add completion notes to tutorials
+
+### Mobile Capture
+
+- FR44: Users can save URLs via iOS Shortcut (share sheet integration)
+- FR45: Users can save URLs via PWA share target (Android)
+- FR46: Mobile save confirms success within 2 seconds
+- FR47: Users can quick-save without opening the full app
+
+### Desktop Workspace
+
+- FR48: Users can view project workspace with linked resources and notes side-by-side
+- FR49: Users can paste LLM conversations into project notes
+- FR50: Users can view project screenshots optimized for sharing
+- FR51: Users can manage all projects from a single dashboard
+
+### Search & Discovery
+
+- FR52: Users can perform full-text search across saves
+- FR53: Users can perform full-text search across project names and tags
+- FR54: Search results display within 1 second
+- FR55: Users can search within project notes
+
+### Onboarding
+
+- FR56: New users see seeded starter projects with curated resources
+- FR57: Users can explore starter projects without commitment
+- FR58: Users can fork starter projects to customize
+- FR59: Onboarding guides users through iOS Shortcut setup
+
+### Admin & Operations
+
+- FR60: Operators can view user activity via admin CLI
+- FR61: Operators can view system health via admin CLI
+- FR62: Operators can view analytics via admin CLI
+- FR63: Operators can manage rate limits via configuration
+
+### User Feedback
+
+- FR64: System provides visual confirmation when save completes successfully
+- FR65: System displays clear error messages when operations fail
+- FR66: System displays helpful empty states when no content exists
+- FR67: System indicates offline status when network unavailable
+
+### Notes Processing
+
+- FR68: System processes project notes via Processing API for search indexing
+- FR69: Search queries processed note content via Search API
+
+## API-First Processing Pipelines
+
+AI Learning Hub is **API-driven internally and externally**. The web and mobile UIs are "skins" over API calls — they never invoke backend processing directly. All operations flow through API Gateway.
+
+### Core Principle: No Lambda-to-Lambda Calls
+
+**Wrong:** Lambda A directly invokes Lambda B
+**Right:** Lambda A calls API Gateway endpoint that routes to Lambda B
+
+This ensures:
+- **Loose coupling** — Backend implementations can change without affecting callers
+- **Unified observability** — All traffic flows through API Gateway with consistent logging, tracing, and metrics
+- **Testability** — Every processing step is testable via its API contract
+- **Future flexibility** — Backend could be replaced (containers, external services) without changing callers
+
+### Notes Processing Pipeline
+
+When users save or update project notes:
+
+```
+User/UI → PUT /projects/:id/notes → Notes Lambda
+              ↓
+         SQS event (async)
+              ↓
+         POST /processing/notes → Processing Lambda
+              ↓
+         POST /search/index → Search Index Lambda
+              ↓
+         GET /search → Search API (query processed content)
+```
+
+**Key points:**
+- Notes Lambda accepts the write, returns success, enqueues processing
+- Processing API extracts searchable content from raw Markdown
+- Search Index API updates the search index with processed content
+- All steps are API calls, not direct Lambda invocations
+- V2's AI enrichment will consume processed notes via the same APIs
+
+### Enrichment Pipeline
+
+When saves are created:
+
+```
+User/UI → POST /saves → Saves Lambda
+              ↓
+         SQS event (async, hourly batch)
+              ↓
+         POST /enrichment/process → Enrichment Lambda
+              ↓
+         PATCH /saves/:id → Saves Lambda (update metadata)
+```
+
+**Key points:**
+- Enrichment Lambda fetches metadata via external APIs (YouTube, OpenGraph)
+- Results written back via Saves API, not direct DynamoDB access
+- SSRF protection enforced at Enrichment Lambda (private IP blocking, timeout, scheme validation)
+
+### Why This Matters
+
+| Concern | API-First Solution |
+|---------|-------------------|
+| "How do I test processing?" | Call `POST /processing/notes` with test input |
+| "How do I monitor processing?" | API Gateway metrics + X-Ray traces |
+| "How do I change processing logic?" | Deploy new Lambda behind same endpoint |
+| "How do I scale processing?" | API Gateway handles, Lambda scales automatically |
+| "How does V2 AI consume processed data?" | Calls same Search API as users |
+
+The API is the product. The API is the contract. The API is the documentation.
