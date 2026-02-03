@@ -10,6 +10,7 @@ stepsCompleted:
   - step-08-scoping
   - step-09-functional
   - step-10-nonfunctional
+  - step-11-polish
 inputDocuments:
   - _bmad-output/planning-artifacts/product-brief-ai-learning-hub-2026-01-31.md
   - _bmad-output/planning-artifacts/research/domain-ai-genai-learning-workflows-research-2026-02-02.md
@@ -34,6 +35,22 @@ classification:
 **Author:** Stephen
 **Date:** 2026-02-02
 
+## Executive Summary
+
+AI Learning Hub connects learning resources to building projects for AI/GenAI practitioners.
+
+**The Problem:** Practitioners juggle 3-5 disconnected tools — bookmarks here, notes there, tutorials somewhere else. Nothing bridges "what I'm learning" to "what I'm building."
+
+**The Solution:** A save-to-build platform where every resource implicitly asks "what will you build with this?"
+
+**Differentiator:** Read-later apps assume consumption. PKM tools assume organization. AI Learning Hub assumes **building**. The project-first data model treats unlinked saves as incomplete states, not resting states.
+
+**Target Users:** Maya (mobile capture → desktop build), Marcus (deep desktop sessions), Priya (curious → builder conversion), Dev (API-first/agentic workflows).
+
+**Market Timing:** The explosion of AI learning content (podcasts, tutorials, courses) has outpaced tools for organizing it. Practitioners are drowning in resources with no system for connecting them to outcomes.
+
+**Scale:** Boutique (10-20 users), invite-only, no monetization through V3. Success measured by product utility, not revenue.
+
 ## Success Criteria
 
 ### User Success
@@ -51,13 +68,10 @@ classification:
 
 ### Technical Success
 
-- Capture latency (share sheet to save confirmed) < 2 seconds
-- Search response time < 1 second (V1 full-text)
-- API error rate < 0.5%
-- Search sync lag < 5 minutes
+- Performance targets per NFR section: < 3 seconds save, < 2 seconds search, < 1% error rate, 99% uptime
 - 80% test coverage threshold enforced in CI — no exceptions
-- All persona E2E golden path tests green on every push
-- End-to-end request tracing via X-Ray operational within first week
+- All 6 persona E2E golden paths green on every push
+- X-Ray tracing operational within first week of V1
 
 ### Measurable Outcomes
 
@@ -117,7 +131,7 @@ Saturday morning with coffee, Maya opens AI Learning Hub on her laptop. Her thre
 
 When her VP asks "what are you doing with AI?", she screenshots the project page and drops it in Slack. It looks professional.
 
-**Capabilities revealed:** Share sheet save (iOS Shortcut), sub-2-second capture, enrichment populating metadata, desktop project workspace, save-to-project linking, Markdown notes with LLM conversation paste, tutorial status tracking, screenshot-friendly project views.
+**Capabilities revealed:** Share sheet save (iOS Shortcut), under 3 second capture, enrichment populating metadata, desktop project workspace, save-to-project linking, Markdown notes with LLM conversation paste, tutorial status tracking, screenshot-friendly project views.
 
 ### Journey 2: Marcus — "The Living Notebook"
 *Deep desktop session, project-centric workflow*
@@ -192,7 +206,7 @@ The whole review takes 15 minutes. The dashboards and CLI tell the same story fr
 
 | Journey | Primary Capabilities Required |
 |---------|-------------------------------|
-| Maya (Mobile Capture) | iOS Shortcut, share sheet, sub-2s save, enrichment pipeline, desktop workspace, Markdown notes, project linking, screenshot-friendly views |
+| Maya (Mobile Capture) | iOS Shortcut, share sheet, < 3 seconds save, enrichment pipeline, desktop workspace, Markdown notes, project linking, screenshot-friendly views |
 | Marcus (Living Notebook) | Resource Library, project folders, bulk linking, large Markdown notes, tagging, status transitions, tutorial lifecycle |
 | Priya (Curious → Builder) | Invite signup, social auth, seeded onboarding, mobile browse, first project creation, V2-ready data model (visibility flags, AI enriched flags) |
 | Dev (API Ecosystem) | API key management, rate limiting, full CRUD API, contract stability, MCP-ready design, agent-friendly error handling |
@@ -308,6 +322,68 @@ AI Learning Hub is **not traditional edtech** and doesn't inherit traditional ed
 
 This is a feature, not a gap. The lighter compliance burden means faster development and lower operational overhead — appropriate for a solo builder's boutique-scale project.
 
+### V3 Content Sharing & Moderation
+
+V3 introduces published learning trails — curated artifacts derived from private projects. This section documents the content model, visibility levels, and moderation principles to guide V1 data model decisions.
+
+#### Content Model: Projects vs Published Trails
+
+A published trail is NOT a public project — it's a **derived, curated snapshot**:
+
+| Content Type | Private Project (V1) | Published Trail (V3) |
+|--------------|----------------------|----------------------|
+| Project name/description | Raw working title | Edited/polished version |
+| Linked resources | All saves | Curated subset |
+| Raw notes (LLM conversations, scratch) | Everything | Never published |
+| Polished writeup | Doesn't exist | New artifact for publication |
+| Tutorial progress/status | Personal tracking | Optional — "I completed these" |
+| Tags | Personal taxonomy | Discoverable metadata |
+
+**Key principle:** Publication creates a new entity, not a visibility toggle on existing content.
+
+#### Visibility Levels
+
+| Level | Discoverability | Access | Use Case |
+|-------|-----------------|--------|----------|
+| **Private** | No | Owner only | Default, working state (V1) |
+| **Shareable** | No (link only) | Anyone with link | "Check out what I built" (V3) |
+| **Public** | Yes (searchable) | Anyone | Learning trails, portfolio (V3) |
+| **Collaboration** | No | Invited users (auth) | Team learning (V4 — significant complexity) |
+
+#### V1 Data Model Preparation
+
+To enable V3 without migration pain, V1 schema includes placeholder fields:
+
+| Field | Entity | V1 Value | V3 Usage |
+|-------|--------|----------|----------|
+| `visibility` | Project | Always `'private'` | Enables shareable/public states |
+| `shareToken` | Project | Always `null` | UUID for link-based sharing |
+
+**V1 API impact:** None. These fields exist but are unused until V3.
+
+#### V3 Content Moderation Principles
+
+**Philosophy:** Community trust over algorithmic enforcement. At boutique scale, manual review is feasible and preferable.
+
+**Scope:**
+- Published trails only — private projects are never moderated
+- Linked resources (external URLs) are user responsibility
+- Polished writeups are reviewed; raw notes are never published
+
+**Mechanisms:**
+- User flagging with reason categories (spam, inappropriate, copyright, other)
+- Manual review queue for operators (Stefania persona)
+- No algorithmic takedown — humans decide
+- Transparency: removed content shows "removed by moderator" (not silent deletion)
+
+**Process:**
+1. Flag received → enters moderation queue
+2. Operator reviews within 48 hours (boutique SLA)
+3. Actions: dismiss (false positive), warn (notify author), remove (with reason)
+4. Author notified of action with appeal option (email to Stephen)
+
+**V1 Preparation:** None required beyond schema fields. Moderation infrastructure is V3 scope.
+
 ## Innovation & Novel Patterns
 
 AI Learning Hub's innovation is **philosophical and structural** rather than technical. The novelty lies in design assumptions that don't exist in current tools.
@@ -376,7 +452,7 @@ These innovations are philosophical bets, not technical risks. Validation focuse
 | AI agent use case is too niche | API serves power users even without full agentic adoption; MCP is additive |
 | "Relevance not popularity" is technically hard | V1 search is basic; relevance algorithms are V2 scope with time to iterate |
 
-## API-First Platform Requirements
+## Project-Type Requirements: API-First Platform
 
 AI Learning Hub is an **API-first serverless platform** with web interfaces for human users. This is not "mobile-first responsive design" — it's **"API-first with mobile and desktop interfaces."**
 
@@ -476,11 +552,11 @@ Separate read/write counters prevent read-heavy agents from blocking saves.
 
 | Metric | Target | Measurement |
 |--------|--------|-------------|
-| First Contentful Paint | < 1.5s | Lighthouse |
-| Time to Interactive | < 3s | Lighthouse |
-| Largest Contentful Paint | < 2.5s | Lighthouse |
+| First Contentful Paint | < 1.5 seconds | Lighthouse |
+| Time to Interactive | < 3 seconds | Lighthouse |
+| Largest Contentful Paint | < 2.5 seconds | Lighthouse |
 | Cumulative Layout Shift | < 0.1 | Lighthouse |
-| Save action (iOS Shortcut) | < 2s | E2E test |
+| Save action (iOS Shortcut) | < 3 seconds | E2E test |
 
 #### SEO Strategy
 
@@ -569,7 +645,7 @@ This is NOT:
 | DynamoDB search inadequate at scale | Medium | Medium | "Acceptable for V1 with <1000 items" — research validated | Search index table design; OpenSearch upgrade path documented in ADR-1 |
 | iOS Shortcut setup friction too high | Medium | Medium | V2.5 native app addresses this | Clear onboarding guide; fallback to PWA share target |
 | Enrichment Lambda hits API rate limits | Low-Medium | Low | YouTube Data API has quotas | Batch processing, queue-based retry, respect Retry-After |
-| Performance targets missed (Lighthouse, <2s save) | Low | Medium | Serverless cold starts can add latency | Provisioned concurrency for critical paths; CDN for static assets |
+| Performance targets missed (Lighthouse, < 3 seconds save) | Low | Medium | Serverless cold starts can add latency | Provisioned concurrency for critical paths; CDN for static assets |
 | 80% test coverage slows velocity | Low | Low | "Non-negotiable" per product brief | Vertical slice approach means incremental coverage; no untested code accumulates |
 
 #### Security Risks (via Security Audit Personas Analysis)
@@ -577,7 +653,7 @@ This is NOT:
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | API key exposure via iOS Shortcut sharing | Low-Medium | Medium | Capture-only keys by default; key rotation; instant revocation; keys hashed before storage |
-| SSRF via enrichment pipeline | Low | High | Block private IPs (10.x, 172.16-31.x, 192.168.x, 169.254.x), validate schemes (http/https only), DNS resolution check, 5s timeout |
+| SSRF via enrichment pipeline | Low | High | Block private IPs (10.x, 172.16-31.x, 192.168.x, 169.254.x), validate schemes (http/https only), DNS resolution check, 5 second timeout |
 | Invite code brute force | Low | Low | 128-bit entropy, rate limit redemption (5/IP/hour), 7-day expiry, one-time use |
 | Admin API unauthorized access | Low | High | Separate IAM auth for admin endpoints; audit logging; no admin credentials in client apps |
 | API key logged accidentally | Low | Medium | Keys never logged; redaction in logging middleware; pre-commit hooks to catch secrets |
@@ -612,6 +688,8 @@ This is NOT:
 | Dependency vulnerability discovered | Medium | Varies | Dependabot enabled; security tests in CI; CDK Nag for infrastructure |
 
 ### Security Implementation Checklist (V1 Gate)
+
+This checklist operationalizes NFR-S1 through NFR-S9. Each checkbox verifies the corresponding NFR is implemented.
 
 All items must be verified before V1 declaration:
 
@@ -710,6 +788,8 @@ No partial credit. No "soft launch." V1 is V1 when it's all done.
 
 ## Functional Requirements
 
+Functional requirements define WHAT the system does. Performance, security, and quality attributes for HOW WELL the system performs are defined in the Non-Functional Requirements section.
+
 ### User Management
 
 - FR1: Users can sign up using social authentication (Google)
@@ -772,7 +852,7 @@ No partial credit. No "soft launch." V1 is V1 when it's all done.
 
 - FR44: Users can save URLs via iOS Shortcut (share sheet integration)
 - FR45: Users can save URLs via PWA share target (Android)
-- FR46: Mobile save confirms success within 2 seconds
+- FR46: Mobile save confirms success within 3 seconds
 - FR47: Users can quick-save without opening the full app
 
 ### Desktop Workspace
@@ -786,7 +866,7 @@ No partial credit. No "soft launch." V1 is V1 when it's all done.
 
 - FR52: Users can perform full-text search across saves
 - FR53: Users can perform full-text search across project names and tags
-- FR54: Search results display within 1 second
+- FR54: Search results display within 2 seconds
 - FR55: Users can search within project notes
 
 ### Onboarding
@@ -898,7 +978,7 @@ NFRs define HOW WELL the system must perform. Priority order for AI Learning Hub
 | NFR-P4: Web app Time to Interactive | < 4 seconds | Lighthouse |
 | NFR-P5: Search index sync lag | < 15 minutes | CloudWatch custom metric |
 
-*Note: Lambda cold starts may add 1-3s on first request after idle period. This is documented and accepted.*
+*Note: Lambda cold starts may add 1-3 seconds on first request after idle period. This is documented and accepted.*
 
 ### Security
 
@@ -908,7 +988,7 @@ NFRs define HOW WELL the system must perform. Priority order for AI Learning Hub
 | NFR-S2: Data encryption in transit | TLS 1.2+ everywhere | CloudFront config, API Gateway settings |
 | NFR-S3: API key storage | One-way hash, not recoverable | Security test |
 | NFR-S4: Per-user data isolation | No cross-user data access possible | Integration tests, IAM review |
-| NFR-S5: SSRF protection | Block private IPs, 5s timeout, scheme validation | Security tests in CI |
+| NFR-S5: SSRF protection | Block private IPs, 5 second timeout, scheme validation | Security tests in CI |
 | NFR-S6: Markdown sanitization | Allowlist-only rendering | Security tests |
 | NFR-S7: Secrets management | All secrets in Parameter Store/Secrets Manager | CDK Nag |
 | NFR-S8: API key redaction | Keys never in logs | Log audit |
@@ -957,3 +1037,12 @@ NFRs define HOW WELL the system must perform. Priority order for AI Learning Hub
 | Requirement | Target | Verification |
 |------------|--------|--------------|
 | NFR-UX1: Graceful degradation | Clear error messages with retry option, no silent failures | E2E error scenario tests |
+
+### NFR Summary
+
+| Priority | Category | Key Targets |
+|----------|----------|-------------|
+| 1 | Security | 9 NFRs: encryption, isolation, SSRF protection, key management |
+| 2 | Reliability | 99% uptime, < 2 hours MTTR, < 10 minutes rollback |
+| 3 | Cost | < $50/month total, < $4/user |
+| 4 | Performance | < 3 seconds save, < 2 seconds search (cold starts accepted) |
