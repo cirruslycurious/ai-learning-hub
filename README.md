@@ -25,25 +25,46 @@ The API is the product — web and mobile UIs are "skins" over API calls. All op
 | Layer | Technology |
 |-------|------------|
 | Frontend | React + Vite (PWA) |
-| Auth | Clerk or Auth0 |
+| Auth | Clerk (JWT + API keys) |
 | Backend | AWS Lambda (Node.js/TypeScript) |
-| Database | DynamoDB (single-table design + search index table) |
-| Storage | S3 (static assets) |
+| Database | DynamoDB (7 tables, 10 GSIs) |
+| Storage | S3 (notes, static assets) |
 | Infrastructure | AWS CDK (TypeScript) |
 | Hosting | S3 + CloudFront |
-| Observability | CloudWatch, X-Ray, structured logging |
+| Observability | CloudWatch, X-Ray, EMF metrics |
 | Mobile (V1) | PWA + iOS Shortcut |
 | Mobile (V2.5) | Native iOS app |
 | Mobile (V3.5) | Native Android app |
 
-### Key Design Decisions
+### Key Design Decisions (13 ADRs)
 
-- **API-first architecture** — Programmatic/agentic access is the primary use case. Mobile capture is second. Desktop workspace is third. The UI is a consumer of the API, not the product itself.
-- **Unified save entity** — A URL is saved once per user and can serve as a resource, tutorial, or both. Three domain views into one data model.
-- **Two-layer data model** — Global content layer (URL stored once across platform) + per-user layer (personal notes, tags, status, project links). Powers the collective learning graph.
-- **API-driven processing** — All internal processing (enrichment, notes indexing, search) flows through API Gateway. Enables loose coupling, unified observability, and backend flexibility.
-- **Multi-user with per-user data isolation** from day one. Invite-only signup.
-- **PWA + iOS Shortcut** for V1 mobile. Native iOS in V2.5, native Android in V3.5.
+- **ADR-001: Multi-table DynamoDB** — 7 tables with user-partitioned keys for security isolation
+- **ADR-002: DynamoDB for search (V1)** — Search index table with `contains()` filter, OpenSearch for V2
+- **ADR-003: EventBridge + Step Functions** — Async processing pipelines with visual debugging
+- **ADR-004: Lambda per concern** — Single responsibility, least-privilege IAM
+- **ADR-005: No Lambda-to-Lambda** — All traffic through API Gateway (including internal)
+- **ADR-006: Multi-stack CDK** — 15+ stacks by concern, parallel deployment
+- **ADR-007: CI/CD with gates** — 80% coverage enforced, CDK Nag, contract tests
+- **ADR-013: Clerk for auth** — JWT for web, API keys for iOS Shortcut/agents
+
+### Data Model
+
+| Table | Purpose | Partition Key |
+|-------|---------|---------------|
+| users | Profiles + API keys | `USER#<clerkId>` |
+| saves | User's saved URLs | `USER#<userId>` |
+| projects | Projects + folders | `USER#<userId>` |
+| links | Project ↔ Save (M:N) | `USER#<userId>` |
+| content | Global URL metadata | `CONTENT#<urlHash>` |
+| search-index | Search substrate | `USER#<userId>` |
+| invite-codes | Invite system | `CODE#<code>` |
+
+### API Surface
+
+- **Core APIs**: `/saves`, `/projects`, `/folders`, `/search`, `/users`
+- **Internal APIs**: `/content`, `/search-index` (AWS IAM auth for pipelines)
+- **Admin APIs**: `/admin/*` (Stephen only)
+- **Analytics APIs**: `/analytics/*` (Stephen + analysts)
 
 ## Version Roadmap
 
@@ -62,10 +83,10 @@ The API is the product — web and mobile UIs are "skins" over API calls. All op
 
 | Artifact | Status |
 |----------|--------|
-| Product Brief | Complete |
-| Domain Research | Complete |
-| PRD | In progress (9/11 steps) |
-| Architecture | Not started |
+| Product Brief | ✅ Complete |
+| Domain Research | ✅ Complete |
+| PRD | ✅ Complete (69 FRs, 28 NFRs) |
+| Architecture | ✅ Complete (13 ADRs, 7 tables, 10 GSIs, full API spec) |
 | Epics & Stories | Not started |
 | UX Design | Not started |
 
@@ -77,15 +98,16 @@ Track progress: [GitHub Issue #39](https://github.com/cirruslycurious/ai-learnin
 |----------|-------------|
 | [Product Brief](_bmad-output/planning-artifacts/product-brief-ai-learning-hub-2026-01-31.md) | Comprehensive product vision, personas, entity model, security, observability |
 | [Domain Research](_bmad-output/planning-artifacts/research/domain-ai-genai-learning-workflows-research-2026-02-02.md) | AI/GenAI learning landscape research |
-| [PRD (in progress)](_bmad-output/planning-artifacts/prd.md) | Product requirements document (69 FRs, API-first architecture) |
+| [PRD](_bmad-output/planning-artifacts/prd.md) | Product requirements document (69 FRs, 28 NFRs, API-first architecture) |
+| [Architecture](_bmad-output/planning-artifacts/architecture.md) | 13 ADRs, DynamoDB schemas, API specs, auth flows, analytics |
 | [CLAUDE.md](CLAUDE.md) | AI assistant context file |
 
-### Legacy Docs (to be updated post-PRD)
+### Legacy Docs (to be migrated)
 
 | Document | Description |
 |----------|-------------|
-| [docs/PRD.md](docs/PRD.md) | Original PRD outline (will be replaced) |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Architecture placeholder (not yet written) |
+| [docs/PRD.md](docs/PRD.md) | Original PRD outline (superseded by `_bmad-output` version) |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Placeholder (superseded by `_bmad-output` version) |
 | [docs/epics/000-project-foundation.md](docs/epics/000-project-foundation.md) | Epic 0 placeholder |
 
 ## Repository Structure

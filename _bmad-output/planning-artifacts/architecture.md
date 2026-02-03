@@ -97,19 +97,27 @@ These decisions were made collaboratively during the architecture discovery sess
 - Each table can have its own API surface
 - Easier to evolve and modify individual tables
 - No monolithic single-table design coupling
+- **Security:** User-owned data always partitioned by `USER#<userId>` for isolation
 
-**Tables:**
-- `users` — auth metadata, API keys, invite codes
-- `saves` — user-layer save records
-- `content` — global content layer (deduplicated URLs)
-- `projects` — project metadata
-- `links` — many-to-many project↔save relationships
-- `search-index` — denormalized for query patterns
+**Tables (7 total):**
+
+| # | Table | Partition Key | Purpose |
+|---|-------|---------------|---------|
+| 1 | `users` | `USER#<clerkId>` | Profiles + API keys |
+| 2 | `saves` | `USER#<userId>` | User's saved URLs |
+| 3 | `projects` | `USER#<userId>` | Projects + folders |
+| 4 | `links` | `USER#<userId>` | Project ↔ Save relationships |
+| 5 | `content` | `CONTENT#<urlHash>` | Global URL metadata (shared) |
+| 6 | `search-index` | `USER#<userId>` | Search substrate |
+| 7 | `invite-codes` | `CODE#<code>` | Invite system |
+
+**Key Design Principle:** Every table with user-owned data has `USER#<userId>` as the partition key for security isolation. The `content` table is intentionally global (shared across users, no user attribution). The `invite-codes` table uses `CODE#<code>` because the primary access pattern is lookup by code during redemption.
 
 **Consequences:**
-- More GSIs to manage
+- 10 GSIs to manage across 7 tables
 - Cross-table queries require application-level joins
 - Cleaner boundaries, easier testing
+- Strong per-user data isolation
 
 ---
 
@@ -890,13 +898,1030 @@ The iOS Shortcut provides:
 
 ---
 
+### ADR-013: Authentication Provider — Clerk
+
+**Decision:** Use Clerk for authentication and user management.
+
+**Rationale:**
+- Better developer experience for rapid development
+- Excellent React SDK (`@clerk/clerk-react`)
+- Unlimited social logins on all tiers
+- Better pricing at scale (no "volume punishment")
+- Free tier covers boutique scale (10K MAU)
+- Native iOS/Android SDKs for V2.5+
+- SOC 2 Type II compliant (sufficient for V1)
+
+**Two Authentication Methods:**
+
+| Method | Used By | Mechanism |
+|--------|---------|-----------|
+| JWT | Web app, Native apps (V2.5+) | Clerk-issued JWT, validated by Lambda authorizer |
+| API Key | iOS Shortcut, Dev agents | User-generated, SHA256 hashed in DynamoDB |
+
+**Authentication Flow:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    CLERK AUTH FLOW                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Frontend (React)                                           │
+│  ┌─────────────────┐                                       │
+│  │ ClerkProvider   │ ← Wraps app, manages session          │
+│  │ SignIn/SignUp   │ ← Pre-built UI components             │
+│  │ useAuth()       │ ← Hook for auth state                 │
+│  │ useUser()       │ ← Hook for user data                  │
+│  └────────┬────────┘                                       │
+│           │ JWT in Authorization header                     │
+│           ▼                                                 │
+│  ┌─────────────────┐                                       │
+│  │  API Gateway    │                                       │
+│  │  + Lambda       │ ← Custom JWT Authorizer               │
+│  │    Authorizer   │                                       │
+│  └────────┬────────┘                                       │
+│           │ Validated userId in context                     │
+│           ▼                                                 │
+│  ┌─────────────────┐                                       │
+│  │  Lambda Handler │ ← All handlers receive userId         │
+│  │  (saves, etc)   │                                       │
+│  └─────────────────┘                                       │
+│                                                             │
+│  iOS Shortcut                                               │
+│  ┌─────────────────┐                                       │
+│  │ Stores API Key  │ ← User generates in web app           │
+│  │ Calls API       │ ← x-api-key header                    │
+│  └────────┬────────┘                                       │
+│           │                                                 │
+│           ▼                                                 │
+│  ┌─────────────────┐                                       │
+│  │  API Gateway    │                                       │
+│  │  API Key Auth   │ ← Validates against users table       │
+│  └─────────────────┘                                       │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**JWT Authorizer Implementation:**
+```typescript
+// Lambda authorizer for Clerk JWT
+import { verifyToken } from '@clerk/backend';
+
+export async function handler(event: APIGatewayTokenAuthorizerEvent) {
+  const token = event.authorizationToken.replace('Bearer ', '');
+
+  try {
+    const verified = await verifyToken(token, {
+      secretKey: process.env.CLERK_SECRET_KEY,
+    });
+
+    return {
+      principalId: verified.sub, // Clerk user ID
+      policyDocument: generatePolicy('Allow', event.methodArn),
+      context: {
+        userId: verified.sub,
+        role: verified.publicMetadata?.role || 'user',
+      },
+    };
+  } catch (error) {
+    throw new Error('Unauthorized');
+  }
+}
+```
+
+**API Key Authorizer Implementation:**
+```typescript
+// Lambda authorizer for API keys (iOS Shortcut, Dev agents)
+import { sha256 } from './utils/crypto';
+import { getUserByApiKeyHash } from './db/users';
+
+export async function handler(event: APIGatewayRequestAuthorizerEvent) {
+  const apiKey = event.headers['x-api-key'];
+  if (!apiKey) throw new Error('Unauthorized');
+
+  const keyHash = sha256(apiKey);
+  const user = await getUserByApiKeyHash(keyHash);
+
+  if (!user || user.revokedAt) {
+    throw new Error('Unauthorized');
+  }
+
+  // Update lastUsedAt (fire and forget)
+  updateApiKeyLastUsed(keyHash).catch(() => {});
+
+  return {
+    principalId: user.clerkId,
+    policyDocument: generatePolicy('Allow', event.methodArn),
+    context: {
+      userId: user.clerkId,
+      role: user.role,
+      authMethod: 'api-key',
+    },
+  };
+}
+```
+
+**Role-Based Access Control:**
+
+| Role | Assigned To | Access |
+|------|-------------|--------|
+| `admin` | Stephen | Full access (all endpoints) |
+| `analyst` | Stefania | `/analytics/*` only |
+| `user` | Regular users | Own data only (`/saves/*`, `/projects/*`, `/search`, `/users/me`) |
+
+**Consequences:**
+- Single auth provider for web, mobile, and API key flows
+- Clerk handles OAuth (Google, GitHub) complexity
+- Role stored in Clerk `publicMetadata`, synced to DynamoDB on first login
+- API keys are independent of Clerk session (long-lived)
+- Invite code required at signup (checked before Clerk account creation)
+
+---
+
+## DynamoDB Table Designs
+
+Detailed schema definitions for all 7 tables. Key design principle: **USER always in PK for user-owned data** (security isolation).
+
+### Table 1: users
+
+User profiles and API keys stored in the same table with different sort keys.
+
+```
+PK: USER#<clerkId>
+SK: PROFILE
+
+Attributes:
+  - email: string
+  - displayName: string
+  - role: 'user' | 'analyst' | 'admin'
+  - globalPreferences: object
+  - rateLimitOverride?: { requestsPerMinute: number } — admin-adjustable per-user rate limit
+  - createdAt: string (ISO 8601)
+  - updatedAt: string (ISO 8601)
+  - suspendedAt?: string (ISO 8601)
+
+---
+For API Keys (same table, different SK):
+PK: USER#<clerkId>
+SK: APIKEY#<keyId>
+
+Attributes:
+  - keyHash: string (SHA256, for lookup)
+  - name: string (user-friendly label)
+  - scopes: string[] (['saves:write'] or ['*'])
+  - createdAt: string (ISO 8601)
+  - lastUsedAt?: string (ISO 8601)
+  - revokedAt?: string (ISO 8601)
+
+GSI1: apiKeyHash-index
+  - PK: keyHash
+  - Projects to: clerkId
+  - Purpose: API key authentication lookup
+```
+
+---
+
+### Table 2: saves
+
+User's saved URLs with references to the global content layer.
+
+```
+PK: USER#<userId>
+SK: SAVE#<saveId>
+
+Attributes:
+  - saveId: string (ULID)
+  - url: string
+  - urlHash: string (links to content layer)
+  - title?: string (user override or from content)
+  - userNotes?: string (short notes, NOT the big S3 notes)
+  - tags: string[]
+  - isTutorial: boolean
+  - tutorialStatus?: 'saved' | 'started' | 'completed' | null
+  - contentType?: ContentType (denormalized from content layer)
+  - createdAt: string (ISO 8601)
+  - updatedAt: string (ISO 8601)
+  - enrichedAt?: string (ISO 8601)
+  - deletedAt?: string (ISO 8601) — soft delete marker
+
+Note: All list queries filter WHERE deletedAt IS NULL
+
+GSI1: userId-contentType-index
+  - PK: userId
+  - SK: contentType
+  - Purpose: Filter saves by type
+
+GSI2: userId-tutorialStatus-index
+  - PK: userId
+  - SK: tutorialStatus
+  - Purpose: Tutorial tracker view
+
+GSI3: urlHash-index (sparse)
+  - PK: urlHash
+  - Purpose: Find all saves of same URL (for content layer updates, dedup)
+```
+
+---
+
+### Table 3: projects
+
+User's projects and folders (folders stored as items with different SK pattern).
+
+```
+PK: USER#<userId>
+SK: PROJECT#<projectId>
+
+Attributes:
+  - projectId: string (ULID)
+  - name: string
+  - description?: string
+  - status: 'exploring' | 'building' | 'paused' | 'completed'
+  - folderId?: string
+  - tags: string[]
+  - notesS3Key?: string (pointer to S3 for large notes)
+  - linkedSaveCount: number (denormalized count)
+  - createdAt: string (ISO 8601)
+  - updatedAt: string (ISO 8601)
+  - deletedAt?: string (ISO 8601) — soft delete marker
+
+Note: All list queries filter WHERE deletedAt IS NULL
+
+---
+For Folders (same table, different SK):
+PK: USER#<userId>
+SK: FOLDER#<folderId>
+
+Attributes:
+  - folderId: string (ULID)
+  - name: string
+  - color?: string
+  - createdAt: string (ISO 8601)
+
+GSI1: userId-status-index
+  - PK: userId
+  - SK: status
+  - Purpose: Filter projects by status
+
+GSI2: userId-folderId-index
+  - PK: userId
+  - SK: folderId
+  - Purpose: Folder navigation
+```
+
+---
+
+### Table 4: links
+
+Many-to-many relationship between projects and saves. **Critical:** USER in PK for security isolation.
+
+```
+PK: USER#<userId>
+SK: LINK#<projectId>#<saveId>
+
+Attributes:
+  - projectId: string
+  - saveId: string
+  - linkedAt: string (ISO 8601)
+  - linkedBy: 'user' | 'system' (for V2 auto-linking)
+
+GSI1: userId-projectId-index
+  - PK: userId
+  - SK: projectId
+  - Purpose: Get all saves for a project
+
+GSI2: userId-saveId-index
+  - PK: userId
+  - SK: saveId
+  - Purpose: Get all projects for a save
+```
+
+---
+
+### Table 5: content (Global Content Layer)
+
+Global, deduplicated URL metadata shared across all users. **Intentionally NOT partitioned by user.**
+
+```
+PK: CONTENT#<urlHash>
+SK: META
+
+Attributes:
+  - urlHash: string (SHA256 of normalizedUrl)
+  - normalizedUrl: string
+  - originalUrls: string[] (variants that resolved here)
+  - domain: string
+  - contentType: ContentType
+  - enrichmentStatus: 'pending' | 'success' | 'failed' | 'partial'
+  - enrichmentVersion: number
+  - lastEnrichedAt?: string (ISO 8601)
+  - lastVerifiedAt?: string (ISO 8601)
+  - httpStatus?: number
+  - isLikelyDead?: boolean
+
+  // Basic metadata
+  - title?: string
+  - description?: string
+  - favicon?: string
+  - ogImage?: string
+  - author?: string
+  - publishedDate?: string
+
+  // Cross-user signals (aggregate only, no user attribution)
+  - saveCount: number
+  - projectLinkCount: number
+
+  // Type-specific metadata (200+ fields total)
+  - podcast?: PodcastMetadata
+  - youtube?: YouTubeMetadata
+  - github?: GitHubMetadata
+  - etc.
+
+No GSIs needed — single access pattern by urlHash
+```
+
+---
+
+### Table 6: search-index
+
+Processed search substrate for fast queries. User-partitioned for isolation.
+
+```
+PK: USER#<userId>
+SK: INDEX#<sourceType>#<sourceId>
+
+Attributes:
+  - sourceType: 'save' | 'project' | 'note'
+  - sourceId: string
+  - title: string
+  - description?: string
+  - tags: string[]
+  - searchableText: string (combined text blob for search)
+  - contentType?: ContentType
+  - domain?: string
+  - processingVersion: number
+  - processedAt?: string (ISO 8601)
+
+  // V2-ready semantic fields (nullable in V1)
+  - topics?: string[]
+  - concepts?: string[]
+  - entities?: string[]
+  - skillLevel?: 'beginner' | 'intermediate' | 'advanced'
+  - (39 total fields — see Search Index Schema section)
+
+GSI1: userId-sourceType-index
+  - PK: userId
+  - SK: sourceType
+  - Purpose: Filter search by type (saves only, projects only, etc.)
+```
+
+---
+
+### Table 7: invite-codes
+
+Invite code management. Partitioned by CODE for lookup during redemption.
+
+```
+PK: CODE#<code>
+SK: META
+
+Attributes:
+  - code: string
+  - generatedBy: string (userId)
+  - generatedAt: string (ISO 8601)
+  - redeemedBy?: string (userId)
+  - redeemedAt?: string (ISO 8601)
+  - expiresAt?: string (ISO 8601)
+  - isRevoked: boolean
+
+GSI1: generatedBy-index
+  - PK: generatedBy (userId)
+  - Purpose: List codes a user generated (admin view)
+```
+
+---
+
+## GSI Summary
+
+All 10 Global Secondary Indexes across 7 tables:
+
+| # | Table | GSI Name | PK | SK | Purpose |
+|---|-------|----------|----|----|---------|
+| 1 | users | apiKeyHash-index | keyHash | — | API key auth lookup |
+| 2 | saves | userId-contentType-index | userId | contentType | Filter by type |
+| 3 | saves | userId-tutorialStatus-index | userId | tutorialStatus | Tutorial tracker view |
+| 4 | saves | urlHash-index | urlHash | — | Dedup, content layer linking |
+| 5 | projects | userId-status-index | userId | status | Filter by status |
+| 6 | projects | userId-folderId-index | userId | folderId | Folder navigation |
+| 7 | links | userId-projectId-index | userId | projectId | Get saves for project |
+| 8 | links | userId-saveId-index | userId | saveId | Get projects for save |
+| 9 | search-index | userId-sourceType-index | userId | sourceType | Filter search by type |
+| 10 | invite-codes | generatedBy-index | generatedBy | — | List user's generated codes |
+
+---
+
+## Access Patterns
+
+How each query maps to table operations:
+
+### User Operations
+
+| Access Pattern | Table | Key Design | Operation |
+|----------------|-------|------------|-----------|
+| Get user by Clerk ID | users | PK: `USER#<clerkId>`, SK: `PROFILE` | GetItem |
+| Get user by API key hash | users | GSI: apiKeyHash-index | Query |
+| List user's API keys | users | PK: `USER#<clerkId>`, SK begins_with `APIKEY#` | Query |
+
+### Save Operations
+
+| Access Pattern | Table | Key Design | Operation |
+|----------------|-------|------------|-----------|
+| Get save by ID | saves | PK: `USER#<userId>`, SK: `SAVE#<saveId>` | GetItem |
+| List user's saves (paginated) | saves | PK: `USER#<userId>`, SK begins_with `SAVE#` | Query |
+| List saves by content type | saves | GSI: userId-contentType-index | Query |
+| List saves by tutorial status | saves | GSI: userId-tutorialStatus-index | Query |
+| Get saves by URL hash | saves | GSI: urlHash-index | Query |
+
+### Project Operations
+
+| Access Pattern | Table | Key Design | Operation |
+|----------------|-------|------------|-----------|
+| Get project by ID | projects | PK: `USER#<userId>`, SK: `PROJECT#<projectId>` | GetItem |
+| List user's projects | projects | PK: `USER#<userId>`, SK begins_with `PROJECT#` | Query |
+| List projects by status | projects | GSI: userId-status-index | Query |
+| List projects in folder | projects | GSI: userId-folderId-index | Query |
+| List user's folders | projects | PK: `USER#<userId>`, SK begins_with `FOLDER#` | Query |
+
+### Link Operations
+
+| Access Pattern | Table | Key Design | Operation |
+|----------------|-------|------------|-----------|
+| Get saves for project | links | GSI: userId-projectId-index | Query + BatchGetItem on saves |
+| Get projects for save | links | GSI: userId-saveId-index | Query + BatchGetItem on projects |
+| Check if link exists | links | PK: `USER#<userId>`, SK: `LINK#<projectId>#<saveId>` | GetItem |
+| Create link | links | PK: `USER#<userId>`, SK: `LINK#<projectId>#<saveId>` | PutItem |
+| Remove link | links | PK: `USER#<userId>`, SK: `LINK#<projectId>#<saveId>` | DeleteItem |
+
+### Content Layer Operations
+
+| Access Pattern | Table | Key Design | Operation |
+|----------------|-------|------------|-----------|
+| Get content by URL hash | content | PK: `CONTENT#<urlHash>`, SK: `META` | GetItem |
+| Check if content exists | content | PK: `CONTENT#<urlHash>`, SK: `META` | GetItem |
+| Create/update content | content | PK: `CONTENT#<urlHash>`, SK: `META` | PutItem (conditional) |
+
+### Search Operations
+
+| Access Pattern | Table | Key Design | Operation |
+|----------------|-------|------------|-----------|
+| Search user's content | search-index | PK: `USER#<userId>`, filter on searchableText | Query + FilterExpression |
+| Filter search by type | search-index | GSI: userId-sourceType-index | Query |
+| Get index record by source | search-index | PK: `USER#<userId>`, SK: `INDEX#<sourceType>#<sourceId>` | GetItem |
+
+### Invite Code Operations
+
+| Access Pattern | Table | Key Design | Operation |
+|----------------|-------|------------|-----------|
+| Validate invite code | invite-codes | PK: `CODE#<code>`, SK: `META` | GetItem |
+| Redeem invite code | invite-codes | PK: `CODE#<code>`, SK: `META` | UpdateItem (conditional) |
+| List user's generated codes | invite-codes | GSI: generatedBy-index | Query |
+
+### Folder Operations
+
+| Access Pattern | Table | Key Design | Operation |
+|----------------|-------|------------|-----------|
+| Create folder | projects | PK: `USER#<userId>`, SK: `FOLDER#<folderId>` | PutItem |
+| List user's folders | projects | PK: `USER#<userId>`, SK begins_with `FOLDER#` | Query |
+| Update folder | projects | PK: `USER#<userId>`, SK: `FOLDER#<folderId>` | UpdateItem |
+| Delete folder | projects | PK: `USER#<userId>`, SK: `FOLDER#<folderId>` | DeleteItem + UpdateItem (clear folderId on projects) |
+
+### Bulk Link Operations
+
+| Access Pattern | Table | Key Design | Operation |
+|----------------|-------|------------|-----------|
+| Bulk link saves to project | links | Multiple PK/SK pairs | TransactWriteItems (max 100 items) |
+| Bulk unlink saves from project | links | Multiple PK/SK pairs | TransactWriteItems (max 100 items) |
+
+### Admin Operations (Scan-Based)
+
+**Note:** These operations use DynamoDB Scan, which is acceptable at boutique scale (10-20 users, <1000 invite codes).
+
+| Access Pattern | Table | Operation | Notes |
+|----------------|-------|-----------|-------|
+| List all users | users | Scan with FilterExpression `SK = 'PROFILE'` | Returns all user profiles |
+| List all invite codes | invite-codes | Scan | Returns all codes (used + unused) |
+
+**Admin Scan Implementation:**
+
+```typescript
+// List all users (admin only)
+async function listAllUsers(): Promise<UserProfile[]> {
+  const result = await db.scan({
+    TableName: 'users',
+    FilterExpression: 'sk = :profile',
+    ExpressionAttributeValues: {
+      ':profile': 'PROFILE',
+    },
+  });
+  return result.Items as UserProfile[];
+}
+
+// List all invite codes (admin only)
+async function listAllInviteCodes(): Promise<InviteCode[]> {
+  const result = await db.scan({
+    TableName: 'invite-codes',
+  });
+  return result.Items as InviteCode[];
+}
+```
+
+**Why Scan is acceptable here:**
+- Boutique scale: 10-20 users max
+- Admin-only operations (infrequent)
+- No real-time performance requirement
+- Cost negligible at this scale
+
+**V2 consideration:** If user count grows significantly, add GSI:
+- `role-createdAt-index` (PK: role, SK: createdAt) for user listing
+- `status-createdAt-index` (PK: 'unused'|'used', SK: createdAt) for invite codes
+
+---
+
+## Critical Query Examples
+
+### Get Project with All Linked Saves
+
+```typescript
+async function getProjectWithSaves(userId: string, projectId: string) {
+  // 1. Get project (1 read)
+  const project = await db.get({
+    TableName: 'projects',
+    Key: { pk: `USER#${userId}`, sk: `PROJECT#${projectId}` }
+  });
+
+  // 2. Get links for project (1 query via GSI)
+  const links = await db.query({
+    TableName: 'links',
+    IndexName: 'userId-projectId-index',
+    KeyConditionExpression: 'userId = :uid AND projectId = :pid',
+    ExpressionAttributeValues: {
+      ':uid': userId,
+      ':pid': projectId
+    }
+  });
+
+  // 3. Batch get saves (1 batch read, max 100 items)
+  const saveIds = links.Items.map(l => l.saveId);
+  const saves = await db.batchGet({
+    RequestItems: {
+      'saves': {
+        Keys: saveIds.map(id => ({
+          pk: `USER#${userId}`,
+          sk: `SAVE#${id}`
+        }))
+      }
+    }
+  });
+
+  return { project, saves: saves.Responses.saves };
+}
+// Total: 3 DynamoDB operations
+```
+
+### Mobile Save (Critical Path — Must Be Fast)
+
+```typescript
+async function createSave(userId: string, url: string) {
+  const saveId = ulid();
+  const urlHash = sha256(normalizeUrl(url));
+
+  // 1. Write save (1 write)
+  await db.put({
+    TableName: 'saves',
+    Item: {
+      pk: `USER#${userId}`,
+      sk: `SAVE#${saveId}`,
+      saveId,
+      url,
+      urlHash,
+      createdAt: new Date().toISOString(),
+      // No title yet — enrichment will add it
+    }
+  });
+
+  // 2. Emit event for enrichment (async, non-blocking)
+  await eventBridge.putEvents({
+    Entries: [{
+      Source: 'ai-learning-hub.saves',
+      DetailType: 'SaveCreated',
+      Detail: JSON.stringify({ userId, saveId, url, urlHash })
+    }]
+  });
+
+  return { saveId };
+}
+// Total: 1 write + 1 async event. Fast. ✅
+```
+
+### Search Across Everything (V1)
+
+```typescript
+async function search(userId: string, query: string, filters?: SearchFilters) {
+  const params: QueryCommandInput = {
+    TableName: 'search-index',
+    KeyConditionExpression: 'pk = :pk',
+    FilterExpression: 'contains(searchableText, :q)',
+    ExpressionAttributeValues: {
+      ':pk': `USER#${userId}`,
+      ':q': query.toLowerCase()
+    }
+  };
+
+  // Optional: filter by sourceType via GSI
+  if (filters?.sourceType) {
+    params.IndexName = 'userId-sourceType-index';
+    params.KeyConditionExpression = 'userId = :uid AND sourceType = :st';
+    params.ExpressionAttributeValues = {
+      ':uid': userId,
+      ':st': filters.sourceType,
+      ':q': query.toLowerCase()
+    };
+  }
+
+  const results = await db.query(params);
+  return results.Items;
+}
+// Note: contains() is a scan within the partition.
+// At <1000 items per user, this is acceptable for V1.
+// V2 would move to OpenSearch for proper full-text.
+```
+
+---
+
+## Data Isolation Security
+
+All user-owned tables enforce per-user isolation:
+
+| Table | PK includes userId? | Isolation Enforced? |
+|-------|---------------------|---------------------|
+| users | ✅ `USER#<clerkId>` | ✅ |
+| saves | ✅ `USER#<userId>` | ✅ |
+| projects | ✅ `USER#<userId>` | ✅ |
+| links | ✅ `USER#<userId>` | ✅ |
+| content | ❌ `CONTENT#<urlHash>` | ✅ Intentionally global |
+| search-index | ✅ `USER#<userId>` | ✅ |
+| invite-codes | ❌ `CODE#<code>` | ✅ Different access pattern |
+
+**Security guarantees:**
+- A user can only query their own partition (enforced at application layer)
+- Content layer is intentionally shared (no user attribution in V1)
+- Invite codes are looked up by code value, not by user
+
+---
+
+## API Endpoint Specification
+
+Complete API surface organized by domain. Separate `/admin` and `/analytics` paths enable granular access control.
+
+### Core User APIs
+
+#### /saves
+
+| Method | Endpoint | Description | Notes |
+|--------|----------|-------------|-------|
+| POST | `/saves` | Create save | Mobile capture, <3s target |
+| GET | `/saves` | List user's saves | Filters: type, tag, status |
+| GET | `/saves/:id` | Get single save | Includes content layer data |
+| PATCH | `/saves/:id` | Update save | Tags, notes, status |
+| DELETE | `/saves/:id` | Soft delete save | |
+
+#### /projects
+
+| Method | Endpoint | Description | Notes |
+|--------|----------|-------------|-------|
+| POST | `/projects` | Create project | |
+| GET | `/projects` | List user's projects | Filters: status, folder |
+| GET | `/projects/:id` | Get project | Includes linked saves count |
+| PATCH | `/projects/:id` | Update project metadata | |
+| DELETE | `/projects/:id` | Soft delete project | |
+| PUT | `/projects/:id/notes` | Update project notes | → S3 |
+| GET | `/projects/:id/notes` | Get project notes | ← S3 |
+| GET | `/projects/:id/saves` | List saves linked to project | |
+
+#### /folders
+
+| Method | Endpoint | Description | Notes |
+|--------|----------|-------------|-------|
+| POST | `/folders` | Create folder | |
+| GET | `/folders` | List user's folders | |
+| PATCH | `/folders/:id` | Update folder | Name, color |
+| DELETE | `/folders/:id` | Delete folder | Projects moved to uncategorized |
+
+#### /links (project ↔ save relationships)
+
+| Method | Endpoint | Description | Notes |
+|--------|----------|-------------|-------|
+| POST | `/projects/:id/saves` | Link save to project | |
+| DELETE | `/projects/:id/saves/:saveId` | Unlink save from project | |
+| POST | `/projects/:id/saves/bulk` | Bulk link/unlink saves | TransactWriteItems (max 100) |
+
+#### /search
+
+| Method | Endpoint | Description | Notes |
+|--------|----------|-------------|-------|
+| GET | `/search` | Search saves, projects, notes | `?q=term&type=save\|project\|note&limit=50` |
+
+#### /users
+
+| Method | Endpoint | Description | Notes |
+|--------|----------|-------------|-------|
+| GET | `/users/me` | Get current user profile | |
+| PATCH | `/users/me` | Update profile | Display name, preferences |
+| POST | `/users/api-keys` | Generate API key | For iOS Shortcut |
+| GET | `/users/api-keys` | List API keys | Masked |
+| DELETE | `/users/api-keys/:id` | Revoke API key | |
+
+---
+
+### Internal APIs (Pipeline Use)
+
+These endpoints are used by the processing pipelines, not exposed to end users.
+
+#### /content (URL Enrichment pipeline)
+
+| Method | Endpoint | Description | Notes |
+|--------|----------|-------------|-------|
+| GET | `/content/:urlHash` | Get content layer record | |
+| PUT | `/content` | Create/update content layer record | Conditional write |
+
+#### /search-index (All 3 pipelines)
+
+| Method | Endpoint | Description | Notes |
+|--------|----------|-------------|-------|
+| PUT | `/search-index` | Create/update search index record | |
+| DELETE | `/search-index/:id` | Delete search index record | |
+
+#### Internal API Authentication (AWS IAM)
+
+Internal APIs (`/content/*`, `/search-index/*`) use **AWS IAM authentication** for service-to-service calls. This is still API-first — Step Functions call API Gateway endpoints using SigV4-signed HTTP requests, not direct Lambda invocations.
+
+```
+Step Function Execution Role
+    │
+    │ sts:AssumeRole
+    ▼
+┌─────────────────────────────┐
+│  StepFunctionExecutionRole  │
+│  ─────────────────────────  │
+│  Permissions:               │
+│  - execute-api:Invoke on    │
+│    /content/* endpoints     │
+│  - execute-api:Invoke on    │
+│    /search-index/* endpoints│
+└─────────────────────────────┘
+    │
+    │ SigV4 signed request
+    ▼
+┌─────────────────────────────┐
+│  API Gateway (IAM Auth)     │
+│  ─────────────────────────  │
+│  Authorization: AWS_IAM     │
+└─────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────┐
+│  Lambda Handler             │
+│  (no user context needed)   │
+└─────────────────────────────┘
+```
+
+**Why AWS IAM auth for internal APIs:**
+- **Still API-first** — HTTP requests to API Gateway, not direct Lambda calls
+- Step Functions cannot use Clerk JWT (no user session in background processing)
+- IAM provides strong service-to-service authentication (SigV4 signing)
+- Follows ADR-005 (no Lambda-to-Lambda calls) — all traffic through API Gateway
+- Auditable via CloudTrail (who called what, when)
+- No ClickOps — IAM roles defined in CDK
+
+**CDK Implementation:**
+```typescript
+// Internal API routes use IAM authorization
+const contentApi = api.root.addResource('content');
+contentApi.addMethod('PUT', contentLambdaIntegration, {
+  authorizationType: AuthorizationType.IAM,
+});
+
+// Step Function execution role gets invoke permission
+stepFunctionRole.addToPolicy(new PolicyStatement({
+  actions: ['execute-api:Invoke'],
+  resources: [
+    `arn:aws:execute-api:${region}:${account}:${api.restApiId}/*/PUT/content`,
+    `arn:aws:execute-api:${region}:${account}:${api.restApiId}/*/PUT/search-index`,
+    `arn:aws:execute-api:${region}:${account}:${api.restApiId}/*/DELETE/search-index/*`,
+  ],
+}));
+```
+
+---
+
+### Admin APIs (Stephen Only)
+
+Operational controls for system management. Requires `admin` role.
+
+#### User Management
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/admin/users` | List all users |
+| GET | `/admin/users/:id` | User details + activity summary |
+| POST | `/admin/users/:id/suspend` | Suspend user |
+| POST | `/admin/users/:id/unsuspend` | Unsuspend user |
+
+#### Invite Codes
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/admin/invite-codes` | List invite codes (used/unused) |
+| POST | `/admin/invite-codes` | Generate invite code |
+| DELETE | `/admin/invite-codes/:code` | Revoke invite code |
+
+#### Operational Health
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/admin/health` | System health check (all services) |
+| GET | `/admin/pipelines` | Pipeline status summary |
+| GET | `/admin/pipelines/:name` | Specific pipeline details |
+| GET | `/admin/pipelines/:name/failures` | Recent failures from DLQ |
+| POST | `/admin/pipelines/:name/retry` | Retry failed execution |
+
+#### Rate Limits
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/admin/rate-limits` | Current rate limit status by user |
+| PATCH | `/admin/rate-limits/:userId` | Adjust user rate limit |
+
+#### Troubleshooting
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/admin/logs` | Query CloudWatch logs |
+| GET | `/admin/traces/:traceId` | X-Ray trace lookup |
+
+---
+
+### Analytics APIs (Stephen + Stefania)
+
+Read-only analytics endpoints. Requires `admin` or `analyst` role.
+
+#### User Metrics
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/analytics/users/summary` | Total users, active, new |
+| GET | `/analytics/users/active` | DAU, WAU, MAU time series |
+| GET | `/analytics/users/retention` | Retention cohort analysis |
+| GET | `/analytics/users/growth` | New user signups over time |
+
+#### Save Metrics
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/analytics/saves/volume` | Saves per day/week/month |
+| GET | `/analytics/saves/by-type` | Breakdown by content type |
+| GET | `/analytics/saves/by-domain` | Top domains being saved |
+| GET | `/analytics/saves/enrichment` | Enrichment success/failure rates |
+
+#### Project Metrics
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/analytics/projects/volume` | Projects created over time |
+| GET | `/analytics/projects/activity` | Active projects (recent edits) |
+| GET | `/analytics/projects/saves-per` | Distribution of saves per project |
+
+#### Tutorial Metrics
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/analytics/tutorials/funnel` | saved → started → completed |
+| GET | `/analytics/tutorials/completion` | Completion rate over time |
+
+#### Engagement Metrics
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/analytics/engagement/sessions` | Session duration, frequency |
+| GET | `/analytics/engagement/features` | Feature usage breakdown |
+| GET | `/analytics/engagement/mobile` | Mobile vs desktop activity |
+
+#### Search Metrics
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/analytics/search/volume` | Searches per day |
+| GET | `/analytics/search/queries` | Top search terms |
+| GET | `/analytics/search/zero-results` | Queries with no results |
+
+#### Notes Metrics
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/analytics/notes/volume` | Notes created/edited |
+| GET | `/analytics/notes/size` | Average note size distribution |
+
+#### Analytics Data Sources
+
+Analytics endpoints pull from **CloudWatch Metrics** and **CloudWatch Logs Insights** — no separate analytics database in V1.
+
+| Metric Category | Data Source | Implementation |
+|-----------------|-------------|----------------|
+| User summary | CloudWatch Metrics | Custom metric: `UserCount` |
+| DAU/WAU/MAU | CloudWatch Logs Insights | Query auth events by unique userId |
+| Retention cohorts | CloudWatch Logs Insights | Query first login vs subsequent logins |
+| Save volume | CloudWatch Metrics | Custom metric: `SavesCreated` per day |
+| Saves by type | CloudWatch Metrics | Dimension: `contentType` |
+| Saves by domain | CloudWatch Logs Insights | Query save events, group by domain |
+| Enrichment rates | Step Functions metrics | `ExecutionsSucceeded`, `ExecutionsFailed` |
+| Project volume | CloudWatch Metrics | Custom metric: `ProjectsCreated` |
+| Tutorial funnel | CloudWatch Metrics | Dimensions: `tutorialStatus` transitions |
+| Session data | CloudWatch Logs Insights | Query API Gateway access logs |
+| Search queries | CloudWatch Logs Insights | Query search Lambda logs |
+| Notes volume | CloudWatch Metrics | Custom metric: `NotesUpdated` |
+
+**Custom Metrics Pattern:**
+
+All Lambda functions emit custom metrics via embedded metric format (EMF):
+
+```typescript
+// In Lambda handler
+import { metricScope, Unit } from 'aws-embedded-metrics';
+
+export const handler = metricScope(metrics => async (event) => {
+  // ... handler logic ...
+
+  metrics.setNamespace('AILearningHub');
+  metrics.putMetric('SavesCreated', 1, Unit.Count);
+  metrics.setDimensions({ contentType: 'youtube', userId: event.userId });
+});
+```
+
+**CloudWatch Logs Insights Queries:**
+
+Analytics Lambdas run Logs Insights queries on demand:
+
+```typescript
+// Example: Get DAU for last 7 days
+const query = `
+  fields @timestamp, userId
+  | filter action = 'api_request'
+  | stats count_distinct(userId) as dau by bin(1d)
+  | sort @timestamp desc
+  | limit 7
+`;
+
+const results = await cloudwatchLogs.startQuery({
+  logGroupName: '/aws/lambda/api-gateway',
+  queryString: query,
+  startTime: sevenDaysAgo,
+  endTime: now,
+});
+```
+
+**V2 Consideration:** If analytics queries become expensive or slow, consider:
+- Pre-aggregated metrics table (daily batch job)
+- Athena + S3 for historical queries
+- Third-party analytics (Amplitude, Mixpanel)
+
+---
+
+### Access Control Summary
+
+| Path | Stephen | Stefania | Regular Users | iOS Shortcut | Dev Agent |
+|------|---------|----------|---------------|--------------|-----------|
+| `/saves/*` | ✅ own | ✅ own | ✅ own | ✅ (API key) | ✅ (API key) |
+| `/projects/*` | ✅ own | ✅ own | ✅ own | ❌ | ✅ (API key) |
+| `/folders/*` | ✅ own | ✅ own | ✅ own | ❌ | ✅ (API key) |
+| `/search` | ✅ own | ✅ own | ✅ own | ❌ | ✅ (API key) |
+| `/users/me` | ✅ | ✅ | ✅ | ❌ | ✅ (API key) |
+| `/content/*` | ❌ | ❌ | ❌ | ❌ | ✅ AWS IAM (service-to-service) |
+| `/search-index/*` | ❌ | ❌ | ❌ | ❌ | ✅ AWS IAM (service-to-service) |
+| `/admin/*` | ✅ | ❌ | ❌ | ❌ | ❌ |
+| `/analytics/*` | ✅ | ✅ | ❌ | ❌ | ❌ |
+
+**Clerk Roles:**
+- `admin` → Stephen (full access)
+- `analyst` → Stefania (`/analytics/*` only)
+- `user` → Regular users (own data only)
+
+---
+
 ## Next Steps
 
 This document will continue to be built out with:
 
-- [ ] API endpoint specifications
-- [ ] Authentication flow details (Clerk vs Auth0)
-- [ ] DynamoDB access patterns and GSI design
+- [x] ~~API endpoint specifications~~
+- [x] ~~Authentication flow details (Clerk vs Auth0)~~
+- [x] ~~DynamoDB access patterns and GSI design~~
 - [ ] Lambda function specifications
 - [ ] Observability implementation details
 
