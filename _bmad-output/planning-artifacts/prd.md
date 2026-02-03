@@ -9,6 +9,7 @@ stepsCompleted:
   - step-07-project-type
   - step-08-scoping
   - step-09-functional
+  - step-10-nonfunctional
 inputDocuments:
   - _bmad-output/planning-artifacts/product-brief-ai-learning-hub-2026-01-31.md
   - _bmad-output/planning-artifacts/research/domain-ai-genai-learning-workflows-research-2026-02-02.md
@@ -882,3 +883,77 @@ User/UI → POST /saves → Saves Lambda
 | "How does V2 AI consume processed data?" | Calls same Search API as users |
 
 The API is the product. The API is the contract. The API is the documentation.
+
+## Non-Functional Requirements
+
+NFRs define HOW WELL the system must perform. Priority order for AI Learning Hub: **Security → Reliability → Cost → Performance**.
+
+### Performance
+
+| Requirement | Target | Measurement |
+|------------|--------|-------------|
+| NFR-P1: Mobile save latency | < 3 seconds | E2E test |
+| NFR-P2: API response time (95th percentile) | < 1 second | CloudWatch metrics |
+| NFR-P3: Search response time | < 2 seconds | E2E test |
+| NFR-P4: Web app Time to Interactive | < 4 seconds | Lighthouse |
+| NFR-P5: Search index sync lag | < 15 minutes | CloudWatch custom metric |
+
+*Note: Lambda cold starts may add 1-3s on first request after idle period. This is documented and accepted.*
+
+### Security
+
+| Requirement | Target | Verification |
+|------------|--------|--------------|
+| NFR-S1: Data encryption at rest | All user data encrypted | DynamoDB default encryption |
+| NFR-S2: Data encryption in transit | TLS 1.2+ everywhere | CloudFront config, API Gateway settings |
+| NFR-S3: API key storage | One-way hash, not recoverable | Security test |
+| NFR-S4: Per-user data isolation | No cross-user data access possible | Integration tests, IAM review |
+| NFR-S5: SSRF protection | Block private IPs, 5s timeout, scheme validation | Security tests in CI |
+| NFR-S6: Markdown sanitization | Allowlist-only rendering | Security tests |
+| NFR-S7: Secrets management | All secrets in Parameter Store/Secrets Manager | CDK Nag |
+| NFR-S8: API key redaction | Keys never in logs | Log audit |
+| NFR-S9: Rate limit abuse protection | IP-based secondary limits | Integration test |
+
+### Reliability
+
+| Requirement | Target | Measurement |
+|------------|--------|-------------|
+| NFR-R1: API error rate | < 1% | CloudWatch metrics |
+| NFR-R2: Monthly uptime | 99% (excluding planned maintenance) | CloudWatch synthetic |
+| NFR-R3: Data durability | No data loss | DynamoDB PITR enabled |
+| NFR-R4: Incident detection to alert | < 5 minutes | Alarm configuration |
+| NFR-R5: Mean time to recovery | < 2 hours during waking hours | Incident log |
+| NFR-R6: Deployment rollback | < 10 minutes | CDK rollback test |
+| NFR-R7: User data consistency | User sees own writes immediately | Strong consistency on user reads |
+
+### Integration
+
+| Requirement | Target | Verification |
+|------------|--------|--------------|
+| NFR-I1: External API failure handling | Graceful degradation, retry with backoff | Integration tests |
+| NFR-I2: YouTube API quota management | Respect limits, queue-based retry | Enrichment monitoring |
+| NFR-I3: API contract stability | OpenAPI spec from tests, additive changes only | Contract tests in CI |
+
+### Observability
+
+| Requirement | Target | Verification |
+|------------|--------|--------------|
+| NFR-O1: Request tracing | Correlation IDs via X-Ray | X-Ray service map |
+| NFR-O2: Structured logging | JSON logs with correlation IDs | CloudWatch Logs Insights |
+| NFR-O3: Alerting tiers | Critical (phone), Warning (email), Info (dashboard) | Alert configuration |
+| NFR-O4: Dashboard coverage | 4 operational + 5 analytics dashboards | Dashboard checklist |
+| NFR-O5: Alert actionability | Critical alerts include runbook link | Alert template review |
+
+### Cost
+
+| Requirement | Target | Verification |
+|------------|--------|--------------|
+| NFR-C1: Monthly infrastructure cost | < $50 at boutique scale | Billing alerts |
+| NFR-C2: Cost per active user | < $4/user/month | Cost allocation tags |
+| NFR-C3: Billing alerts | Alerts at $30, $40, $50 | AWS Budgets |
+
+### User Experience Quality
+
+| Requirement | Target | Verification |
+|------------|--------|--------------|
+| NFR-UX1: Graceful degradation | Clear error messages with retry option, no silent failures | E2E error scenario tests |
