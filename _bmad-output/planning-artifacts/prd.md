@@ -7,6 +7,7 @@ stepsCompleted:
   - step-05-domain
   - step-06-innovation
   - step-07-project-type
+  - step-08-scoping
 inputDocuments:
   - _bmad-output/planning-artifacts/product-brief-ai-learning-hub-2026-01-31.md
   - _bmad-output/planning-artifacts/research/domain-ai-genai-learning-workflows-research-2026-02-02.md
@@ -511,3 +512,196 @@ Lighter-touch accessibility appropriate for boutique scale:
 - **Backend:** API Gateway + Lambda (serverless, pay-per-use)
 - **Database:** DynamoDB (single-table design with search index table)
 - **All within $50/month** cost envelope at boutique scale
+
+## Project Scoping & Risk Mitigation
+
+### Scoping Validation
+
+The product brief defines comprehensive scope through the v0.1-v0.10 vertical slice plan. This section validates those decisions against research findings and documents risk mitigation strategies.
+
+#### MVP Philosophy: Problem-Solving + Experience
+
+AI Learning Hub is a **problem-solving MVP** with **experience-quality standards**:
+
+- **Problem-solving:** Solves the "scattered learning inputs" problem — practitioners currently use 3-5 disconnected tools (research finding)
+- **Experience:** Professional polish on the save→project→build loop is a differentiator, not a nice-to-have
+
+This is NOT:
+- A **platform MVP** — not trying to enable others to build on it (yet)
+- A **revenue MVP** — no monetization through V3
+
+#### Scope Confirmation Against Research
+
+| Research Finding | Scope Decision | Validation |
+|------------------|----------------|------------|
+| "No integrated solution exists for AI builders" | Unified save entity with 3 domain views | ✅ Directly addresses the gap |
+| "Vibe coding hell" creates reflection demand | Project notes for capturing learnings | ✅ V1 enables, V2 enhances with AI |
+| "Spaced repetition is high-value, underutilized" | V2 feature, not V1 | ✅ Correct phasing — core CRUD first |
+| "MCP protocol adoption for tool interop" | V2 MCP server | ✅ API-first V1 enables V2 MCP |
+| "Local-first trend in developer tools" | Data export in V2 | ✅ Addresses lock-in fear without V1 scope creep |
+| "$50/month serverless is viable" | DynamoDB, Lambda, S3, CloudFront | ✅ Architecture matches budget |
+
+### Resource Assessment
+
+**Team:** Solo builder (Stephen)
+
+**Skills Required:**
+- React + TypeScript (frontend)
+- AWS serverless (Lambda, DynamoDB, CDK)
+- API design and testing
+- Basic DevOps (CI/CD, monitoring)
+
+**Skills NOT Required for V1:**
+- ML/AI engineering (no AI features in V1)
+- Mobile native development (PWA + iOS Shortcut, no native app)
+- Data science (analytics are counts and cohorts, not ML)
+
+**Time Estimate:** v0.1-v0.10 across ~6 months of part-time building (per product brief)
+
+### Risk Analysis
+
+#### Technical Risks
+
+| Risk | Likelihood | Impact | Research Context | Mitigation |
+|------|------------|--------|------------------|------------|
+| DynamoDB search inadequate at scale | Medium | Medium | "Acceptable for V1 with <1000 items" — research validated | Search index table design; OpenSearch upgrade path documented in ADR-1 |
+| iOS Shortcut setup friction too high | Medium | Medium | V2.5 native app addresses this | Clear onboarding guide; fallback to PWA share target |
+| Enrichment Lambda hits API rate limits | Low-Medium | Low | YouTube Data API has quotas | Batch processing, queue-based retry, respect Retry-After |
+| Performance targets missed (Lighthouse, <2s save) | Low | Medium | Serverless cold starts can add latency | Provisioned concurrency for critical paths; CDN for static assets |
+| 80% test coverage slows velocity | Low | Low | "Non-negotiable" per product brief | Vertical slice approach means incremental coverage; no untested code accumulates |
+
+#### Security Risks (via Security Audit Personas Analysis)
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| API key exposure via iOS Shortcut sharing | Low-Medium | Medium | Capture-only keys by default; key rotation; instant revocation; keys hashed before storage |
+| SSRF via enrichment pipeline | Low | High | Block private IPs (10.x, 172.16-31.x, 192.168.x, 169.254.x), validate schemes (http/https only), DNS resolution check, 5s timeout |
+| Invite code brute force | Low | Low | 128-bit entropy, rate limit redemption (5/IP/hour), 7-day expiry, one-time use |
+| Admin API unauthorized access | Low | High | Separate IAM auth for admin endpoints; audit logging; no admin credentials in client apps |
+| API key logged accidentally | Low | Medium | Keys never logged; redaction in logging middleware; pre-commit hooks to catch secrets |
+| Markdown XSS (V3 exposure) | Medium | Medium | DOMPurify allowlist-only sanitization from V1; security tests in CI |
+| Rate limiting bypass via multiple accounts | Low | Low | IP-based rate limiting as secondary control; account-level limits |
+
+#### Market Risks
+
+| Risk | Likelihood | Impact | Research Context | Mitigation |
+|------|------------|--------|------------------|------------|
+| Save-to-build philosophy doesn't resonate | Medium | High | "Critical gap identified" but unvalidated | Graceful degradation — works as bookmark manager; boutique scale allows fast pivots |
+| Competitors copy the model | Low | Low | "No single tool dominates" — fragmented market | Speed to market; deep persona understanding; API-first enables ecosystem |
+| AI learning landscape changes faster than tool evolves | Medium | Medium | "The tool tracks the landscape — it doesn't need to predict it" | Focus on workflow, not content; the tracker adapts to whatever people learn |
+| Users expect AI features in V1 | Medium | Low-Medium | "AI-powered tools are the trend" | Clear positioning: "V1 is the foundation; V2 adds intelligence" |
+
+#### Resource Risks
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| Solo builder burnout | Medium | High | Vertical slice approach — each increment is shippable; take breaks between increments |
+| Scope creep from feature ideas | High | Medium | v0.1-v0.10 plan is the guardrail; PRD is the contract; V2/V3 firewall is hard |
+| AWS costs exceed $50/month | Low | Medium | CloudWatch billing alerts from day 1; DynamoDB on-demand; Lambda pay-per-use |
+| Time-to-V1 extends beyond 6 months | Medium | Low | Boutique scale means no external pressure; ship when ready, not when scheduled |
+
+#### Operational Risks
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| 2am incident with no backup | Low | Medium | Tiered alerting (critical = phone, warning = email); runbooks documented; graceful degradation |
+| Data loss from DynamoDB issue | Very Low | High | Point-in-time recovery enabled; daily backup verification |
+| Auth provider (Clerk/Auth0) outage | Very Low | High | Managed provider SLAs; no custom auth to maintain |
+| Dependency vulnerability discovered | Medium | Varies | Dependabot enabled; security tests in CI; CDK Nag for infrastructure |
+
+### Security Implementation Checklist (V1 Gate)
+
+All items must be verified before V1 declaration:
+
+- [ ] **API Key Security**
+  - [ ] Keys hashed (SHA-256 + salt) before storage — never stored plaintext
+  - [ ] Keys redacted in all logs (logging middleware enforces)
+  - [ ] Key rotation: users can regenerate at will via settings
+  - [ ] Key revocation: immediate effect, no grace period
+  - [ ] Capture-only keys cannot read data, only POST to /saves
+
+- [ ] **SSRF Protection (Enrichment Pipeline)**
+  - [ ] URL allowlist: only http/https schemes accepted
+  - [ ] Block private IP ranges (10.x, 172.16-31.x, 192.168.x, 169.254.x, 127.x)
+  - [ ] Block localhost and link-local addresses
+  - [ ] DNS resolution before fetch to prevent DNS rebinding
+  - [ ] 5-second timeout on external fetches
+  - [ ] User-agent identifies as AI Learning Hub enrichment
+
+- [ ] **Invite Code Security**
+  - [ ] Codes are cryptographically random (128+ bits entropy via crypto.randomBytes)
+  - [ ] Rate limit: 5 redemption attempts per IP per hour
+  - [ ] Codes expire after 7 days or first use
+  - [ ] One-time use only — redeemed codes marked invalid
+
+- [ ] **Admin API Security**
+  - [ ] Admin endpoints require separate IAM-based authentication
+  - [ ] Admin actions logged with full audit trail (who, what, when)
+  - [ ] No admin credentials in Shortcuts, client apps, or browser storage
+  - [ ] Admin CLI authenticates via AWS credentials, not API keys
+
+- [ ] **Input Validation**
+  - [ ] Zod schemas on all Lambda handler inputs
+  - [ ] URL validation before enrichment fetch
+  - [ ] Markdown sanitized on render (DOMPurify, allowlist-only tags)
+  - [ ] Request size limits enforced at API Gateway
+
+- [ ] **OWASP Serverless Top 10 Compliance**
+  - [ ] S1 Injection: Input validation via Zod
+  - [ ] S2 Broken Auth: Clerk/Auth0 (managed)
+  - [ ] S3 Sensitive Data: Encryption + no PII logging + keys redacted
+  - [ ] S5 Broken Access Control: Per-user data isolation
+  - [ ] S6 Misconfiguration: CDK Nag + least-privilege IAM
+  - [ ] S7 XSS: DOMPurify allowlist rendering
+  - [ ] S9 Vulnerable Components: Dependabot in CI
+  - [ ] S10 Insufficient Logging: Structured logging + X-Ray + correlation IDs
+
+### Contingency Planning
+
+**If V1 takes longer than expected:**
+- Each v0.x increment is independently valuable — ship what's ready
+- v0.5 (complete save→project loop) is a valid "early access" release point
+- No external deadlines or investor pressure
+
+**If save-to-build philosophy fails:**
+- Tool still works as a professional bookmark manager
+- Pivot to "AI learning resource library" positioning
+- Data model supports the pivot without schema changes
+
+**If costs exceed budget:**
+- DynamoDB on-demand scales to zero when unused
+- Lambda cold starts acceptable vs. provisioned concurrency cost
+- CloudFront free tier covers significant traffic
+- Enrichment can be reduced or disabled
+
+**If solo builder unavailable (illness, etc.):**
+- All code in GitHub with CI/CD
+- Infrastructure as code (CDK) enables rebuild
+- No tribal knowledge — docs live in repo
+- Boutique scale means users can wait
+
+### Phased Development Confirmation
+
+The product brief's phased approach is validated:
+
+| Phase | Scope | Research Validation |
+|-------|-------|---------------------|
+| **V1 (v0.1-v0.10)** | Core CRUD, 3 domain views, API-first, observability, security | "Build V1 as focused CRUD tool" — research recommendation |
+| **V2** | Intelligence layer, MCP, spaced repetition, data export | "Spaced repetition is highest-value V2 feature" — research finding |
+| **V3** | Published learning trails | "Network effects are very high barrier" — V3 is the right time |
+
+### Success Gates
+
+V1 is declared complete when ALL of the following are true:
+
+- [ ] All v0.10 acceptance criteria pass
+- [ ] All 6 persona E2E golden path tests green
+- [ ] 80% test coverage in CI
+- [ ] <$50/month at 15 active users
+- [ ] Stephen, Marcus, Maya, Priya, Dev, Stefania journeys are possible
+- [ ] Design review confirms professional look/feel
+- [ ] API documentation published
+- [ ] User guide for builders published
+- [ ] Security implementation checklist complete (all items verified)
+
+No partial credit. No "soft launch." V1 is V1 when it's all done.
