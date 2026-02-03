@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1, 2]
+stepsCompleted: [1, 2, 3]
 inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
   - _bmad-output/planning-artifacts/product-brief-ai-learning-hub-2026-01-31.md
@@ -694,6 +694,202 @@ See full type definitions in `/backend/shared/types/content-layer.ts`.
 
 ---
 
+## Starter Template & Platform Strategy
+
+### Primary Technology Domain
+
+**API-first serverless platform** with:
+- Backend: AWS Lambda + DynamoDB + S3 + API Gateway (CDK)
+- Frontend: React + Vite PWA
+- Mobile: iOS Shortcut + PWA (V1), Native apps (V2.5+)
+
+### Why Custom Scaffold Over Existing Starters
+
+The architecture decisions made in this document (ADR-001 through ADR-010) define a specific structure that no existing starter provides:
+
+| Requirement | Existing Starters | Our Architecture |
+|-------------|-------------------|------------------|
+| Multi-table DynamoDB | Single table or none | 6 separate tables |
+| Multi-stack CDK | Monolithic stack | 15+ decomposed stacks |
+| EventBridge + Step Functions | SQS or none | 3 distinct pipelines |
+| Clerk/Auth0 | Cognito or none | Delegated auth |
+| 80% test coverage from day 1 | Optional | CI-enforced gate |
+
+**Decision:** Custom scaffold that implements our architecture patterns from line one.
+
+### Project Structure
+
+```
+ai-learning-hub/
+├── /infra                      # AWS CDK (TypeScript)
+│   ├── bin/app.ts             # Stack composition
+│   └── lib/stacks/
+│       ├── core/              # Tables, buckets
+│       ├── auth/              # Clerk/Auth0 integration
+│       ├── api/               # API Gateway + Lambdas
+│       ├── workflows/         # Step Functions
+│       ├── observability/     # Dashboards, alarms
+│       └── pipeline/          # CI/CD
+│
+├── /frontend                   # Vite + React (TypeScript)
+│   ├── src/
+│   │   ├── components/
+│   │   ├── hooks/
+│   │   ├── services/
+│   │   └── types/
+│   ├── vite.config.ts
+│   └── package.json
+│
+├── /backend                    # Lambda handlers (TypeScript)
+│   ├── functions/
+│   │   ├── saves/
+│   │   ├── projects/
+│   │   ├── links/
+│   │   ├── search/
+│   │   ├── content/
+│   │   └── admin/
+│   ├── shared/
+│   │   ├── middleware/
+│   │   ├── utils/
+│   │   └── types/
+│   └── package.json
+│
+└── package.json                # Workspace root
+```
+
+### Initialization Commands
+
+```bash
+# 1. Initialize monorepo
+npm init -y
+# Configure workspaces: ["infra", "frontend", "backend"]
+
+# 2. Initialize CDK
+cd infra && npx cdk init app --language typescript
+# Restructure for multi-stack architecture per ADR-006
+
+# 3. Initialize Frontend
+npm create vite@latest frontend -- --template react-ts
+cd frontend
+npm install -D tailwindcss postcss autoprefixer vite-plugin-pwa workbox-window
+npm install react-router-dom @tanstack/react-query @clerk/clerk-react
+
+# 4. Initialize Backend
+mkdir backend && cd backend
+npm init -y
+npm install -D typescript @types/node @types/aws-lambda esbuild vitest
+npm install @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb
+```
+
+---
+
+## ADR-011: Platform Strategy (PWA + Native Roadmap)
+
+**Decision:** V1 uses PWA + iOS Shortcut. Native apps planned for V2.5 (iOS) and V3.5 (Android).
+
+**Context:**
+
+The primary mobile use case is **capture** (save URL in <3 seconds), not consumption. Users capture on mobile, consume on desktop.
+
+**Rationale:**
+
+| Approach | Capture Speed | App Store? | Dev Cost | User Value |
+|----------|---------------|------------|----------|------------|
+| PWA + iOS Shortcut | <3 seconds | No | Low | High for capture |
+| Native iOS only | <3 seconds | Yes | High | Marginal improvement |
+| PWA only (no Shortcut) | 10+ seconds | No | Lowest | Poor capture UX |
+
+The iOS Shortcut provides:
+- Share sheet integration (copy link → run Shortcut)
+- Direct API call with authentication
+- Haptic feedback confirmation
+- Faster than opening a native app
+
+**Platform Capabilities Matrix:**
+
+| Capability | PWA (iOS) | PWA (Android) | Native iOS | Native Android |
+|------------|-----------|---------------|------------|----------------|
+| Share sheet receive | ❌ | ✅ Web Share Target | ✅ | ✅ |
+| Push notifications | ❌ | ✅ | ✅ | ✅ |
+| Background sync | ❌ | ✅ | ✅ | ✅ |
+| Offline queue | ❌ | ✅ | ✅ | ✅ |
+| Siri/Assistant | ❌ | ❌ | ✅ | ✅ |
+| Spotlight/search | ❌ | ❌ | ✅ | ✅ |
+
+**Platform Roadmap:**
+
+| Phase | Platform | Delivery | Justification |
+|-------|----------|----------|---------------|
+| V1 | PWA + iOS Shortcut | Now | Core capture workflow |
+| V1.5 | Web Share Target (Android) | Progressive | Android share sheet support |
+| V2.5 | Native iOS (Swift) | When user value justifies | Push, Siri, share extension |
+| V3.5 | Native Android (Kotlin) | Feature parity | Same as iOS |
+
+**App Store Impact:**
+
+- V1 architecture does NOT block future app store submission
+- Native apps will be separate codebases calling the same API
+- API-first design (ADR-005) means zero backend changes for native clients
+- Clerk/Auth0 both provide native iOS/Android SDKs
+
+**V2.5 Native App Checklist (Future):**
+
+```
+□ Apple Developer Account ($99/year)
+□ App Store Connect setup
+□ Privacy Policy URL (already in PRD)
+□ Sign in with Apple (if social login offered)
+□ Native share extension
+□ Push notification via APNs
+□ Siri Shortcuts integration
+□ Spotlight search indexing
+□ TestFlight beta program
+```
+
+**Consequences:**
+- V1 optimized for capture-focused workflow
+- iOS Shortcut onboarding is critical first-run experience
+- Web Share Target adds Android progressive enhancement
+- Native apps are additive, not replacement
+
+---
+
+## ADR-012: Web Share Target for Android PWA
+
+**Decision:** Implement Web Share Target API in the PWA for Android users.
+
+**Rationale:**
+
+- Android Chrome fully supports Web Share Target
+- Provides share sheet integration without native app
+- Progressive enhancement (works where supported, graceful fallback elsewhere)
+- Reduces friction for Android users who don't want iOS Shortcut equivalent
+
+**Implementation:**
+
+```json
+// manifest.json
+{
+  "share_target": {
+    "action": "/save",
+    "method": "POST",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": {
+      "url": "url",
+      "title": "title",
+      "text": "text"
+    }
+  }
+}
+```
+
+**Consequences:**
+- Android users can share directly to PWA from any app
+- iOS users still use Shortcut (Web Share Target not supported on iOS Safari)
+- Service worker must handle offline share queue
+
+---
+
 ## Next Steps
 
 This document will continue to be built out with:
@@ -702,7 +898,6 @@ This document will continue to be built out with:
 - [ ] Authentication flow details (Clerk vs Auth0)
 - [ ] DynamoDB access patterns and GSI design
 - [ ] Lambda function specifications
-- [ ] Error handling patterns
 - [ ] Observability implementation details
 
 ---
