@@ -895,6 +895,42 @@ Functional requirements define WHAT the system does. Performance, security, and 
 - FR68: System processes project notes via Processing API for search indexing
 - FR69: Search queries processed note content via Search API
 
+### Agentic Development Support (12 FRs)
+
+Based on comprehensive research (sources: HumanLayer, Cursor, Addy Osmani, Anthropic, Builder.io, AGENTS.md spec, academic papers), the following requirements enable AI coding agents (Claude Code, Cursor, Aider, Cline) to build this project effectively.
+
+**Research Findings Summary:**
+- LLMs can follow ~150-200 instructions consistently; context files should be <300 lines
+- Progressive disclosure (topic-specific reference files) outperforms monolithic docs
+- Memory files (progress.md, plan.md) are critical for session continuity
+- TDD works better with agents (clear success signals)
+- AI-generated code has 3x more vulnerabilities (extra security review required)
+- Custom commands and hooks provide deterministic guardrails
+
+**Project Configuration (4 FRs)**
+
+- FR70: Project includes CLAUDE.md (<200 lines) with essential commands, structure, conventions, and NEVER/ALWAYS rules
+- FR71: Project includes .claude/ directory with progressive disclosure documentation, organized by topic
+- FR72: Project includes custom slash commands for common workflows (fix-issue, create-lambda, create-component, run-tests, deploy)
+- FR73: Project includes Claude Code hooks for auto-formatting after edits and blocking dangerous commands
+
+**Memory & Context (2 FRs)**
+
+- FR74: Each story includes progress.md template for session continuity (what's done, blocked, next); each epic has a summary progress file
+- FR75: Implementation uses plan.md files as technical specs that persist across sessions; plan files live with story files
+
+**GitHub Workflow (3 FRs)**
+
+- FR76: GitHub issue templates structured for agent consumption (clear scope, acceptance criteria, related files, testing requirements)
+- FR77: PR template includes checklist for agent-generated code review (security scan, test coverage, shared library usage, pattern compliance)
+- FR78: Branch naming and commit conventions documented in CLAUDE.md and enforced via commit hooks
+
+**Quality & Safety (3 FRs)**
+
+- FR79: CI pipeline includes agent-specific security scanning (OWASP dependency check, secrets detection, SAST) accounting for 3x vulnerability rate
+- FR80: Shared library usage enforced via ESLint rules (not just documentation) — imports must come from @ai-learning-hub/*
+- FR81: Test requirements explicitly specified in each story with minimum coverage thresholds (not optional)
+
 ## API-First Processing Pipelines
 
 AI Learning Hub is **API-driven internally and externally**. The web and mobile UIs are "skins" over API calls — they never invoke backend processing directly. All operations flow through API Gateway.

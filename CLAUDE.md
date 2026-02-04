@@ -1,70 +1,98 @@
-# AI Learning Hub - Claude Context
+# AI Learning Hub
 
-## What This Project Is
+## Quick Start
+```bash
+npm install          # Install all workspace dependencies
+npm test             # Run all tests
+npm run build        # Build all packages
+npm run lint         # Lint all code
+cd infra && cdk deploy  # Deploy infrastructure
+```
 
-A personal knowledge management and project tracking system for AI/GenAI learning. Three core capabilities:
-
-1. **Resource Library** - Track podcasts, blogs, YouTube channels, Substacks, subreddits, LinkedIn people to learn from
-2. **Tutorial Tracker** - Save and track tutorials/walkthroughs for building AI projects
-3. **Project Tracker** - Track personal projects with status, tech used, learnings, and notes
-
-## Current Phase
-
-**Phase: Foundation (Epic 0)**
-- [ ] Finalizing PRD
-- [ ] Defining personas and problems
-- [ ] Writing user stories
-- [ ] Not yet coding
-
-## Key Documents to Read
-
-Start here, in this order:
-1. `docs/PRD.md` - Product requirements (the "what" and "why")
-2. `docs/epics/000-project-foundation.md` - Current epic we're working on
-3. `docs/ARCHITECTURE.md` - Technical decisions and constraints
+## Project Structure
+```
+/frontend            # React + Vite PWA
+/backend             # Lambda function handlers
+/infra               # AWS CDK stacks (15+)
+/shared              # @ai-learning-hub/* packages
+/.claude/docs/       # Detailed docs (load on-demand)
+/.claude/commands/   # Custom slash commands
+```
 
 ## Tech Stack
+- Frontend: React + Vite + TypeScript
+- Auth: Clerk (JWT for web, API keys for agents)
+- Backend: AWS Lambda (Node.js/TypeScript)
+- Database: DynamoDB (7 tables, 10 GSIs)
+- Infra: AWS CDK (TypeScript)
+- Hosting: S3 + CloudFront
 
-- **Frontend**: React + Vite
-- **Auth**: Clerk or Auth0
-- **Backend**: AWS Lambda (Node.js/TypeScript)
-- **Database**: DynamoDB
-- **Infrastructure**: AWS CDK (TypeScript)
-- **Hosting**: S3 + CloudFront
-- **Observability**: CloudWatch, X-Ray (TBD)
+## Key Patterns
 
-## Architecture Principles
+### Shared Libraries (MANDATORY)
+All Lambdas MUST import from `@ai-learning-hub/*`:
+- `@ai-learning-hub/logging` - Structured logging + X-Ray
+- `@ai-learning-hub/middleware` - Auth, error handling, validation
+- `@ai-learning-hub/db` - DynamoDB client + query helpers
+- `@ai-learning-hub/validation` - Zod schemas
+- `@ai-learning-hub/types` - Shared TypeScript types
 
-- Serverless-first (Lambda, DynamoDB, S3, CloudFront)
-- Infrastructure as Code (CDK, no ClickOps)
-- Mobile-first responsive design
-- Observability built-in from day 1 (not bolted on later)
-- Strong test coverage before shipping
+### API-First Design
+- No Lambda-to-Lambda calls (use API Gateway or EventBridge)
+- All async via EventBridge + Step Functions
+- Standardized error responses (ADR-008)
 
-## How to Work on This Project
+### DynamoDB Keys
+- User tables: `PK=USER#{userId}`, `SK=<entity>#<id>`
+- Content table: `PK=CONTENT#{urlHash}`
 
-1. All work is tracked via GitHub Issues
-2. Every change ties back to an issue
-3. PRs reference the issue they close
-4. Documentation lives in `docs/`, not in chat histories
-5. When starting a new AI conversation, point to this file first
+## Commands
+- `/project:fix-github-issue N` - Fix issue #N
+- `/project:create-lambda name` - Create new Lambda
+- `/project:create-component Name` - Create React component
+- `/project:run-tests` - Run full test suite
+- `/project:deploy` - Deploy to dev environment
 
-## Repository Structure
+## Context Loading
+For detailed docs, read from `.claude/docs/`:
+- `.claude/docs/architecture.md` - Full architecture details
+- `.claude/docs/database-schema.md` - All 7 tables + GSIs
+- `.claude/docs/api-patterns.md` - REST conventions
+- `.claude/docs/testing-guide.md` - Test requirements
 
-```
-/docs
-  PRD.md                    # Product requirements document
-  ARCHITECTURE.md           # System design and technical decisions
-  /epics                    # Epic specifications
-/infra                      # AWS CDK infrastructure code
-/frontend                   # React + Vite application
-/backend                    # Lambda function handlers
-/.github                    # Issue templates, PR templates, workflows
-```
+## Session Continuity
+- Read `docs/progress/epic-N.md` for current epic status
+- Read `docs/stories/N.M/progress.md` for story status
+- Update progress.md as you complete tasks
+
+## NEVER
+- Create utility functions without checking /shared first
+- Skip tests (80% coverage enforced)
+- Force push to main or master
+- Mix multiple issues in one PR
+- Make Lambda-to-Lambda calls
+- Store secrets in code (use Parameter Store)
+- Modify CLAUDE.md without human approval
+
+## ALWAYS
+- Run `npm test` before committing
+- Use shared libraries (@ai-learning-hub/*)
+- Reference issue numbers in commits (e.g., "fix: resolve save error #42")
+- Start new session for new tasks
+- Read progress.md before starting work
+- Update progress.md after completing work
 
 ## Current Status
+Phase: Planning Complete, Ready for Epic 1
+- PRD: 81 FRs, 28 NFRs documented
+- Architecture: 16 ADRs finalized
+- Epics: 11 epics defined, stories pending
 
-🟡 **Pre-development** - Building out specs and PRD before writing code.
+## Key Docs
+- `_bmad-output/planning-artifacts/prd.md` - Full requirements
+- `_bmad-output/planning-artifacts/architecture.md` - Technical decisions
+- `_bmad-output/planning-artifacts/epics.md` - Epic breakdown
 
 ---
-*Last updated: $(date +%Y-%m-%d)*
+*This file is human-owned. Do not modify without explicit approval.*
+*Last updated: 2026-02-04*
