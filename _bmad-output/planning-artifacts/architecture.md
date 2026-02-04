@@ -1915,6 +1915,142 @@ const results = await cloudwatchLogs.startQuery({
 
 ---
 
+## Additional Architecture Decisions
+
+### ADR-014: API-First Design Philosophy
+
+**Decision:** APIs are the primary product. The web UI is a reference implementation.
+
+**Context:**
+
+This platform is designed for **agent integration from day one**. The primary consumers are:
+1. LLMs and AI agents (programmatic access)
+2. iOS Shortcuts (automated capture)
+3. Dev persona agents (programmatic project management)
+4. Future integrations (unknown but anticipated)
+
+The web UI serves Stephen and close users but is not the primary value delivery mechanism.
+
+**Rationale:**
+- All functionality must be API-accessible — no UI-only features
+- Response shapes optimized for machine consumption, not human readability
+- OpenAPI spec is the **contract for AI agents**, not just documentation
+- Error codes must be predictable and machine-parseable
+- Rate limits designed for agent consumption patterns (bursty, automated)
+
+**Implications:**
+- Every endpoint is a potential integration point
+- Contract tests are critical, not nice-to-have
+- Error handling must be exhaustive (agents hit every edge case)
+- Pagination, date formats, headers must be 100% consistent
+
+**API Design Principles:**
+- Consistent pagination: `{ items: [], nextToken?: string, hasMore: boolean }`
+- ISO 8601 dates everywhere: `2026-02-03T12:00:00.000Z`
+- Idempotency keys for write operations (header: `X-Idempotency-Key`)
+- Rate limit headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `Retry-After`
+- Correlation IDs in every response: `X-Request-Id`
+
+**Consequences:**
+- Higher API design standards than typical web backend
+- More comprehensive OpenAPI documentation
+- Test coverage must include agent consumption patterns
+- UI is never the source of truth for functionality
+
+---
+
+### ADR-015: Lambda Layers for Shared Code
+
+**Decision:** Use Lambda Layers for shared utilities across all functions.
+
+**Rationale:**
+- **Faster cold starts** — Shared code loaded once per execution environment
+- **Smaller deployment packages** — Each function deploys only its handler code
+- **Consistent dependencies** — All functions use same version of shared utilities
+- **Cache efficiency** — AWS caches layers at the execution environment level
+
+**Layer Structure:**
+```
+/infra/layers/
+  /shared-utils/
+    nodejs/node_modules/
+      @ai-learning-hub/
+        middleware/     → auth, error handling, request validation
+        logging/        → structured logging with X-Ray integration
+        types/          → shared TypeScript types (errors, entities)
+        db/             → DynamoDB client + query helpers
+        validation/     → request/response validation schemas
+```
+
+**Build Strategy:**
+- Bundle with esbuild for tree-shaking
+- Layer published via CDK as `SharedUtilsLayer`
+- All Lambda functions reference the layer
+- Version tracked in layer ARN
+
+**CDK Implementation:**
+```typescript
+const sharedLayer = new LayerVersion(this, 'SharedUtilsLayer', {
+  code: Code.fromAsset('layers/shared-utils'),
+  compatibleRuntimes: [Runtime.NODEJS_20_X],
+  description: 'Shared utilities for all Lambda functions',
+});
+
+// All functions reference the layer
+const savesFunction = new Function(this, 'SavesHandler', {
+  layers: [sharedLayer],
+  // ...
+});
+```
+
+**Consequences:**
+- Layer must be deployed before functions that use it
+- Version management required (semantic versioning recommended)
+- Local development needs layer simulation or path aliasing
+- Maximum 5 layers per function (AWS limit) — plan layer composition carefully
+
+---
+
+### ADR-016: Cold Start Acceptance (V1)
+
+**Decision:** Accept cold start latency without mitigation in V1.
+
+**Context:**
+
+At boutique scale (10-20 users, sporadic usage), Lambda functions will frequently cold start. Provisioned concurrency costs ~$15-30/month per function, which would exceed the $50/month total budget with 15+ functions.
+
+**Rationale:**
+- First request of a session may exceed 3-second SLA
+- Subsequent requests within ~15 minutes will be warm (<500ms)
+- Provisioned concurrency cost-prohibitive at boutique scale
+- User base (Stephen + friends) can tolerate occasional slow first-hit
+
+**Expected Behavior:**
+| Scenario | Expected Latency |
+|----------|------------------|
+| Cold start (first request) | 2-5 seconds |
+| Warm invocation | 100-500ms |
+| Warm with DynamoDB | 200-800ms |
+
+**Monitoring Strategy:**
+- CloudWatch alarm: p99 latency > 5s (indicates systemic issue, not cold start)
+- Dashboard widget: Cold start percentage per function
+- X-Ray traces tagged with `coldStart: true` for analysis
+
+**Future Mitigation (V2+):**
+If user base grows or cold starts become unacceptable:
+1. Provisioned concurrency on critical path (saves, search)
+2. CloudWatch Events scheduled warming (every 5 minutes)
+3. Snap Start (if Java) or container image optimization
+
+**Consequences:**
+- First save of a session may feel slow
+- Document in user onboarding ("first action may take a moment")
+- CloudWatch will show p99 spikes — this is expected, not a bug
+- Do not optimize prematurely
+
+---
+
 ## Next Steps
 
 This document will continue to be built out with:
@@ -1922,10 +2058,14 @@ This document will continue to be built out with:
 - [x] ~~API endpoint specifications~~
 - [x] ~~Authentication flow details (Clerk vs Auth0)~~
 - [x] ~~DynamoDB access patterns and GSI design~~
+- [x] ~~API-First Design Philosophy (ADR-014)~~
+- [x] ~~Lambda Layers Strategy (ADR-015)~~
+- [x] ~~Cold Start Acceptance (ADR-016)~~
 - [ ] Lambda function specifications
 - [ ] Observability implementation details
 
 ---
 
 _Document generated: 2026-02-03_
+_Last updated: 2026-02-03 (Party Mode Review — added ADR-014, ADR-015, ADR-016)_
 _Workflow: BMAD Architecture Discovery_
