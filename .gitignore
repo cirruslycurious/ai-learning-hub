@@ -5,9 +5,11 @@ node_modules/
 
 # Build outputs
 dist/
+dist-node/
 build/
 cdk.out/
 .next/
+*.tsbuildinfo
 
 # Environment
 .env
