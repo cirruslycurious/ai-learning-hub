@@ -895,9 +895,9 @@ Functional requirements define WHAT the system does. Performance, security, and 
 - FR68: System processes project notes via Processing API for search indexing
 - FR69: Search queries processed note content via Search API
 
-### Agentic Development Support (12 FRs)
+### Agentic Development Support (19 FRs)
 
-Based on comprehensive research (sources: HumanLayer, Cursor, Addy Osmani, Anthropic, Builder.io, AGENTS.md spec, academic papers), the following requirements enable AI coding agents (Claude Code, Cursor, Aider, Cline) to build this project effectively.
+Based on comprehensive research (sources: HumanLayer, Cursor, Addy Osmani, Anthropic Enterprise Guide, OpenAI Agent Guide, Builder.io, AGENTS.md spec, academic papers), the following requirements enable AI coding agents (Claude Code, Cursor, Aider, Cline) to build this project effectively.
 
 **Research Findings Summary:**
 - LLMs can follow ~150-200 instructions consistently; context files should be <300 lines
@@ -906,6 +906,11 @@ Based on comprehensive research (sources: HumanLayer, Cursor, Addy Osmani, Anthr
 - TDD works better with agents (clear success signals)
 - AI-generated code has 3x more vulnerabilities (extra security review required)
 - Custom commands and hooks provide deterministic guardrails
+- Tool risk classification (low/medium/high) determines automation vs. human approval *(from OpenAI)*
+- Human intervention triggers needed for failure thresholds and high-stakes operations *(from OpenAI)*
+- 7-layer prompt structure improves agent task completion *(from Anthropic)*
+- Chain of Thought (CoT) prompting improves accuracy for complex multi-step tasks *(from Anthropic)*
+- LLM-as-judge enables automated prompt evaluation and iteration *(from Anthropic)*
 
 **Project Configuration (4 FRs)**
 
@@ -930,6 +935,19 @@ Based on comprehensive research (sources: HumanLayer, Cursor, Addy Osmani, Anthr
 - FR79: CI pipeline includes agent-specific security scanning (OWASP dependency check, secrets detection, SAST) accounting for 3x vulnerability rate
 - FR80: Shared library usage enforced via ESLint rules (not just documentation) — imports must come from @ai-learning-hub/*
 - FR81: Test requirements explicitly specified in each story with minimum coverage thresholds (not optional)
+
+**Tool Risk & Human Intervention (4 FRs)** *(NEW - from OpenAI/Anthropic research)*
+
+- FR82: Tools/operations classified by risk level (low/medium/high) based on reversibility and impact; classification documented in .claude/docs/tool-risk.md
+- FR83: High-risk operations (delete, force push, deploy, database migrations) require explicit human approval before execution
+- FR84: Failure thresholds defined for automatic human escalation (3+ failed attempts, test failures after implementation, unresolvable linter errors)
+- FR85: Guardrails include relevance classifier (off-topic detection) and safety classifier (jailbreak/injection detection) in custom command prompts
+
+**Prompt Engineering & Evaluation (3 FRs)** *(NEW - from Anthropic research)*
+
+- FR86: Custom commands follow 7-layer prompt structure (role → background → rules → context → task → format → prefill)
+- FR87: Complex commands include Chain of Thought (scratchpad) sections for multi-step reasoning
+- FR88: Prompt evaluation tests defined for each custom command (happy path, edge cases, guardrail tests) with version changelog
 
 ## API-First Processing Pipelines
 

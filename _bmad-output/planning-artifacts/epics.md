@@ -114,19 +114,38 @@ This document provides the complete epic and story breakdown for ai-learning-hub
 - FR68: System processes project notes via Processing API for search indexing
 - FR69: Search queries processed note content via Search API
 
-**Agentic Development Support (12 FRs)**
+**Agentic Development Support (19 FRs)**
+
+*Project Configuration (4 FRs)*
 - FR70: Project includes CLAUDE.md (<200 lines) with essential commands, structure, conventions, and NEVER/ALWAYS rules
 - FR71: Project includes .claude/ directory with progressive disclosure documentation, organized by topic
 - FR72: Project includes custom slash commands for common workflows (fix-issue, create-lambda, create-component, run-tests, deploy)
 - FR73: Project includes Claude Code hooks for auto-formatting after edits and blocking dangerous commands
+
+*Memory & Context (2 FRs)*
 - FR74: Each story includes progress.md template for session continuity; each epic has a summary progress file
 - FR75: Implementation uses plan.md files as technical specs that persist across sessions
+
+*GitHub Workflow (3 FRs)*
 - FR76: GitHub issue templates structured for agent consumption (clear scope, acceptance criteria, related files, testing requirements)
 - FR77: PR template includes checklist for agent-generated code review (security scan, test coverage, shared library usage, pattern compliance)
 - FR78: Branch naming and commit conventions documented in CLAUDE.md and enforced via commit hooks
+
+*Quality & Safety (3 FRs)*
 - FR79: CI pipeline includes agent-specific security scanning (OWASP dependency check, secrets detection, SAST)
 - FR80: Shared library usage enforced via ESLint rules — imports must come from @ai-learning-hub/*
 - FR81: Test requirements explicitly specified in each story with minimum coverage thresholds
+
+*Tool Risk & Human Intervention (4 FRs) — NEW from OpenAI/Anthropic*
+- FR82: Tools/operations classified by risk level (low/medium/high) based on reversibility and impact
+- FR83: High-risk operations require explicit human approval before execution
+- FR84: Failure thresholds defined for automatic human escalation
+- FR85: Guardrails include relevance and safety classifiers in custom command prompts
+
+*Prompt Engineering & Evaluation (3 FRs) — NEW from Anthropic*
+- FR86: Custom commands follow 7-layer prompt structure
+- FR87: Complex commands include Chain of Thought (scratchpad) sections
+- FR88: Prompt evaluation tests defined for each custom command with version changelog
 
 ### NonFunctional Requirements
 
@@ -284,6 +303,8 @@ This document provides the complete epic and story breakdown for ai-learning-hub
 | FR74-FR75 | Epic 1 | Agentic memory & context (progress.md, plan.md) |
 | FR76-FR78 | Epic 1 | Agentic GitHub workflow (issue templates, PR checklist, conventions) |
 | FR79-FR81 | Epic 1 | Agentic quality & safety (security scanning, lint rules, test requirements) |
+| FR82-FR85 | Epic 1 | Agentic tool risk & human intervention (risk classification, approval gates, escalation) |
+| FR86-FR88 | Epic 1 | Agentic prompt engineering (7-layer structure, CoT, evaluation tests) |
 
 ---
 
@@ -499,14 +520,16 @@ flowchart TB
 | 1.1 | Monorepo scaffold (infra, frontend, backend workspaces with npm workspaces) |
 | 1.2 | Shared Lambda Layer (@ai-learning-hub/logging, middleware, db, validation, types) |
 | 1.3 | CLAUDE.md and progressive disclosure documentation (.claude/docs/) |
-| 1.4 | Custom slash commands for workflows (.claude/commands/) |
+| 1.4 | Custom slash commands for workflows (.claude/commands/) with 7-layer prompt structure |
 | 1.5 | Claude Code hooks for guardrails (.claude/settings.json) |
 | 1.6 | GitHub issue/PR templates for agents (.github/ISSUE_TEMPLATE/, pull_request_template.md) |
 | 1.7 | CI/CD pipeline with quality gates + agent security scanning |
 | 1.8 | DynamoDB tables and S3 buckets (core infrastructure) |
 | 1.9 | Observability foundation (X-Ray, structured logging, EMF metrics) |
+| 1.10 | Tool risk classification document (.claude/docs/tool-risk.md) with human intervention triggers |
+| 1.11 | Prompt evaluation tests for custom commands with version changelog |
 
-**FRs covered:** FR70, FR71, FR72, FR73, FR74, FR75, FR76, FR77, FR78, FR79, FR80, FR81
+**FRs covered:** FR70-FR88 (19 FRs total)
 **NFRs covered:** NFR-S1, NFR-S2, NFR-S7, NFR-R3, NFR-R6, NFR-O1, NFR-O2, NFR-C1, NFR-C3
 
 ---
@@ -612,7 +635,7 @@ flowchart TB
 
 **Status:** Research completed February 2026. Full findings in `docs/research/ai-coding-agent-best-practices.md`.
 
-**Research Sources:** HumanLayer, Cursor, Addy Osmani (Google), Anthropic, Builder.io, AGENTS.md spec, academic papers, Claude Code documentation.
+**Research Sources:** HumanLayer, Cursor, Addy Osmani (Google), Anthropic Enterprise Guide, OpenAI Agent Guide, Builder.io, AGENTS.md spec, academic papers, Claude Code documentation.
 
 ### Key Research Findings
 
@@ -655,6 +678,32 @@ flowchart TB
 - Auto-lint/format after edits (reduces noise)
 - Block dangerous commands (medium friction selected)
 - Pre-commit validation
+
+**9. Tool Risk Classification (NEW - from OpenAI)**
+- Classify tools as low/medium/high risk based on reversibility and impact
+- Low risk: auto-approve (read files, search, git status)
+- Medium risk: log and allow (create files, git commit)
+- High risk: require human approval (delete, force push, deploy)
+
+**10. Human Intervention Triggers (NEW - from OpenAI)**
+- Failure thresholds: 3+ failed attempts → escalate
+- High-stakes operations: always require approval
+- Clear escalation points prevent agent from spinning
+
+**11. 7-Layer Prompt Structure (NEW - from Anthropic)**
+- Role → Background → Rules → Context → Task → Format → Prefill
+- Consistent structure improves task completion
+- Apply to all custom slash commands
+
+**12. Chain of Thought for Complex Tasks (NEW - from Anthropic)**
+- Explicit scratchpad before implementation
+- Improves accuracy for multi-step reasoning
+- Use judiciously (increases token usage)
+
+**13. Prompt Evaluation & Iteration (NEW - from Anthropic)**
+- Define test cases for each custom command
+- LLM-as-judge for automated evaluation
+- Version changelog to track improvements
 
 ### Decisions Made
 
@@ -723,12 +772,15 @@ ai-learning-hub/
 
 ### Impact Summary
 
-- **FR count:** Expanded from 3 to 12 FRs (FR70-FR81)
-- **Epic 1 stories:** Expanded from 6 to 9 stories
+- **FR count:** Expanded from 3 to 19 FRs (FR70-FR88)
+- **Epic 1 stories:** Expanded from 6 to 11 stories
 - **CLAUDE.md:** New structure (<200 lines, essential only)
 - **Progressive disclosure:** `.claude/docs/` replaces monolithic loading
 - **Memory strategy:** Per-story progress.md + per-epic summary
 - **Quality gates:** Agent-specific security scanning in CI
+- **Tool risk:** Classification document with human intervention triggers (NEW)
+- **Prompt engineering:** 7-layer structure, CoT for complex tasks (NEW)
+- **Evaluation:** Prompt test cases with version changelog (NEW)
 
 <!-- Repeat for each epic in epics_list (N = 1, 2, 3...) -->
 

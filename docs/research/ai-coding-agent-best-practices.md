@@ -9,14 +9,16 @@
 ## Table of Contents
 
 1. [CLAUDE.md / Rules Files Structure](#1-claudemd--rules-files-structure)
-2. [Guardrails and Constraints](#2-guardrails-and-constraints)
+2. [Guardrails and Constraints](#2-guardrails-and-constraints) *(expanded with tool risk, human intervention)*
 3. [Git/GitHub Workflow for Agents](#3-gitgithub-workflow-for-agents)
 4. [Context and Memory](#4-context-and-memory)
 5. [Testing and Validation](#5-testing-and-validation)
 6. [Project Structure](#6-project-structure)
-7. [Anti-patterns to Avoid](#7-anti-patterns-to-avoid)
-8. [Tool-Specific Recommendations](#8-tool-specific-recommendations)
-9. [Sources](#9-sources)
+7. [Agent Orchestration Patterns](#7-agent-orchestration-patterns) *(NEW - from OpenAI)*
+8. [Prompt Engineering for Agents](#8-prompt-engineering-for-agents) *(NEW - from Anthropic)*
+9. [Anti-patterns to Avoid](#9-anti-patterns-to-avoid)
+10. [Tool-Specific Recommendations](#10-tool-specific-recommendations)
+11. [Sources](#11-sources) *(expanded)*
 
 ---
 
@@ -147,23 +149,28 @@ AGENTS.md is becoming the universal format for AI coding agents, supported acros
 
 ### Types of Guardrails
 
-#### Pre-execution Guardrails
+#### Pre-execution Guardrails (Input)
 Control what data/instructions the agent processes before action:
 - Input validation
 - Context filtering
 - Access controls (blocking sensitive paths)
+- **Relevance classifier** — Flags off-topic queries to keep agent focused
+- **Safety classifier** — Detects jailbreak attempts or prompt injections
 
 #### In-process Guardrails
 Monitor decisions and enforce constraints in real-time:
 - Scope limitations (don't touch system files)
 - Operation restrictions (no destructive commands)
 - Logic constraints (stay within intended scope)
+- **Tool risk assessment** — Rate tools as low/medium/high risk based on reversibility and impact
 
 #### Output Guardrails
 Check responses before returning:
 - Safety validation
 - Compliance checks
 - Sensitive data filtering
+- **PII filter** — Prevents exposure of personally identifiable information
+- **Output validation** — Ensures responses align with project conventions
 
 ### Practical Implementation
 
@@ -215,6 +222,83 @@ Hooks provide deterministic control points:
 4. **Ignoring existing patterns** - Reinventing what already exists
 5. **Destructive operations** - Deleting/overwriting without backup
 6. **Outdated patterns** - Using deprecated APIs from training data
+
+### Tool Risk Assessment
+
+Assess the risk level of each tool/operation available to the agent:
+
+| Risk Level | Characteristics | Examples | Guardrail Action |
+|------------|-----------------|----------|------------------|
+| **Low** | Read-only, reversible, no side effects | Reading files, search, git status | Allow automatically |
+| **Medium** | Writes data, reversible with effort | Creating files, git commit, API calls | Log and allow |
+| **High** | Irreversible, financial impact, external effects | Delete operations, production deploy, sending emails | Require human approval |
+
+```markdown
+## Tool Risk Classification
+
+### Low Risk (Auto-approve)
+- Read file contents
+- Search codebase
+- Run tests (read-only)
+- Git status/log/diff
+
+### Medium Risk (Log + Allow)
+- Create/edit files
+- Git commit (local)
+- Install dependencies
+- Run build
+
+### High Risk (Human Approval Required)
+- Delete files/directories
+- Git push (especially force push)
+- Deploy to any environment
+- Modify environment variables
+- Database migrations
+- External API calls that mutate state
+```
+
+### Human Intervention Triggers
+
+Define clear escalation points where the agent should stop and involve a human:
+
+#### Failure Thresholds
+```markdown
+## When to Escalate to Human
+
+### Automatic Escalation
+- 3+ failed attempts at the same task
+- Test suite fails after implementation
+- Linter errors that can't be auto-fixed
+- Build failures
+- Merge conflicts
+
+### Request Human Review
+- Before any production deployment
+- When modifying security-sensitive code
+- When changing authentication/authorization logic
+- When touching financial calculations
+- When uncertain about requirements
+```
+
+#### High-Stakes Operations
+```markdown
+## Operations Requiring Human Approval
+
+### Always Ask First
+- Deleting any file or directory
+- Force pushing to any branch
+- Modifying CI/CD configuration
+- Changing database schemas
+- Updating environment variables
+- Installing new dependencies
+- Modifying .gitignore or security configs
+
+### Never Do Without Explicit Request
+- Push to main/master
+- Deploy to production
+- Modify access controls
+- Delete git history
+```
 
 ### Pattern Enforcement Mechanisms
 
@@ -704,7 +788,289 @@ Use AWS DynamoDB with single-table design.
 
 ---
 
-## 7. Anti-patterns to Avoid
+## 7. Agent Orchestration Patterns
+
+*Based on OpenAI's "A Practical Guide to Building Agents" (2026)*
+
+While most coding tasks use a single agent, understanding orchestration patterns helps for complex projects.
+
+### Single-Agent Systems (Default for Coding)
+
+A single agent with tools handles most coding tasks effectively:
+
+```
+Input → Agent → Output
+         ↓
+    Instructions
+    Tools
+    Guardrails
+```
+
+**When single-agent works:**
+- Focused tasks (fix issue, implement feature)
+- Clear scope with defined acceptance criteria
+- Tools don't overlap in purpose
+
+**The Agent Loop:**
+Every agent runs in a loop until an exit condition:
+1. Model receives input
+2. Model decides: respond or use tool
+3. If tool use: execute tool, feed result back to model
+4. Repeat until done
+
+### When to Consider Multiple Agents
+
+Split into multiple agents when:
+
+| Signal | Symptom | Solution |
+|--------|---------|----------|
+| **Complex logic** | Many if-then-else branches in prompts | Separate agents per logical path |
+| **Tool overload** | 10+ similar tools causing confusion | Group tools by domain into agents |
+| **Role switching** | Agent needs to act as planner, then implementer | Dedicated agent per role |
+
+### Multi-Agent Patterns
+
+#### Pattern 1: Manager (Agents as Tools)
+
+A central "manager" agent delegates to specialized agents:
+
+```
+User Request
+     ↓
+Manager Agent ──→ Planning Agent (as tool)
+     │       ──→ Implementation Agent (as tool)
+     │       ──→ Testing Agent (as tool)
+     ↓
+Synthesized Response
+```
+
+**Use when:**
+- You want one agent to maintain control
+- Specialized agents return results to a coordinator
+- User should interact with single interface
+
+**Example for coding:**
+```markdown
+## Manager Agent
+You coordinate software development tasks.
+- Use `plan_feature` tool for design decisions
+- Use `implement_code` tool for writing code
+- Use `run_tests` tool for validation
+Synthesize results into a coherent response.
+```
+
+#### Pattern 2: Decentralized (Handoffs)
+
+Agents hand off control to each other:
+
+```
+User Request
+     ↓
+Triage Agent ──handoff──→ Feature Agent
+                          ──handoff──→ Test Agent
+                                        ──handoff──→ Review Agent
+```
+
+**Use when:**
+- Each agent fully takes over a phase
+- Sequential workflow with clear boundaries
+- Don't need central synthesis
+
+**Example for coding:**
+```markdown
+## Triage Agent
+Assess the request and hand off to the appropriate agent:
+- Feature requests → Feature Agent
+- Bug fixes → Debug Agent
+- Refactoring → Refactor Agent
+
+## Feature Agent
+Implement features. When complete, hand off to Test Agent.
+
+## Test Agent
+Write and run tests. When passing, hand off to Review Agent.
+```
+
+### Practical Recommendation for Coding Projects
+
+**Start with single agent.** Only add complexity when:
+1. Single agent consistently fails at a task type
+2. You need persistent "roles" (e.g., always plan before implement)
+3. Tool count exceeds 15 and causes confusion
+
+**For AI Learning Hub:** Single-agent with custom commands is sufficient. Each command (fix-issue, create-lambda) acts as a focused workflow without multi-agent overhead.
+
+---
+
+## 8. Prompt Engineering for Agents
+
+*Based on Anthropic's "Building Trusted AI in the Enterprise" (2026)*
+
+### The 7-Layer Prompt Structure
+
+Structure agent prompts in this order for best results:
+
+```
+1. Task + Role Context      ← WHO the agent is, WHAT it does
+2. Background Data          ← Documents, schemas, examples
+3. Detailed Rules           ← Constraints, edge cases
+4. Conversation History     ← Prior context (if multi-turn)
+5. Immediate Task           ← The specific request
+6. Output Format            ← Expected structure
+7. Pre-filled Response      ← Start the response (optional)
+```
+
+**Example for a coding agent:**
+
+```markdown
+## 1. Task + Role
+You are a senior TypeScript developer working on AI Learning Hub.
+Your task is to implement features according to specifications.
+
+## 2. Background
+Tech stack: React + Vite, AWS Lambda, DynamoDB
+Key patterns: See /docs/architecture.md
+Shared libraries: @ai-learning-hub/* (MUST use)
+
+## 3. Rules
+- All new code must have tests
+- Use existing patterns from codebase
+- Never modify files outside task scope
+- Ask for clarification if requirements unclear
+
+## 4. Context
+[Previous conversation or relevant history]
+
+## 5. Task
+Implement the login form component per story 2.3.
+
+## 6. Output Format
+- Create files in /frontend/src/components/LoginForm/
+- Include: component, tests, types, index.ts
+- Follow existing component structure
+
+## 7. Pre-fill (optional)
+I'll start by examining the existing component patterns...
+```
+
+### Chain of Thought (CoT) for Complex Tasks
+
+For multi-step reasoning, explicitly request thinking:
+
+```markdown
+## Instructions
+Before implementing, think through your approach:
+
+<scratchpad>
+1. What files need to be created/modified?
+2. What existing patterns should I follow?
+3. What edge cases must I handle?
+4. What tests are needed?
+</scratchpad>
+
+Then proceed with implementation.
+```
+
+**Benefits:**
+- More accurate reasoning for complex tasks
+- Easier to debug when things go wrong
+- Self-documenting decision process
+
+**Tradeoff:** Increases token usage and latency. Use judiciously.
+
+### Few-Shot Examples
+
+Teach by example, especially for project-specific patterns:
+
+```markdown
+## Component Pattern
+
+Here's how we structure components in this project:
+
+### Example: Button Component
+/frontend/src/components/Button/
+├── Button.tsx        # Main component
+├── Button.test.tsx   # Tests
+├── Button.types.ts   # TypeScript types
+└── index.ts          # Public exports
+
+```tsx
+// Button.tsx
+import { ButtonProps } from './Button.types';
+
+export const Button = ({ label, onClick, variant = 'primary' }: ButtonProps) => {
+  return (
+    <button className={`btn btn-${variant}`} onClick={onClick}>
+      {label}
+    </button>
+  );
+};
+```
+
+Follow this EXACT structure for new components.
+```
+
+### Evaluation and Iteration
+
+Don't set-and-forget prompts. Continuously improve:
+
+#### Build Evaluation Tests
+```markdown
+## Test Cases for Agent Prompts
+
+### Happy Path
+- Input: "Create a Button component"
+- Expected: Creates all 4 files, follows pattern, tests pass
+
+### Edge Cases
+- Input: "Create component" (no name)
+- Expected: Asks for clarification, doesn't create random files
+
+### Guardrail Tests
+- Input: "Delete all test files"
+- Expected: Refuses, explains why
+```
+
+#### Track What Works
+```markdown
+## Prompt Changelog
+
+### 2026-02-04
+- Added explicit "MUST use shared libraries" rule
+- Result: Reduced utility duplication by 80%
+
+### 2026-02-01
+- Added component structure example
+- Result: First-attempt success rate improved from 60% to 90%
+```
+
+### LLM-as-Judge for Automated Evaluation
+
+Use a separate LLM call to evaluate agent output:
+
+```markdown
+## Evaluation Prompt
+
+Review this code change:
+<code>{agent_output}</code>
+
+Evaluate on these criteria (1-5 scale):
+1. Correctness: Does it solve the stated problem?
+2. Pattern compliance: Does it follow project conventions?
+3. Test coverage: Are tests comprehensive?
+4. Security: Any obvious vulnerabilities?
+
+Return JSON: { correctness: N, patterns: N, tests: N, security: N, issues: [...] }
+```
+
+**Use for:**
+- Automated PR reviews
+- Regression testing prompts
+- Comparing prompt versions
+
+---
+
+## 9. Anti-patterns to Avoid
 
 ### Instruction Anti-patterns
 
@@ -772,7 +1138,7 @@ Use AWS DynamoDB with single-table design.
 
 ---
 
-## 8. Tool-Specific Recommendations
+## 10. Tool-Specific Recommendations
 
 ### Claude Code
 
@@ -866,7 +1232,7 @@ Combine tools for optimal results:
 
 ---
 
-## 9. Sources
+## 11. Sources
 
 ### Official Documentation
 - [Claude Code Documentation](https://code.claude.com/docs)
@@ -896,6 +1262,10 @@ Combine tools for optimal results:
 - [Lenny's Newsletter: AI Prompt Engineering in 2025](https://www.lennysnewsletter.com/p/ai-prompt-engineering-in-2025-sander-schulhoff)
 - [PromptHub: Prompt Engineering for AI Agents](https://www.prompthub.us/blog/prompt-engineering-for-ai-agents)
 
+### Enterprise & Agent Architecture (NEW)
+- [Anthropic: Building Trusted AI in the Enterprise](https://www.anthropic.com/enterprise) — 7-layer prompt structure, LLMOps, evaluation practices
+- [OpenAI: A Practical Guide to Building Agents](https://platform.openai.com/docs/guides/agents) — Orchestration patterns, guardrail types, human intervention
+
 ### Community Resources
 - [Awesome Claude Code](https://github.com/hesreallyhim/awesome-claude-code)
 - [Claude Code Commands Collection](https://github.com/wshobson/commands)
@@ -905,13 +1275,31 @@ Combine tools for optimal results:
 
 ## Summary: Key Takeaways
 
-1. **Keep instructions lean** - <300 lines in CLAUDE.md, use progressive disclosure
-2. **Plan before coding** - Use Plan Mode, create specs before implementation
-3. **Work in small increments** - One task, one branch, one PR
-4. **Maintain explicit context** - Memory files, progress tracking, clear state
-5. **Test everything** - TDD works even better with agents
-6. **Never blindly trust** - Review every line, verify manually
-7. **Start fresh often** - New sessions prevent context degradation
-8. **Use guardrails** - Hooks, constraints, and explicit boundaries
-9. **Iterate on instructions** - Refine based on what works
-10. **Combine tools** - Terminal + IDE + CI/CD for best results
+### Core Principles (Original)
+1. **Keep instructions lean** — <300 lines in CLAUDE.md, use progressive disclosure
+2. **Plan before coding** — Use Plan Mode, create specs before implementation
+3. **Work in small increments** — One task, one branch, one PR
+4. **Maintain explicit context** — Memory files, progress tracking, clear state
+5. **Test everything** — TDD works even better with agents
+6. **Never blindly trust** — Review every line, verify manually
+7. **Start fresh often** — New sessions prevent context degradation
+8. **Use guardrails** — Hooks, constraints, and explicit boundaries
+9. **Iterate on instructions** — Refine based on what works
+10. **Combine tools** — Terminal + IDE + CI/CD for best results
+
+### Guardrails & Safety (From OpenAI/Anthropic)
+11. **Classify tool risk** — Low/Medium/High based on reversibility and impact
+12. **Define human intervention triggers** — Failure thresholds, high-stakes operations
+13. **Use layered guardrails** — Input (relevance, safety), process (tool risk), output (PII, validation)
+14. **Require approval for irreversible actions** — Deletes, force push, production deploy
+
+### Prompt Engineering (From Anthropic)
+15. **Structure prompts in layers** — Role → Background → Rules → Context → Task → Format → Prefill
+16. **Use Chain of Thought for complex tasks** — Explicit scratchpad before implementation
+17. **Provide few-shot examples** — Show exact patterns to follow
+18. **Evaluate and iterate** — LLM-as-judge, prompt versioning, track what works
+
+### Agent Architecture (From OpenAI)
+19. **Start with single agent** — Only add complexity when single agent consistently fails
+20. **Know when to split** — Complex logic, tool overload, role switching
+21. **Choose orchestration pattern** — Manager (central control) vs. Decentralized (handoffs)
