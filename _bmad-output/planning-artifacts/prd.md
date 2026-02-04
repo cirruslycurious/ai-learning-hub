@@ -895,9 +895,9 @@ Functional requirements define WHAT the system does. Performance, security, and 
 - FR68: System processes project notes via Processing API for search indexing
 - FR69: Search queries processed note content via Search API
 
-### Agentic Development Support (19 FRs)
+### Agentic Development Support (22 FRs)
 
-Based on comprehensive research (sources: HumanLayer, Cursor, Addy Osmani, Anthropic Enterprise Guide, OpenAI Agent Guide, Builder.io, AGENTS.md spec, academic papers), the following requirements enable AI coding agents (Claude Code, Cursor, Aider, Cline) to build this project effectively.
+Based on comprehensive research (sources: HumanLayer, Cursor, Addy Osmani, Anthropic Enterprise Guide, OpenAI Agent Guide, Google Agents Whitepaper, Claude Code Playbook, Builder.io, AGENTS.md spec, academic papers), the following requirements enable AI coding agents (Claude Code, Cursor, Aider, Cline) to build this project effectively.
 
 **Research Findings Summary:**
 - LLMs can follow ~150-200 instructions consistently; context files should be <300 lines
@@ -911,13 +911,29 @@ Based on comprehensive research (sources: HumanLayer, Cursor, Addy Osmani, Anthr
 - 7-layer prompt structure improves agent task completion *(from Anthropic)*
 - Chain of Thought (CoT) prompting improves accuracy for complex multi-step tasks *(from Anthropic)*
 - LLM-as-judge enables automated prompt evaluation and iteration *(from Anthropic)*
+- Model selection per task type (Haiku/Sonnet/Opus) enables 90%+ cost optimization *(from Claude Code Playbook)*
+- Specialist subagent prompts with tool restrictions improve task completion quality *(from Claude Code Playbook)*
+- Context pollution is the #1 problem teams face; /clear frequency guidance critical *(from Claude Code Playbook)*
+- Cascaded context hierarchy (project → module → feature) scales with codebase growth *(from Claude Code Playbook)*
 
 **Project Configuration (4 FRs)**
 
 - FR70: Project includes CLAUDE.md (<200 lines) with essential commands, structure, conventions, and NEVER/ALWAYS rules
-- FR71: Project includes .claude/ directory with progressive disclosure documentation, organized by topic
-- FR72: Project includes custom slash commands for common workflows (fix-issue, create-lambda, create-component, run-tests, deploy)
-- FR73: Project includes Claude Code hooks for auto-formatting after edits and blocking dangerous commands
+- FR71: Project includes .claude/ directory with progressive disclosure documentation, organized by topic; supports hierarchical context (module-level, feature-level CLAUDE.md files as codebase grows); agent scoping strategy documented (user-level agents for cross-project reuse, project-level agents for project-specific workflows)
+- FR72: Project includes custom slash commands for common workflows (fix-issue, create-lambda, create-component, run-tests, deploy) with model selection specified per command
+- FR73: Project includes comprehensive Claude Code hooks providing deterministic enforcement (not advisory like CLAUDE.md):
+  - **Tiered safety levels**: Configurable `critical`/`high`/`strict` per environment; `high` as default — allows customization for dev vs. production
+  - **PreToolUse hooks**:
+    - bash-guard (50+ regex patterns: dangerous commands, exfiltration prevention via curl/scp/rsync, credential exposure)
+    - file-guard (protect CLAUDE.md, .env, lock files, _bmad-output/; allowlists for .env.example/.env.template)
+    - architecture-guard (enforce ADRs: no Lambda-to-Lambda, DynamoDB patterns)
+    - import-guard (enforce @ai-learning-hub/* shared library usage in Lambda files)
+    - tdd-guard (intercept `Write|Edit|MultiEdit` to enforce test-first: block implementation writes without failing tests; custom Vitest reporter captures results to `.claude/tdd-guard/data/test.json`; file type detection for test vs. impl; monorepo support via `projectRoot` config)
+  - **PostToolUse hooks**: auto-format (Prettier + ESLint fix after edits), type-check (TypeScript validation with error context)
+  - **Stop hooks**: Agent-based test-validator (blocks task completion until tests pass with 80%+ coverage), production-validator (blocks if TODOs, debug statements, hardcoded secrets found)
+  - **JSONL audit logging**: All hook events logged to `~/.claude/hooks-logs/` for debugging and compliance
+  - **Session control**: TDD enforcement can be toggled via commands for prototyping phases
+  - All hooks implemented in .claude/hooks/ directory (JavaScript for complex patterns, shell for simple operations) with JSON response format for escalation/blocking decisions
 
 **Memory & Context (2 FRs)**
 
@@ -934,20 +950,26 @@ Based on comprehensive research (sources: HumanLayer, Cursor, Addy Osmani, Anthr
 
 - FR79: CI pipeline includes agent-specific security scanning (OWASP dependency check, secrets detection, SAST) accounting for 3x vulnerability rate
 - FR80: Shared library usage enforced via ESLint rules (not just documentation) — imports must come from @ai-learning-hub/*
-- FR81: Test requirements explicitly specified in each story with minimum coverage thresholds (not optional)
+- FR81: Test requirements explicitly specified in each story with minimum coverage thresholds; includes agent-assisted TDD workflow (test-expert writes failing tests → dev implements → code-reviewer suggests refactoring)
 
-**Tool Risk & Human Intervention (4 FRs)** *(NEW - from OpenAI/Anthropic research)*
+**Tool Risk & Human Intervention (4 FRs)** *(from OpenAI/Anthropic research)*
 
 - FR82: Tools/operations classified by risk level (low/medium/high) based on reversibility and impact; classification documented in .claude/docs/tool-risk.md
 - FR83: High-risk operations (delete, force push, deploy, database migrations) require explicit human approval before execution
 - FR84: Failure thresholds defined for automatic human escalation (3+ failed attempts, test failures after implementation, unresolvable linter errors)
 - FR85: Guardrails include relevance classifier (off-topic detection) and safety classifier (jailbreak/injection detection) in custom command prompts
 
-**Prompt Engineering & Evaluation (3 FRs)** *(NEW - from Anthropic research)*
+**Prompt Engineering & Evaluation (3 FRs)** *(from Anthropic research)*
 
 - FR86: Custom commands follow 7-layer prompt structure (role → background → rules → context → task → format → prefill)
 - FR87: Complex commands include Chain of Thought (scratchpad) sections for multi-step reasoning
 - FR88: Prompt evaluation tests defined for each custom command (happy path, edge cases, guardrail tests) with version changelog
+
+**Model & Subagent Optimization (3 FRs)** *(NEW - from Claude Code Playbook)*
+
+- FR89: Model selection guide documented in .claude/docs/model-selection.md specifying which model (Haiku/Sonnet/Opus) to use for each task type: Haiku for quick checks and documentation, Sonnet for standard development and reviews, Opus for architecture decisions and complex debugging
+- FR90: Specialist subagent prompt library in .claude/agents/ with full templates for code-reviewer (security focus), test-expert (TDD specialist), debugger (systematic problem solver), architect (system design), and production-validator (pre-deployment quality gate for TODO detection, placeholder text, hardcoded secrets, debug statements); each template includes model assignment, tool restrictions (read-only for validators/reviewers, edit access for implementers), and structured output format; includes /agents command usage documentation
+- FR91: Context management guide documented in .claude/docs/context-management.md including /clear vs /compact decision matrix, context pollution prevention patterns, and recommended /clear frequency per task type
 
 ## API-First Processing Pipelines
 

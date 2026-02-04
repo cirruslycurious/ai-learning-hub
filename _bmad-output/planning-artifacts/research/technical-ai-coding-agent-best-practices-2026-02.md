@@ -10,15 +10,17 @@
 
 1. [CLAUDE.md / Rules Files Structure](#1-claudemd--rules-files-structure)
 2. [Guardrails and Constraints](#2-guardrails-and-constraints) *(expanded with tool risk, human intervention)*
-3. [Git/GitHub Workflow for Agents](#3-gitgithub-workflow-for-agents)
-4. [Context and Memory](#4-context-and-memory)
-5. [Testing and Validation](#5-testing-and-validation)
-6. [Project Structure](#6-project-structure)
-7. [Agent Orchestration Patterns](#7-agent-orchestration-patterns) *(NEW - from OpenAI)*
-8. [Prompt Engineering for Agents](#8-prompt-engineering-for-agents) *(NEW - from Anthropic)*
-9. [Anti-patterns to Avoid](#9-anti-patterns-to-avoid)
-10. [Tool-Specific Recommendations](#10-tool-specific-recommendations)
-11. [Sources](#11-sources) *(expanded)*
+3. [Hooks: Deterministic Enforcement](#3-hooks-deterministic-enforcement) *(NEW - critical for compliance)*
+4. [Git/GitHub Workflow for Agents](#4-gitgithub-workflow-for-agents)
+5. [Context and Memory](#5-context-and-memory)
+6. [Testing and Validation](#6-testing-and-validation)
+7. [Project Structure](#7-project-structure)
+8. [Agent Orchestration Patterns](#8-agent-orchestration-patterns) *(from OpenAI/Google)*
+9. [Prompt Engineering for Agents](#9-prompt-engineering-for-agents) *(from Anthropic)*
+10. [Model Selection & Cost Optimization](#10-model-selection--cost-optimization) *(from Claude Code Playbook)*
+11. [Anti-patterns to Avoid](#11-anti-patterns-to-avoid)
+12. [Tool-Specific Recommendations](#12-tool-specific-recommendations)
+13. [Sources](#13-sources) *(expanded)*
 
 ---
 
@@ -334,7 +336,362 @@ Always use absolute paths in specs and instructions:
 
 ---
 
-## 3. Git/GitHub Workflow for Agents
+## 3. Hooks: Deterministic Enforcement
+
+*Critical insight: CLAUDE.md is advisory — hooks are deterministic.*
+
+### The Enforcement Gap
+
+| Mechanism | Type | Can Agent Ignore? |
+|-----------|------|-------------------|
+| CLAUDE.md | Advisory | ✅ Yes (LLM chooses) |
+| .claude/docs/ | Advisory | ✅ Yes (LLM chooses) |
+| Hooks | **Deterministic** | ❌ No (code-level) |
+| ESLint | Deterministic | ❌ No (build fails) |
+| CI | Deterministic | ❌ No (merge blocked) |
+
+**Key Finding:** Teams that rely solely on CLAUDE.md experience agents ignoring instructions 10-20% of the time. Hooks provide 100% enforcement.
+
+### Hook Types
+
+Claude Code supports three hook types:
+
+#### 1. Command Hooks (`type: "command"`)
+Execute shell scripts at lifecycle points:
+- Receive JSON input via stdin
+- Control behavior through exit codes:
+  - Exit 0: Allow action
+  - Exit 2: Block action (stderr message to Claude)
+- Return structured JSON for nuanced control (allow/deny/ask)
+
+#### 2. Prompt Hooks (`type: "prompt"`)
+Use Claude model for yes/no decisions:
+- Single-turn evaluation
+- Returns `{ "ok": true }` or `{ "ok": false, "reason": "..." }`
+- Good for fuzzy/contextual decisions
+
+#### 3. Agent Hooks (`type: "agent"`)
+Spawn subagents with tool access:
+- Multi-turn capability (Read, Grep, Glob, Bash)
+- Up to 50 tool-use turns
+- Best for verification requiring actual execution (run tests, check coverage)
+
+### Available Hook Events
+
+| Event | When | Can Block? | Use Case |
+|-------|------|-----------|----------|
+| `SessionStart` | Session begins | No | Inject context, check prerequisites |
+| `UserPromptSubmit` | User submits | Yes | Validate prompts, add context |
+| `PreToolUse` | Before tool | **Yes** | Block dangerous ops, enforce patterns |
+| `PostToolUse` | Tool succeeds | No | Format code, run validation |
+| `Stop` | Agent finishes | **Yes** | Verify tests pass, no TODOs |
+| `SessionEnd` | Session ends | No | Cleanup, logging |
+
+### Tiered Safety Levels
+
+*Pattern from karanb192/claude-code-hooks*
+
+Configure hook strictness based on environment or trust level:
+
+```javascript
+const SAFETY_LEVEL = 'high'; // 'critical' | 'high' | 'strict'
+const LEVELS = { critical: 1, high: 2, strict: 3 };
+
+// Only block patterns at or below configured threshold
+for (const p of PATTERNS) {
+  if (LEVELS[p.level] <= threshold && p.regex.test(cmd)) {
+    return { blocked: true, pattern: p };
+  }
+}
+```
+
+| Level | What's Blocked | Use Case |
+|-------|---------------|----------|
+| `critical` | Catastrophic only (rm -rf ~, fork bombs, dd to disk) | High-trust environments |
+| `high` | + Risky (force push main, secrets exposure, git reset --hard) | **Recommended default** |
+| `strict` | + Cautionary (any force push, sudo rm, docker prune) | Production/compliance |
+
+### Comprehensive Pattern Library
+
+*50+ regex patterns for dangerous commands and sensitive files*
+
+**Dangerous Command Patterns (bash-guard):**
+```javascript
+// CRITICAL - Catastrophic, unrecoverable
+{ level: 'critical', id: 'rm-home',     regex: /\brm\s+(-.+\s+)*["']?~\/?["']?/ },
+{ level: 'critical', id: 'rm-root',     regex: /\brm\s+(-.+\s+)*\/(\*|\s|$)/ },
+{ level: 'critical', id: 'dd-disk',     regex: /\bdd\b.+of=\/dev\/(sd[a-z]|nvme)/ },
+{ level: 'critical', id: 'fork-bomb',   regex: /:\(\)\s*\{.*:\s*\|\s*:.*&/ },
+
+// HIGH - Significant risk, data loss, security
+{ level: 'high', id: 'curl-pipe-sh',    regex: /\b(curl|wget)\b.+\|\s*(ba)?sh\b/ },
+{ level: 'high', id: 'git-force-main',  regex: /\bgit\s+push\b.+(--force|-f).+(main|master)/ },
+{ level: 'high', id: 'git-reset-hard',  regex: /\bgit\s+reset\s+--hard/ },
+{ level: 'high', id: 'chmod-777',       regex: /\bchmod\b.+\b777\b/ },
+{ level: 'high', id: 'cat-env',         regex: /\b(cat|less|head|tail)\s+[^|;]*\.env\b/ },
+{ level: 'high', id: 'echo-secret',     regex: /\becho\b.+\$\w*(SECRET|KEY|TOKEN|PASSWORD)/i },
+
+// STRICT - Cautionary
+{ level: 'strict', id: 'git-force-any', regex: /\bgit\s+push\b.+(--force|-f)\b/ },
+{ level: 'strict', id: 'sudo-rm',       regex: /\bsudo\s+rm\b/ },
+```
+
+**Exfiltration Prevention (protect-secrets):**
+```javascript
+// Block data leaving the system — critical security gap most hooks miss
+{ level: 'high', id: 'curl-upload-env',  regex: /\bcurl\b[^;|&]*(-d\s*@|-F\s*[^=]+=@)[^;|&]*(\.env|credentials|secrets|id_rsa)/i },
+{ level: 'high', id: 'scp-secrets',      regex: /\bscp\b[^;|&]*(\.env|credentials|secrets|id_rsa)[^;|&]+:/i },
+{ level: 'high', id: 'rsync-secrets',    regex: /\brsync\b[^;|&]*(\.env|credentials|secrets)[^;|&]+:/i },
+{ level: 'high', id: 'nc-secrets',       regex: /\bnc\b[^;|&]*<[^;|&]*(\.env|credentials|secrets)/i },
+{ level: 'high', id: 'wget-post',        regex: /\bwget\b[^;|&]*--post-file[^;|&]*(\.env|credentials)/i },
+```
+
+**Sensitive File Patterns (file-guard):**
+```javascript
+// CRITICAL - Always block
+{ level: 'critical', id: 'env-file',        regex: /(?:^|\/)\.env(?:\.[^/]*)?$/ },
+{ level: 'critical', id: 'ssh-private-key', regex: /(?:^|\/)\.ssh\/id_[^/]+$/ },
+{ level: 'critical', id: 'aws-credentials', regex: /(?:^|\/)\.aws\/credentials$/ },
+{ level: 'critical', id: 'pem-key',         regex: /\.pem$/i },
+
+// HIGH - Block by default
+{ level: 'high', id: 'secrets-file',        regex: /(?:^|\/)(secrets?|credentials?)\.(json|ya?ml)$/i },
+{ level: 'high', id: 'docker-config',       regex: /(?:^|\/)\.docker\/config\.json$/ },
+{ level: 'high', id: 'npmrc',               regex: /(?:^|\/)\.npmrc$/ },
+{ level: 'high', id: 'pgpass',              regex: /(?:^|\/)\.pgpass$/ },
+```
+
+### Allowlist Patterns
+
+Prevent false positives by explicitly allowing safe files:
+
+```javascript
+const ALLOWLIST = [
+  /\.env\.example$/i,
+  /\.env\.sample$/i,
+  /\.env\.template$/i,
+  /\.env\.schema$/i,
+  /\.env\.defaults$/i,
+];
+
+function isAllowlisted(filePath) {
+  return ALLOWLIST.some(p => p.test(filePath));
+}
+
+// Check allowlist before blocking
+if (isAllowlisted(filePath)) return { blocked: false };
+```
+
+### JSONL Audit Logging
+
+Log all hook events for debugging and audit trails:
+
+```javascript
+const LOG_DIR = path.join(process.env.HOME, '.claude', 'hooks-logs');
+
+function log(data) {
+  const file = path.join(LOG_DIR, `${new Date().toISOString().slice(0, 10)}.jsonl`);
+  fs.appendFileSync(file, JSON.stringify({
+    ts: new Date().toISOString(),
+    hook: 'bash-guard',
+    ...data
+  }) + '\n');
+}
+
+// Log blocked actions
+log({ level: 'BLOCKED', id: pattern.id, cmd, session_id });
+
+// Log allowed actions (optional, for audit)
+log({ level: 'ALLOWED', cmd, session_id });
+```
+
+**Log file location:** `~/.claude/hooks-logs/2026-02-04.jsonl`
+
+### Recommended Hook Strategy
+
+**PreToolUse Hooks (Block/Escalate):**
+
+```bash
+# bash-guard.js — Block dangerous commands with tiered safety
+# - Configurable SAFETY_LEVEL (critical/high/strict)
+# - 30+ regex patterns for dangerous operations
+# - Exfiltration prevention (curl uploads, scp, rsync)
+# - JSONL logging for audit trail
+```
+
+```bash
+# file-guard.js — Protect sensitive files with allowlists
+# - Blocks .env, SSH keys, AWS credentials, etc.
+# - Allowlist for .env.example, .env.template
+# - Configurable safety levels
+```
+
+```bash
+# architecture-guard.sh — Enforce ADRs
+# Block Lambda-to-Lambda calls
+# Enforce shared library imports
+# Validate DynamoDB key patterns
+```
+
+**PostToolUse Hooks (Auto-fix):**
+
+```bash
+# auto-format.sh — Run after edits
+npx prettier --write "$FILE_PATH"
+npx eslint --fix "$FILE_PATH"
+```
+
+**Stop Hooks (Quality Gates):**
+
+```json
+{
+  "Stop": [{
+    "hooks": [{
+      "type": "agent",
+      "prompt": "Run 'npm test' and verify 80%+ coverage. Block if tests fail.",
+      "timeout": 300000
+    }]
+  }]
+}
+```
+
+### Hook Response Formats
+
+**Simple Block:**
+```bash
+echo "Blocked: Dangerous command" >&2
+exit 2
+```
+
+**Structured Response:**
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": "Architecture violation: Use API Gateway instead"
+  }
+}
+```
+
+**Escalate to Human:**
+```json
+{
+  "hookSpecificOutput": {
+    "permissionDecision": "ask",
+    "permissionDecisionReason": "High-risk: CDK deploy requires approval"
+  }
+}
+```
+
+### TDD Enforcement via Hooks
+
+*Pattern from [tdd-guard](https://github.com/nizos/tdd-guard)*
+
+Enforce test-driven development by intercepting write operations:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|TodoWrite",
+        "hooks": [{
+          "type": "command",
+          "command": "tdd-guard"
+        }]
+      }
+    ]
+  }
+}
+```
+
+**Key components:**
+
+1. **File Type Detection** — Determine if file being written is test vs. implementation
+2. **Test Result Capture** — Custom reporters write results to `.claude/tdd-guard/data/test.json`:
+   ```json
+   {
+     "passed": 0,
+     "failed": 2,
+     "tests": [
+       { "name": "should validate input", "status": "failed" },
+       { "name": "should return correct value", "status": "failed" }
+     ]
+   }
+   ```
+3. **TDD Validation Logic** — Block implementation writes when:
+   - No tests exist for the feature being implemented
+   - Tests exist but none are failing (implementation already complete?)
+   - Current test results show passing (need failing tests first)
+
+**Multi-language reporter support:**
+- JavaScript/TypeScript: Vitest reporter, Jest reporter, Storybook reporter
+- Python: pytest plugin
+- PHP: PHPUnit listener/extension (9.x-12.x)
+- Go: CLI wrapper for `go test -json`
+- Rust: CLI wrapper for `cargo nextest` / `cargo test`
+
+**Monorepo support:**
+```javascript
+// vitest.config.ts
+reporters: [['tdd-guard', { projectRoot: '/path/to/monorepo' }]]
+```
+
+**Session Control** — Allow toggling TDD enforcement via commands when prototyping:
+- Enable: Strict TDD workflow enforced
+- Disable: Normal editing allowed (prototyping mode)
+
+### What to Enforce via Hooks vs. CLAUDE.md
+
+| Requirement | CLAUDE.md | Hooks | Why |
+|-------------|-----------|-------|-----|
+| Coding style | ✅ | ✅ Auto-format | Both: guidance + enforcement |
+| Shared library usage | ✅ | ✅ **Block** | Critical: must enforce |
+| No force push | ✅ | ✅ **Block** | Cannot rely on LLM |
+| Test before done | ✅ | ✅ **Stop hook** | Must verify |
+| TDD workflow | ✅ | ✅ **PreToolUse** | Block impl without tests |
+| Architecture patterns | ✅ | ✅ **Block** | Prevent violations |
+| Commit message format | ✅ | ⚠️ Optional | Lower risk |
+| Documentation style | ✅ | ❌ | Advisory OK |
+
+### Hook File Organization
+
+```
+.claude/
+├── settings.json           # Hook configuration
+├── hooks/
+│   ├── bash-guard.sh       # PreToolUse: dangerous commands
+│   ├── file-guard.sh       # PreToolUse: protected files
+│   ├── architecture-guard.sh # PreToolUse: ADR enforcement
+│   ├── import-guard.sh     # PreToolUse: shared library usage
+│   ├── auto-format.sh      # PostToolUse: Prettier + ESLint
+│   └── type-check.sh       # PostToolUse: TypeScript
+```
+
+### Testing Hooks
+
+Before relying on hooks, test each one:
+
+```bash
+# Test that bash-guard blocks force push
+echo '{"tool_input":{"command":"git push -f"}}' | .claude/hooks/bash-guard.sh
+# Expected: Exit 2, stderr message
+
+# Test that file-guard protects CLAUDE.md
+echo '{"tool_input":{"file_path":"CLAUDE.md"}}' | .claude/hooks/file-guard.sh
+# Expected: JSON with permissionDecision: "deny"
+```
+
+### Key Insight
+
+> "We spent weeks writing perfect CLAUDE.md instructions. The agent ignored half of them. Hooks fixed that overnight." — Senior engineer, fintech startup
+
+**Rule:** Any requirement that agents MUST follow should have a corresponding hook, not just CLAUDE.md documentation.
+
+---
+
+## 4. Git/GitHub Workflow for Agents
 
 ### Branch Strategy
 
@@ -452,7 +809,7 @@ jobs:
 
 ---
 
-## 4. Context and Memory
+## 5. Context and Memory
 
 ### Memory Types
 
@@ -581,7 +938,7 @@ Don't load everything upfront:
 
 ---
 
-## 5. Testing and Validation
+## 6. Testing and Validation
 
 ### Test-Driven Development with Agents
 
@@ -689,7 +1046,7 @@ jobs:
 
 ---
 
-## 6. Project Structure
+## 7. Project Structure
 
 ### File Organization for Agent Comprehension
 
@@ -788,7 +1145,7 @@ Use AWS DynamoDB with single-table design.
 
 ---
 
-## 7. Agent Orchestration Patterns
+## 8. Agent Orchestration Patterns
 
 *Based on OpenAI's "A Practical Guide to Building Agents" (2026)*
 
@@ -902,7 +1259,7 @@ Write and run tests. When passing, hand off to Review Agent.
 
 ---
 
-## 8. Prompt Engineering for Agents
+## 9. Prompt Engineering for Agents
 
 *Based on Anthropic's "Building Trusted AI in the Enterprise" (2026)*
 
@@ -1070,7 +1427,211 @@ Return JSON: { correctness: N, patterns: N, tests: N, security: N, issues: [...]
 
 ---
 
-## 9. Anti-patterns to Avoid
+## 10. Model Selection & Cost Optimization
+
+*Based on Claude Code Playbook (Supatest AI, August 2025)*
+
+Effective model selection per task type can achieve 90%+ cost reduction while maintaining quality.
+
+### Model Selection by Task Type
+
+| Task Type | Recommended Model | Estimated Cost | Rationale |
+|-----------|------------------|----------------|-----------|
+| Quick code checks | Haiku | $0.01 | Speed, low complexity |
+| Documentation | Haiku | $0.01 | Structured output, low reasoning |
+| Standard code review | Sonnet | $0.08 | Balance of quality and cost |
+| Test generation | Sonnet | $0.06 | Pattern-based, moderate complexity |
+| Feature implementation | Sonnet | $0.10 | Standard development work |
+| Architecture decisions | Opus | $1.20 | Deep reasoning required |
+| Complex debugging | Opus | $0.90 | Multi-step analysis |
+| Root cause analysis | Opus | $1.00 | System-wide reasoning |
+
+### Specialist Subagent Library
+
+Create dedicated subagent prompts for recurring task types:
+
+#### Code Reviewer (Security Focus)
+```markdown
+--name: code-reviewer
+model: sonnet
+tools: Read, Grep, Glob, Bash
+---
+
+You are a senior security-focused code reviewer.
+
+IMMEDIATE ACTIONS:
+1. Run `git diff --staged` to analyze changes
+2. Security-first analysis
+3. Structured, actionable feedback
+
+SECURITY CHECKLIST:
+🔴 CRITICAL: SQL injection, XSS, auth bypass, data exposure
+🟡 WARNING: Performance, memory leaks, error handling
+🟢 SUGGESTION: Design patterns, refactoring opportunities
+
+OUTPUT: Include specific line numbers and code examples.
+```
+
+#### Test Expert (TDD Specialist)
+```markdown
+--name: test-expert
+model: sonnet
+tools: Read, Write, Edit, Bash
+---
+
+You are a test automation expert specializing in TDD.
+
+TDD WORKFLOW:
+1. Red: Write failing tests first
+2. Green: Implement minimal code to pass
+3. Refactor: Improve while keeping tests green
+
+TEST PYRAMID:
+🔺 E2E (Few): Critical user journeys
+🔸 Integration (Some): API, database
+🔹 Unit (Many): Functions, edge cases
+```
+
+#### Debugger (Systematic Problem Solver)
+```markdown
+--name: debugger
+model: opus
+tools: Read, Edit, Bash, Grep, Glob
+---
+
+You are an expert debugger with systematic methodology.
+
+DEBUGGING STEPS:
+1. CAPTURE: Exact errors, stack traces, reproduction steps
+2. ISOLATE: Minimal reproduction case
+3. HYPOTHESIZE: Testable theories about root cause
+4. TEST: Validate with targeted changes
+5. FIX: Minimal, focused solution
+6. VERIFY: Confirm fix, no regressions
+7. PREVENT: Add tests to prevent recurrence
+```
+
+#### Production Validator (Pre-Deploy Quality Gate)
+```markdown
+--name: production-validator
+model: sonnet
+tools: Read, Grep, Glob
+---
+
+You are a production code quality enforcer. Read-only access.
+
+IMMEDIATE BLOCKERS (Stop deployment if found):
+- TODO/FIXME comments
+- Placeholder text ("Replace with actual...", "Coming soon")
+- Hardcoded API keys, passwords, tokens
+- Debug statements (console.log, print(), debugger)
+- Commented-out code blocks
+
+CODE QUALITY ISSUES:
+- Missing error handling in API calls
+- Unused imports or variables
+- Functions longer than 50 lines
+- Missing TypeScript types
+
+OUTPUT FORMAT:
+🔴 BLOCKER: [issue] at [file:line] — Must fix before deploy
+🟡 WARNING: [issue] at [file:line] — Should fix
+🟢 PASSED: No blocking issues found
+```
+
+### Agent Creation via /agents Command
+
+Agents are created and managed using the `/agents` command in Claude Code:
+
+```bash
+# Open subagent management interface
+/agents
+
+# Options:
+# - Create New Agent (user-level or project-level)
+# - View/Edit existing agents
+# - Delete agents
+```
+
+**Scoping Strategy:**
+- **User-level agents** — Available across all projects (e.g., production-validator, code-reviewer)
+- **Project-level agents** — Specific to one project (e.g., frontend specialist with project-specific stack)
+
+**Auto-delegation:** Claude automatically routes tasks to matching specialists based on the agent's description field. You don't need to explicitly invoke agents.
+
+### Context Pollution Prevention
+
+Context pollution is the #1 problem teams face with Claude Code.
+
+#### /clear vs /compact Decision Matrix
+
+| Situation | Use /clear | Use /compact | Why |
+|-----------|------------|--------------|-----|
+| New unrelated task | ✅ Always | ❌ Never | Fresh context needed |
+| Context window full | ❌ No | ✅ Sometimes | Preserve important context |
+| Performance degrading | ✅ Yes | ❌ No | Full reset more effective |
+| Complex reasoning needed | ✅ Yes | ❌ No | Avoid context confusion |
+| Mid-task continuation | ❌ No | ✅ Maybe | Only if necessary |
+
+**Rule:** With large context windows, use `/clear` liberally. Use `/compact` sparingly.
+
+#### Cascaded Context Hierarchy
+
+Structure context files in hierarchy for scalability:
+
+```
+Enterprise Level: /etc/claude-code/CLAUDE.md  # Company standards
+Global Level:     ~/.claude/CLAUDE.md         # Personal preferences
+Project Level:    ./CLAUDE.md                 # Project-specific (PRIMARY)
+Module Level:     ./backend/CLAUDE.md         # Subsystem-specific
+Feature Level:    ./features/auth/CLAUDE.md   # Feature-specific
+```
+
+Start with Project Level only; add Module/Feature levels as codebase grows.
+
+### The "Explore → Plan → Code → Review → Deploy" Pattern
+
+Structured workflow that separates professionals from casual users:
+
+```bash
+# 1. EXPLORE (Leverage full context window)
+> Analyze the entire authentication system including @auth/ @api/routes/auth.js @tests/auth/
+
+# 2. PLAN (Use thinking triggers)
+> Think hard about implementing OAuth2 integration. Consider security, UX, backward compatibility.
+
+# 3. CODE (Now implement)
+> Implement the OAuth2 integration plan we discussed
+
+# 4. REVIEW (Multi-layer validation)
+> Use the code-reviewer subagent to audit this implementation
+> Use the security-auditor subagent to check for vulnerabilities
+
+# 5. DEPLOY (Infrastructure + monitoring)
+> Use the devops-engineer subagent to create deployment strategy
+```
+
+### Agent-Assisted TDD Workflow
+
+TDD becomes powerful with subagent orchestration:
+
+```bash
+# 1. Generate failing tests first
+> Use the test-expert subagent to write comprehensive tests for user registration
+
+# 2. Verify tests fail
+> Run the tests and confirm they fail as expected
+
+# 3. Implement to pass tests
+> Implement the user registration feature to make all tests pass. Don't modify tests.
+
+# 4. Refactor while maintaining green tests
+> Use the code-reviewer subagent to suggest improvements while keeping tests green
+```
+
+---
+
+## 11. Anti-patterns to Avoid
 
 ### Instruction Anti-patterns
 
@@ -1138,7 +1699,7 @@ Return JSON: { correctness: N, patterns: N, tests: N, security: N, issues: [...]
 
 ---
 
-## 10. Tool-Specific Recommendations
+## 12. Tool-Specific Recommendations
 
 ### Claude Code
 
@@ -1232,7 +1793,7 @@ Combine tools for optimal results:
 
 ---
 
-## 11. Sources
+## 13. Sources
 
 ### Official Documentation
 - [Claude Code Documentation](https://code.claude.com/docs)
@@ -1262,9 +1823,21 @@ Combine tools for optimal results:
 - [Lenny's Newsletter: AI Prompt Engineering in 2025](https://www.lennysnewsletter.com/p/ai-prompt-engineering-in-2025-sander-schulhoff)
 - [PromptHub: Prompt Engineering for AI Agents](https://www.prompthub.us/blog/prompt-engineering-for-ai-agents)
 
-### Enterprise & Agent Architecture (NEW)
+### Enterprise & Agent Architecture
 - [Anthropic: Building Trusted AI in the Enterprise](https://www.anthropic.com/enterprise) — 7-layer prompt structure, LLMOps, evaluation practices
 - [OpenAI: A Practical Guide to Building Agents](https://platform.openai.com/docs/guides/agents) — Orchestration patterns, guardrail types, human intervention
+- [Google: Agents Whitepaper](https://cloud.google.com/vertex-ai/docs/generative-ai/agents) — Agent architecture (model + tools + orchestration), ReAct/CoT/ToT reasoning, Extensions vs Functions vs Data Stores *(February 2025)*
+
+### Claude Code Optimization
+- [Claude Code Playbook (Supatest AI)](https://supatest.ai/claude-code-playbook) — Cascaded CLAUDE.md system, subagent library patterns, model selection strategy, context pollution prevention, cost optimization *(August 2025)*
+- [Joe Njenga: Claude Code Sub Agents](https://medium.com/@joe.njenga/how-im-using-claude-code-sub-agents) — Step-by-step subagent creation, production-validator pattern, /agents command usage, user-level vs project-level scoping, auto-delegation behavior *(July 2025)*
+
+### Hooks & Enforcement
+- [Hooks Reference - Claude Code Docs](https://code.claude.com/docs/en/hooks) — Complete hook event schemas, JSON response formats, PreToolUse/PostToolUse/Stop hooks
+- [Automate Workflows with Hooks - Claude Code Docs](https://code.claude.com/docs/en/hooks-guide) — Tutorial, command/prompt/agent hook types, common patterns
+- [tdd-guard (GitHub)](https://github.com/nizos/tdd-guard) — PreToolUse Write/Edit/MultiEdit enforcement for TDD workflow; multi-language test reporters (Vitest, Jest, Storybook, pytest, PHPUnit, Go, Rust) that capture results to `.claude/tdd-guard/data/test.json`; session toggle for enforcement; file type detection; monorepo support via `projectRoot` config *(January 2026)*
+- [agent-security (GitHub)](https://github.com/mintmcp/agent-security) — Secrets scanning hooks for Claude Code and Cursor
+- [claude-code-hooks (GitHub)](https://github.com/karanb192/claude-code-hooks) — Tiered safety levels (critical/high/strict), comprehensive regex patterns (50+), exfiltration prevention, allowlists, JSONL audit logging, 262 passing tests *(January 2026)*
 
 ### Community Resources
 - [Awesome Claude Code](https://github.com/hesreallyhim/awesome-claude-code)
@@ -1299,7 +1872,28 @@ Combine tools for optimal results:
 17. **Provide few-shot examples** — Show exact patterns to follow
 18. **Evaluate and iterate** — LLM-as-judge, prompt versioning, track what works
 
-### Agent Architecture (From OpenAI)
+### Agent Architecture (From OpenAI/Google)
 19. **Start with single agent** — Only add complexity when single agent consistently fails
 20. **Know when to split** — Complex logic, tool overload, role switching
 21. **Choose orchestration pattern** — Manager (central control) vs. Decentralized (handoffs)
+
+### Hooks: Deterministic Enforcement (Critical)
+22. **CLAUDE.md is advisory, hooks are deterministic** — Any requirement agents MUST follow needs a corresponding hook
+23. **Use tiered safety levels** — Configure `critical`/`high`/`strict` per environment; `high` recommended as default
+24. **Block exfiltration, not just reading** — Prevent `curl -d @.env`, `scp secrets`, `rsync` of sensitive files
+25. **Use allowlists to prevent false positives** — Explicitly allow `.env.example`, `.env.template`, etc.
+26. **Log all hook events (JSONL)** — Audit trail in `~/.claude/hooks-logs/` for debugging and compliance
+27. **Use comprehensive regex patterns** — 50+ patterns cover dangerous commands, sensitive files, and exfiltration attempts
+28. **Test hooks before relying on them** — Verify each hook blocks/allows correctly with sample JSON input
+
+### Model & Context Optimization (From Claude Code Playbook)
+29. **Select model per task type** — Haiku for quick checks/docs, Sonnet for standard dev, Opus for architecture/complex debugging
+30. **Build specialist subagent library** — Code-reviewer, test-expert, debugger, architect with dedicated prompts, tool restrictions, and model assignments
+31. **Prevent context pollution** — Use /clear liberally between unrelated tasks; context pollution is the #1 problem teams face
+32. **Use cascaded context hierarchy** — Project → Module → Feature level CLAUDE.md files as codebase scales
+
+### TDD Enforcement (From tdd-guard)
+33. **Intercept write operations for TDD** — Use PreToolUse matcher `Write|Edit|MultiEdit` to block implementation without failing tests first
+34. **Capture test results in standardized format** — Use custom test reporters (Vitest, Jest, pytest, etc.) that write JSON to a known location (`.claude/tdd-guard/data/test.json`)
+35. **Support monorepos with projectRoot** — Configure test reporters with `projectRoot` so hooks work when config is in subdirectories
+36. **Detect file types before enforcing** — Identify if a file is test vs. implementation to apply appropriate TDD rules (only block implementation writes when tests don't exist/pass)

@@ -1,0 +1,99 @@
+# generated: 2026-02-04
+# project: ai-learning-hub
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: _bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-02-04
+project: ai-learning-hub
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+
+development_status:
+  # Epic 1: Project Foundation & Developer Experience (14 stories)
+  epic-1: backlog
+  1-1-monorepo-scaffold: backlog
+  1-2-shared-lambda-layer: backlog
+  1-3-claude-md-progressive-disclosure: backlog
+  1-4-custom-slash-commands: backlog
+  1-5-claude-code-hooks: backlog
+  1-6-github-templates: backlog
+  1-7-ci-cd-pipeline: backlog
+  1-8-dynamodb-s3-infrastructure: backlog
+  1-9-observability-foundation: backlog
+  1-10-tool-risk-classification: backlog
+  1-11-prompt-evaluation-tests: backlog
+  1-12-model-selection-guide: backlog
+  1-13-subagent-library: backlog
+  1-14-context-management-guide: backlog
+  epic-1-retrospective: optional
+
+  # Epic 2: User Authentication & API Keys (stories TBD)
+  epic-2: backlog
+  epic-2-retrospective: optional
+
+  # Epic 3: Save URLs - Core CRUD (stories TBD)
+  epic-3: backlog
+  epic-3-retrospective: optional
+
+  # Epic 4: Project Management (stories TBD)
+  epic-4: backlog
+  epic-4-retrospective: optional
+
+  # Epic 5: Resource-Project Linking (stories TBD)
+  epic-5: backlog
+  epic-5-retrospective: optional
+
+  # Epic 6: Project Notes & Desktop Workspace (stories TBD)
+  epic-6: backlog
+  epic-6-retrospective: optional
+
+  # Epic 7: Search & Discovery (stories TBD)
+  epic-7: backlog
+  epic-7-retrospective: optional
+
+  # Epic 8: Tutorial Tracking (stories TBD)
+  epic-8: backlog
+  epic-8-retrospective: optional
+
+  # Epic 9: Async Processing Pipelines (stories TBD)
+  epic-9: backlog
+  epic-9-retrospective: optional
+
+  # Epic 10: Admin & Analytics (stories TBD)
+  epic-10: backlog
+  epic-10-retrospective: optional
+
+  # Epic 11: Onboarding & Seeded Content (stories TBD)
+  epic-11: backlog
+  epic-11-retrospective: optional

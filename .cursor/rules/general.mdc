@@ -1,0 +1,67 @@
+# AI Learning Hub - Cursor Rules
+
+## Project Overview
+Personal learning project management system built with React + Vite frontend, AWS Lambda backend, DynamoDB database, and CDK infrastructure.
+
+## Tech Stack
+- Frontend: React + Vite + TypeScript
+- Auth: Clerk (JWT for web, API keys for agents)
+- Backend: AWS Lambda (Node.js/TypeScript)
+- Database: DynamoDB (7 tables, 10 GSIs)
+- Infra: AWS CDK (TypeScript)
+- Hosting: S3 + CloudFront
+
+## Quick Commands
+```bash
+npm install          # Install all workspace dependencies
+npm test             # Run all tests
+npm run build        # Build all packages
+npm run lint         # Lint all code
+cd infra && cdk deploy  # Deploy infrastructure
+```
+
+## Project Structure
+```
+/frontend            # React + Vite PWA
+/backend             # Lambda function handlers
+/infra               # AWS CDK stacks (15+)
+/shared              # @ai-learning-hub/* packages
+/.claude/docs/       # Detailed docs (load on-demand)
+```
+
+## CRITICAL: Shared Libraries
+All Lambda functions MUST import from `@ai-learning-hub/*`:
+- `@ai-learning-hub/logging` - Structured logging + X-Ray
+- `@ai-learning-hub/middleware` - Auth, error handling, validation
+- `@ai-learning-hub/db` - DynamoDB client + query helpers
+- `@ai-learning-hub/validation` - Zod schemas
+- `@ai-learning-hub/types` - Shared TypeScript types
+
+NEVER create custom utilities that duplicate shared library functionality.
+
+## Architecture Constraints
+- No Lambda-to-Lambda calls (use API Gateway or EventBridge)
+- All async processing via EventBridge + Step Functions
+- Standardized error responses (ADR-008)
+- DynamoDB keys: `PK=USER#{userId}`, `SK=<entity>#<id>` or `PK=CONTENT#{urlHash}`
+
+## Testing Requirements
+- 80% minimum coverage (CI-enforced)
+- Write tests BEFORE implementation (TDD)
+- All new code must have tests
+- E2E tests for user-facing features
+
+## NEVER
+- Create utility functions without checking /shared first
+- Skip tests (80% coverage enforced)
+- Force push to main or master
+- Mix multiple issues in one PR
+- Make Lambda-to-Lambda calls
+- Store secrets in code (use Parameter Store)
+- Use console.log in Lambda handlers (use @ai-learning-hub/logging)
+
+## ALWAYS
+- Run `npm test` before committing
+- Use shared libraries (@ai-learning-hub/*)
+- Reference issue numbers in commits
+- Follow TDD: write failing test first, then implement

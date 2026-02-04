@@ -1,0 +1,61 @@
+# Lambda Development Rules
+
+## Handler Structure
+Every Lambda handler MUST:
+1. Import from @ai-learning-hub/* shared libraries
+2. Use middleware wrapper for auth/validation/error handling
+3. Use structured logging (never console.log)
+4. Return standardized response format
+
+## Required Imports
+```typescript
+import { logger } from '@ai-learning-hub/logging';
+import { withMiddleware, withAuth, withValidation } from '@ai-learning-hub/middleware';
+import { db } from '@ai-learning-hub/db';
+import { schemas } from '@ai-learning-hub/validation';
+import type { APIResponse } from '@ai-learning-hub/types';
+```
+
+## Handler Pattern
+```typescript
+import { withMiddleware, withAuth, withValidation } from '@ai-learning-hub/middleware';
+import { logger } from '@ai-learning-hub/logging';
+import { SaveRequestSchema } from '@ai-learning-hub/validation';
+
+export const handler = withMiddleware(
+  withAuth(),
+  withValidation(SaveRequestSchema),
+  async (event, context) => {
+    logger.info('Processing request', { path: event.path });
+
+    // Implementation
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ data })
+    };
+  }
+);
+```
+
+## Error Handling
+- Use standardized error responses (ADR-008)
+- Let middleware handle error formatting
+- Log errors with correlation IDs
+
+## Database Access
+- Use @ai-learning-hub/db for all DynamoDB operations
+- Follow key patterns: `PK=USER#{userId}`, `SK=<entity>#<id>`
+- Never import DynamoDB SDK directly
+
+## Architecture Rules
+- NO Lambda-to-Lambda calls
+- Use EventBridge for async communication
+- Use Step Functions for workflows
+- Use API Gateway for sync communication
+
+## Testing
+- Unit tests for business logic
+- Integration tests for DynamoDB operations
+- Mock external services
+- 80% minimum coverage

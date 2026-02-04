@@ -1,0 +1,8 @@
+{
+  "timestamp": "2026-02-04T00:00:00Z",
+  "passed": 0,
+  "failed": 0,
+  "total": 0,
+  "tests": [],
+  "note": "This file is updated by the Vitest reporter. Run 'npm test' to populate with actual results."
+}

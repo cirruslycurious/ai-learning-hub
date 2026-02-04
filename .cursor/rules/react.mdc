@@ -1,0 +1,44 @@
+# React Development Rules
+
+## Component Structure
+- Use functional components with hooks
+- Keep components focused and single-responsibility
+- Co-locate tests with components (*.test.tsx)
+
+## State Management
+- Use React Query for server state
+- Use Zustand for client state (stores/)
+- Avoid prop drilling - use context for shared state
+
+## Styling
+- Use Tailwind CSS for styling
+- Follow mobile-first responsive design
+- Keep styles co-located with components
+
+## TypeScript
+- Strict mode enabled
+- No `any` types without justification
+- Use shared types from @ai-learning-hub/types
+
+## Testing
+- Unit tests for component logic
+- Integration tests for user flows
+- Use React Testing Library
+- Test user behavior, not implementation details
+
+## File Organization
+```
+/frontend/src/
+  /components/     # Reusable UI components
+  /features/       # Feature-specific components
+  /hooks/          # Custom React hooks
+  /stores/         # Zustand state stores
+  /utils/          # Frontend utilities
+  /types/          # Frontend-specific types
+```
+
+## Naming Conventions
+- Components: PascalCase (UserProfile.tsx)
+- Hooks: camelCase with 'use' prefix (useAuth.ts)
+- Utils: camelCase (formatDate.ts)
+- Tests: same name with .test suffix (UserProfile.test.tsx)

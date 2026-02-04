@@ -1,0 +1,62 @@
+# Testing Rules
+
+## TDD Workflow
+1. Write failing test first (RED)
+2. Implement minimal code to pass (GREEN)
+3. Refactor while keeping tests green (REFACTOR)
+
+## Test File Location
+- Co-locate tests with source files
+- Use `.test.ts` or `.test.tsx` suffix
+- Example: `src/utils/helper.ts` → `src/utils/helper.test.ts`
+
+## Test Framework
+- Vitest for unit tests
+- Playwright for E2E tests
+- React Testing Library for component tests
+
+## Coverage Requirements
+- 80% minimum (CI-enforced gate)
+- All new code must have tests
+- Critical paths require E2E tests
+
+## What to Test
+
+### Unit Tests
+- Business logic functions
+- Data transformations
+- Validation rules
+- Error handling paths
+
+### Integration Tests
+- API endpoint responses
+- DynamoDB operations
+- Component interactions
+
+### E2E Tests (Critical Paths)
+- User authentication flow
+- Save URL flow (< 3 seconds)
+- Project creation flow
+- Search functionality
+
+## Test Naming
+```typescript
+describe('SaveService', () => {
+  describe('createSave', () => {
+    it('should create a new save with valid URL', async () => {});
+    it('should reject invalid URLs', async () => {});
+    it('should enrich save with metadata', async () => {});
+  });
+});
+```
+
+## Mocking
+- Mock external APIs (never call real services)
+- Use MSW for API mocking
+- Mock DynamoDB with @aws-sdk/client-dynamodb-mock
+
+## TDD Guard
+The project uses TDD Guard hooks:
+- Implementation writes are blocked if no failing tests exist
+- Always write tests first
+- Bypass with `TDD_GUARD_ENABLED=false` for prototyping only

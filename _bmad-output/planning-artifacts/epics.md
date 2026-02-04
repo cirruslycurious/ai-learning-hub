@@ -302,9 +302,10 @@ This document provides the complete epic and story breakdown for ai-learning-hub
 | FR70-FR73 | Epic 1 | Agentic project configuration (CLAUDE.md, .claude/, commands, hooks) |
 | FR74-FR75 | Epic 1 | Agentic memory & context (progress.md, plan.md) |
 | FR76-FR78 | Epic 1 | Agentic GitHub workflow (issue templates, PR checklist, conventions) |
-| FR79-FR81 | Epic 1 | Agentic quality & safety (security scanning, lint rules, test requirements) |
+| FR79-FR81 | Epic 1 | Agentic quality & safety (security scanning, lint rules, test requirements, agent-assisted TDD) |
 | FR82-FR85 | Epic 1 | Agentic tool risk & human intervention (risk classification, approval gates, escalation) |
 | FR86-FR88 | Epic 1 | Agentic prompt engineering (7-layer structure, CoT, evaluation tests) |
+| FR89-FR91 | Epic 1 | Agentic model & subagent optimization (model selection, subagent library, context management) |
 
 ---
 
@@ -507,29 +508,34 @@ flowchart TB
 - Monorepo scaffold (infra, frontend, backend workspaces)
 - Shared Lambda Layer with `@ai-learning-hub/*` utilities
 - CLAUDE.md (<200 lines) and progressive disclosure documentation
-- Custom slash commands for common workflows
-- Claude Code hooks for guardrails (auto-format, block dangerous commands)
+- Custom slash commands for common workflows with model selection
+- Comprehensive Claude Code hooks for deterministic enforcement (6 hook scripts + settings.json)
 - GitHub issue/PR templates for agent consumption
 - CI/CD pipeline with quality gates (80% coverage, CDK Nag, lint, security scanning)
 - DynamoDB tables (7) and S3 buckets
 - Observability foundation (X-Ray, structured logging)
+- Model selection guide and specialist subagent library
+- Context management guide with pollution prevention patterns
 
 **Stories:**
 | Story | Description |
 |-------|-------------|
 | 1.1 | Monorepo scaffold (infra, frontend, backend workspaces with npm workspaces) |
 | 1.2 | Shared Lambda Layer (@ai-learning-hub/logging, middleware, db, validation, types) |
-| 1.3 | CLAUDE.md and progressive disclosure documentation (.claude/docs/) |
-| 1.4 | Custom slash commands for workflows (.claude/commands/) with 7-layer prompt structure |
-| 1.5 | Claude Code hooks for guardrails (.claude/settings.json) |
+| 1.3 | CLAUDE.md and progressive disclosure documentation (.claude/docs/) with hierarchical context support |
+| 1.4 | Custom slash commands for workflows (.claude/commands/) with 7-layer prompt structure and model selection |
+| 1.5 | Comprehensive Claude Code hooks (.claude/settings.json + .claude/hooks/): PreToolUse (bash-guard, file-guard, architecture-guard, import-guard), PostToolUse (auto-format, type-check), Stop (test-validator agent, production-validator agent) |
 | 1.6 | GitHub issue/PR templates for agents (.github/ISSUE_TEMPLATE/, pull_request_template.md) |
 | 1.7 | CI/CD pipeline with quality gates + agent security scanning |
 | 1.8 | DynamoDB tables and S3 buckets (core infrastructure) |
 | 1.9 | Observability foundation (X-Ray, structured logging, EMF metrics) |
 | 1.10 | Tool risk classification document (.claude/docs/tool-risk.md) with human intervention triggers |
 | 1.11 | Prompt evaluation tests for custom commands with version changelog |
+| 1.12 | Model selection guide (.claude/docs/model-selection.md) — Haiku/Sonnet/Opus per task type |
+| 1.13 | Specialist subagent prompt library (.claude/agents/) — code-reviewer, test-expert, debugger, architect, production-validator; includes agent creation guide using /agents command |
+| 1.14 | Context management guide (.claude/docs/context-management.md) — /clear vs /compact decision matrix, pollution prevention |
 
-**FRs covered:** FR70-FR88 (19 FRs total)
+**FRs covered:** FR70-FR91 (22 FRs total)
 **NFRs covered:** NFR-S1, NFR-S2, NFR-S7, NFR-R3, NFR-R6, NFR-O1, NFR-O2, NFR-C1, NFR-C3
 
 ---
@@ -635,7 +641,7 @@ flowchart TB
 
 **Status:** Research completed February 2026. Full findings in `docs/research/ai-coding-agent-best-practices.md`.
 
-**Research Sources:** HumanLayer, Cursor, Addy Osmani (Google), Anthropic Enterprise Guide, OpenAI Agent Guide, Builder.io, AGENTS.md spec, academic papers, Claude Code documentation.
+**Research Sources:** HumanLayer, Cursor, Addy Osmani (Google), Anthropic Enterprise Guide, OpenAI Agent Guide, Google Agents Whitepaper, Claude Code Playbook (Supatest AI), Joe Njenga (Medium), Builder.io, AGENTS.md spec, academic papers, Claude Code documentation.
 
 ### Key Research Findings
 
@@ -700,18 +706,45 @@ flowchart TB
 - Improves accuracy for multi-step reasoning
 - Use judiciously (increases token usage)
 
-**13. Prompt Evaluation & Iteration (NEW - from Anthropic)**
+**13. Prompt Evaluation & Iteration (from Anthropic)**
 - Define test cases for each custom command
 - LLM-as-judge for automated evaluation
 - Version changelog to track improvements
+
+**14. Model Selection Per Task Type (NEW - from Claude Code Playbook)**
+- Haiku for quick checks, documentation (lowest cost)
+- Sonnet for standard development, code review (balance)
+- Opus for architecture decisions, complex debugging (highest quality)
+- 90%+ cost optimization possible with strategic selection
+
+**15. Specialist Subagent Library (NEW - from Claude Code Playbook + Joe Njenga)**
+- Code-reviewer (security focus) — Sonnet model, read-only tools
+- Test-expert (TDD specialist) — Sonnet model
+- Debugger (systematic problem solver) — Opus model
+- Architect (system design) — Opus model
+- Production-validator (pre-deploy gate) — Sonnet model, read-only tools
+- Each with dedicated prompt, tool restrictions, output format
+- Agents created via /agents command (user-level or project-level scoping)
+
+**16. Context Pollution Prevention (NEW - from Claude Code Playbook)**
+- Context pollution is #1 problem teams face
+- Use /clear liberally between unrelated tasks
+- /compact sparingly and only when necessary
+- Decision matrix based on task type
+
+**17. Cascaded Context Hierarchy (NEW - from Claude Code Playbook)**
+- Project level: ./CLAUDE.md (primary)
+- Module level: ./backend/CLAUDE.md (subsystem-specific)
+- Feature level: ./features/auth/CLAUDE.md (feature-specific)
+- Start with Project only; add Module/Feature as codebase grows
 
 ### Decisions Made
 
 | Question | Decision |
 |----------|----------|
-| Accept expanded FRs (12 vs 3)? | **Yes** — FR70-FR81 accepted |
+| Accept expanded FRs (22 total)? | **Yes** — FR70-FR91 accepted |
 | Memory file strategy? | **Per-story progress.md + per-epic summary** |
-| Hook friction level? | **Medium** — Auto-format + block dangerous commands |
+| Hook friction level? | **High (Comprehensive)** — 6 enforcement scripts + agent-based Stop validation; deterministic ADR/library enforcement |
 | Custom commands scope? | **Comprehensive (10+)** — All common workflows |
 | CLAUDE.md modification? | **Human-only** — Requires human approval to modify |
 
@@ -721,6 +754,13 @@ flowchart TB
 ai-learning-hub/
 ├── CLAUDE.md                    # <200 lines, essential only, human-owned
 ├── .claude/
+│   ├── agents/                  # Specialist subagent prompts (NEW)
+│   │   ├── code-reviewer.md     # Security-focused review (read-only)
+│   │   ├── test-expert.md       # TDD specialist
+│   │   ├── debugger.md          # Systematic problem solver
+│   │   ├── architect.md         # System design
+│   │   ├── production-validator.md # Pre-deploy quality gate (read-only)
+│   │   └── README.md            # Agent creation guide (/agents command)
 │   ├── commands/
 │   │   ├── fix-github-issue.md
 │   │   ├── create-component.md
@@ -731,7 +771,10 @@ ai-learning-hub/
 │   │   ├── architecture.md      # Condensed from full doc
 │   │   ├── database-schema.md
 │   │   ├── api-patterns.md
-│   │   └── testing-guide.md
+│   │   ├── testing-guide.md
+│   │   ├── tool-risk.md         # Risk classification
+│   │   ├── model-selection.md   # Haiku/Sonnet/Opus guidance (NEW)
+│   │   └── context-management.md # Pollution prevention (NEW)
 │   └── settings.json            # Hooks configuration
 ├── .github/
 │   ├── ISSUE_TEMPLATE/
@@ -747,40 +790,107 @@ ai-learning-hub/
             └── plan.md          # Technical spec
 ```
 
-### Hooks Configuration (Medium Friction)
+### Hooks Configuration (Comprehensive Enforcement)
+
+**Principle:** CLAUDE.md is advisory (LLM can ignore). Hooks are deterministic (code-level enforcement).
 
 ```json
 {
   "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "command": "npm run lint:fix --silent",
-        "description": "Auto-format after edits"
-      }
-    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
-        "command": ".claude/scripts/validate-command.sh \"$COMMAND\"",
-        "description": "Block dangerous commands (force push, rm -rf, etc.)"
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/bash-guard.sh",
+            "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/file-guard.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/architecture-guard.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/import-guard.sh",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/auto-format.sh",
+            "timeout": 30000
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/type-check.sh",
+            "timeout": 60000
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "agent",
+            "prompt": "Before stopping, verify: 1) Run 'npm test' and confirm all tests pass with 80%+ coverage, 2) Run 'npm run lint' and confirm no errors, 3) Run 'npm run build' and confirm no TypeScript errors. If ANY check fails, do NOT allow stopping - fix the issues first.",
+            "timeout": 300000
+          }
+        ]
       }
     ]
   }
 }
 ```
 
+**Hook Scripts (6 files in .claude/hooks/):**
+
+| Script | Hook Type | Purpose |
+|--------|-----------|---------|
+| bash-guard.sh | PreToolUse | Block dangerous commands (force push, rm -rf, credential exposure), escalate high-risk |
+| file-guard.sh | PreToolUse | Protect CLAUDE.md, .env, lock files, _bmad-output/, escalate infra changes |
+| architecture-guard.sh | PreToolUse | Enforce ADRs: no Lambda-to-Lambda (ADR-007), DynamoDB patterns (ADR-006) |
+| import-guard.sh | PreToolUse | Enforce @ai-learning-hub/* imports in Lambda files (ADR-005) |
+| auto-format.sh | PostToolUse | Run Prettier + ESLint fix after edits |
+| type-check.sh | PostToolUse | TypeScript validation with error context |
+
+**Stop Hook (Agent-Based):**
+- Spawns agent to run `npm test`, `npm run lint`, `npm run build`
+- Blocks task completion if tests fail or coverage < 80%
+- Ensures no agent can claim "done" without passing quality gates
+
 ### Impact Summary
 
-- **FR count:** Expanded from 3 to 19 FRs (FR70-FR88)
-- **Epic 1 stories:** Expanded from 6 to 11 stories
+- **FR count:** Expanded from 3 to 22 FRs (FR70-FR91)
+- **Epic 1 stories:** Expanded from 6 to 14 stories
 - **CLAUDE.md:** New structure (<200 lines, essential only)
 - **Progressive disclosure:** `.claude/docs/` replaces monolithic loading
 - **Memory strategy:** Per-story progress.md + per-epic summary
 - **Quality gates:** Agent-specific security scanning in CI
-- **Tool risk:** Classification document with human intervention triggers (NEW)
-- **Prompt engineering:** 7-layer structure, CoT for complex tasks (NEW)
-- **Evaluation:** Prompt test cases with version changelog (NEW)
+- **Tool risk:** Classification document with human intervention triggers
+- **Prompt engineering:** 7-layer structure, CoT for complex tasks
+- **Evaluation:** Prompt test cases with version changelog
+- **Model selection:** Haiku/Sonnet/Opus guidance per task type (NEW - from Playbook)
+- **Subagent library:** code-reviewer, test-expert, debugger, architect, production-validator (NEW - from Playbook + Joe Njenga)
+- **Context management:** /clear vs /compact decision matrix, pollution prevention (NEW - from Playbook)
 
 <!-- Repeat for each epic in epics_list (N = 1, 2, 3...) -->
 

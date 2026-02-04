@@ -38,3 +38,6 @@ cdk.context.json
 # Misc
 .cache/
 *.tgz
+
+# Large research PDFs (keep text extracts only)
+_bmad-output/planning-artifacts/research/*.pdf
