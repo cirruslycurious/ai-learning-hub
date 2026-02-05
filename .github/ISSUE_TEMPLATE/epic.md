@@ -33,7 +33,7 @@ _List of issues that make up this epic. Create these as separate issues and link
 
 ## Acceptance Criteria
 
-_How do we know this epic is done? Use checkboxes._
+_How do we know this epic is done? Use checkboxes. e.g. All linked issues closed; docs updated._
 
 - [ ]
 - [ ]

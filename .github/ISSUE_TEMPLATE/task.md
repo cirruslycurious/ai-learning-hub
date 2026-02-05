@@ -16,7 +16,7 @@ _Why is this needed? Link to epic if relevant._
 
 ## Acceptance Criteria
 
-_Testable criteria. Use checkboxes._
+_Testable criteria. Use checkboxes. e.g. Given X, when Y, then Z._
 
 - [ ]
 - [ ]
