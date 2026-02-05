@@ -8,7 +8,7 @@ assignees: ""
 
 ## Summary
 
-_One sentence: what's broken?_
+_One sentence: what's broken? (Clear scope.)_
 
 ## Steps to Reproduce
 
@@ -23,6 +23,21 @@ _What should happen?_
 ## Actual Behavior
 
 _What actually happens?_
+
+## Acceptance Criteria
+
+_How we know the bug is fixed. Use checkboxes._
+
+- [ ]
+- [ ]
+
+## Related Files / File List
+
+_Relevant paths (e.g. component, handler, config) or "TBD". Agents: list files to change._
+
+## Testing Requirements
+
+_How to verify the fix (regression test, manual steps, or "N/A")._
 
 ## Environment
 

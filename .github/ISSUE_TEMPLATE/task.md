@@ -8,7 +8,7 @@ assignees: ""
 
 ## Summary
 
-_What needs to be done?_
+_What needs to be done? (Clear scope in one sentence.)_
 
 ## Context
 
@@ -16,8 +16,18 @@ _Why is this needed? Link to epic if relevant._
 
 ## Acceptance Criteria
 
+_Testable criteria. Use checkboxes._
+
 - [ ]
 - [ ]
+
+## Related Files / File List
+
+_Relevant paths (e.g. `backend/functions/...`, `.claude/docs/...`) or "TBD". Agents: list files this task will touch._
+
+## Testing Requirements
+
+_How to verify (unit tests, manual steps, or "N/A")._
 
 ## Notes
 

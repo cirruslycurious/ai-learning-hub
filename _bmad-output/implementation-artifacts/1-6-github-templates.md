@@ -1,6 +1,6 @@
 # Story 1.6: GitHub Issue/PR Templates for Agents
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -38,26 +38,26 @@ so that **agents and humans can open consistent, actionable issues and PRs that 
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Audit and align issue templates for agent consumption** (AC: 1, 2)
-  - [ ] Review existing `.github/ISSUE_TEMPLATE/` (task, feature, bug, epic)
-  - [ ] Add or adjust sections: Acceptance Criteria, Related files / File list (or placeholder), Testing requirements (or placeholder)
-  - [ ] Ensure each template has clear scope and consistent structure
+- [x] **Task 1: Audit and align issue templates for agent consumption** (AC: 1, 2)
+  - [x] Review existing `.github/ISSUE_TEMPLATE/` (task, feature, bug, epic)
+  - [x] Add or adjust sections: Acceptance Criteria, Related files / File list (or placeholder), Testing requirements (or placeholder)
+  - [x] Ensure each template has clear scope and consistent structure
 
-- [ ] **Task 2: Add story.md (or equivalent) issue template** (AC: 2)
-  - [ ] Create `.github/ISSUE_TEMPLATE/story.md` for development stories (epic/story ref, AC, related files, testing)
-  - [ ] Align with BMAD story format (epic X, story Y, AC, file list) so agents can create issues from story artifacts
+- [x] **Task 2: Add story.md (or equivalent) issue template** (AC: 2)
+  - [x] Create `.github/ISSUE_TEMPLATE/story.md` for development stories (epic/story ref, AC, related files, testing)
+  - [x] Align with BMAD story format (epic X, story Y, AC, file list) so agents can create issues from story artifacts
 
-- [ ] **Task 3: Update PR template with agent code-review checklist** (AC: 3)
-  - [ ] Add checklist items: security scan (or "N/A / documented"), test coverage (e.g. 80%), shared library usage (@ai-learning-hub/*), pattern compliance (no Lambda-to-Lambda, ADR-008, etc.)
-  - [ ] Keep existing Summary, Related Issue, Changes, Testing, Checklist structure; extend Checklist per FR77
+- [x] **Task 3: Update PR template with agent code-review checklist** (AC: 3)
+  - [x] Add checklist items: security scan (or "N/A / documented"), test coverage (e.g. 80%), shared library usage (@ai-learning-hub/*), pattern compliance (no Lambda-to-Lambda, ADR-008, etc.)
+  - [x] Keep existing Summary, Related Issue, Changes, Testing, Checklist structure; extend Checklist per FR77
 
-- [ ] **Task 4: Document branch and commit conventions** (AC: 4)
-  - [ ] Ensure CLAUDE.md (or .claude/docs) documents: reference issue numbers in commits; branch naming if adopted (e.g. `feature/`, `fix/`, `story/1-6-...`)
-  - [ ] If CLAUDE.md is human-owned and already has "Reference issue numbers in commits", add a short "Branch & commit" subsection or link to .claude/docs; otherwise add to .claude/docs and link from CLAUDE.md
+- [x] **Task 4: Document branch and commit conventions** (AC: 4)
+  - [x] Ensure CLAUDE.md (or .claude/docs) documents: reference issue numbers in commits; branch naming if adopted (e.g. `feature/`, `fix/`, `story/1-6-...`)
+  - [x] If CLAUDE.md is human-owned and already has "Reference issue numbers in commits", add a short "Branch & commit" subsection or link to .claude/docs; otherwise add to .claude/docs and link from CLAUDE.md
 
-- [ ] **Task 5: Validate templates and update config if needed** (AC: 1–4)
-  - [ ] Confirm GitHub uses ISSUE_TEMPLATE (default) and PULL_REQUEST_TEMPLATE.md
-  - [ ] Add this story artifact to File List; update sprint-status when done
+- [x] **Task 5: Validate templates and update config if needed** (AC: 1–4)
+  - [x] Confirm GitHub uses ISSUE_TEMPLATE (default) and PULL_REQUEST_TEMPLATE.md
+  - [x] Add this story artifact to File List; update sprint-status when done
 
 ## Dev Notes
 
@@ -98,13 +98,14 @@ so that **agents and humans can open consistent, actionable issues and PRs that 
 - .github/ISSUE_TEMPLATE/epic.md
 - .github/ISSUE_TEMPLATE/story.md _(new)_
 - .github/PULL_REQUEST_TEMPLATE.md
-- _(Optional)_ .claude/docs/branch-commit-conventions.md — only if conventions are not added to CLAUDE.md
+- .claude/docs/branch-commit-conventions.md _(new)_
+- .claude/docs/README.md
 
 ## Dev Agent Record
 
 ### Agent Model Used
 
-_(To be filled by dev agent)_
+_Dev story build (BMAD dev-story workflow)._
 
 ### Debug Log References
 
@@ -112,7 +113,11 @@ _(Optional)_
 
 ### Completion Notes List
 
-_(To be filled when story is implemented)_
+- **Task 1:** Aligned task, feature, bug, epic templates with sections: Acceptance Criteria (or clarified), Related Files / File List, Testing Requirements. Clear scope in Summary where missing.
+- **Task 2:** Added `.github/ISSUE_TEMPLATE/story.md` with Epic/Story Reference, AC, Related Files, Testing Requirements; aligned with BMAD story format.
+- **Task 3:** Extended `.github/PULL_REQUEST_TEMPLATE.md` with "Agent / Code Review (FR77)" checklist: security scan, test coverage, shared libraries (@ai-learning-hub/*), pattern compliance (no Lambda-to-Lambda, ADR-008), CLAUDE.md/.claude/docs.
+- **Task 4:** Created `.claude/docs/branch-commit-conventions.md` (commit messages, issue refs, optional branch naming). Linked from `.claude/docs/README.md`. CLAUDE.md not modified (human-owned); conventions discoverable via .claude/docs.
+- **Task 5:** File List and sprint-status updated. Validation is manual (create sample issue from each template, draft PR with checklist).
 
 ### Review Follow-ups (AI)
 

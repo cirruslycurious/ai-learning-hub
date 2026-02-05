@@ -8,7 +8,7 @@ assignees: ""
 
 ## Summary
 
-_One paragraph describing what this epic accomplishes._
+_One paragraph describing what this epic accomplishes. (Clear scope.)_
 
 ## Background / Why
 
@@ -33,10 +33,18 @@ _List of issues that make up this epic. Create these as separate issues and link
 
 ## Acceptance Criteria
 
-_How do we know this epic is done?_
+_How do we know this epic is done? Use checkboxes._
 
 - [ ]
 - [ ]
+
+## Related Files / File List
+
+_High-level areas (e.g. `backend/`, `frontend/`, `.github/`) or "TBD". Agents: refine per story._
+
+## Testing Requirements
+
+_Overall verification (e.g. "Per-story tests + E2E for epic flow" or "N/A")._
 
 ## Dependencies
 

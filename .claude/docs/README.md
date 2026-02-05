@@ -4,12 +4,13 @@
 
 ## When to Load Which Doc
 
-| Doc                    | Load when                                                                                                  |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **architecture.md**    | Designing systems, adding stacks, understanding ADRs (no Lambda-to-Lambda, API-first, Lambda per concern). |
-| **database-schema.md** | Writing or changing DynamoDB access, adding GSIs, implementing saves/projects/links/content/search.        |
-| **api-patterns.md**    | Implementing or changing API handlers, error responses, or middleware.                                     |
-| **testing-guide.md**   | Adding or changing tests, checking coverage, or running the test suite.                                    |
+| Doc                              | Load when                                                                                                  |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **architecture.md**              | Designing systems, adding stacks, understanding ADRs (no Lambda-to-Lambda, API-first, Lambda per concern). |
+| **database-schema.md**           | Writing or changing DynamoDB access, adding GSIs, implementing saves/projects/links/content/search.        |
+| **api-patterns.md**              | Implementing or changing API handlers, error responses, or middleware.                                     |
+| **testing-guide.md**             | Adding or changing tests, checking coverage, or running the test suite.                                    |
+| **branch-commit-conventions.md** | Branch naming, commit message style, and referencing issue numbers in commits.                             |
 
 For **Claude Code hooks** (PreToolUse, PostToolUse, Stop): see `.claude/hooks/README.md` and `_bmad-output/planning-artifacts/diagrams/06-hooks-enforcement-strategy.md`.
 

@@ -8,7 +8,7 @@ assignees: ""
 
 ## Summary
 
-_One sentence: what does this feature do?_
+_One sentence: what does this feature do? (Clear scope.)_
 
 ## User Story
 
@@ -28,6 +28,14 @@ _Testable criteria. Use checkboxes._
 
 - [ ] Given [context], when [action], then [result]
 - [ ] Given [context], when [action], then [result]
+
+## Related Files / File List
+
+_Relevant paths (e.g. `frontend/...`, `backend/...`) or "TBD". Agents: list files this feature will touch._
+
+## Testing Requirements
+
+_How to verify (unit/integration/E2E, manual steps, or "N/A")._
 
 ## Technical Notes
 
