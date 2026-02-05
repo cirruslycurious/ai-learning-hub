@@ -6,7 +6,7 @@ import type {
   APIGatewayProxyResult,
   Context,
 } from "aws-lambda";
-import { type AuthContext } from "@ai-learning-hub/types";
+import { AppError, ErrorCode, type AuthContext } from "@ai-learning-hub/types";
 import { createLogger, type Logger } from "@ai-learning-hub/logging";
 import { handleError, createSuccessResponse } from "./error-handler.js";
 import { extractAuthContext, requireAuth } from "./auth.js";
@@ -120,8 +120,6 @@ export function wrapHandler<T = unknown>(
             auth!.roles.includes(role)
           );
           if (!hasRequiredRole) {
-            const { AppError, ErrorCode } =
-              await import("@ai-learning-hub/types");
             throw new AppError(ErrorCode.FORBIDDEN, "Insufficient permissions");
           }
         }
@@ -133,8 +131,6 @@ export function wrapHandler<T = unknown>(
             !scopes.includes("*") &&
             !scopes.includes(options.requiredScope)
           ) {
-            const { AppError, ErrorCode } =
-              await import("@ai-learning-hub/types");
             throw new AppError(
               ErrorCode.FORBIDDEN,
               "API key lacks required scope"

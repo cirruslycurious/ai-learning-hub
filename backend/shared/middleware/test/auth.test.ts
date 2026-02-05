@@ -131,8 +131,8 @@ describe("Auth Middleware", () => {
       expect(auth).toBeNull();
     });
 
-    it("should extract dev user ID in non-production", () => {
-      process.env.NODE_ENV = "development";
+    it("should extract dev user ID when ALLOW_DEV_AUTH_HEADER is set", () => {
+      process.env.ALLOW_DEV_AUTH_HEADER = "true";
       const event = createMockEvent({
         headers: { "x-dev-user-id": "dev_user_123" },
       });
@@ -141,8 +141,18 @@ describe("Auth Middleware", () => {
       expect(auth?.userId).toBe("dev_user_123");
     });
 
-    it("should ignore dev header in production", () => {
-      process.env.NODE_ENV = "production";
+    it("should accept ALLOW_DEV_AUTH_HEADER=1", () => {
+      process.env.ALLOW_DEV_AUTH_HEADER = "1";
+      const event = createMockEvent({
+        headers: { "x-dev-user-id": "dev_user_123" },
+      });
+
+      const auth = extractAuthContext(event);
+      expect(auth?.userId).toBe("dev_user_123");
+    });
+
+    it("should ignore dev header when ALLOW_DEV_AUTH_HEADER is not set", () => {
+      delete process.env.ALLOW_DEV_AUTH_HEADER;
       const event = createMockEvent({
         headers: { "x-dev-user-id": "dev_user_123" },
       });

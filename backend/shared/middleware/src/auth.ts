@@ -27,9 +27,13 @@ export function extractAuthContext(
     };
   }
 
-  // For development/testing: check for custom header
-  const devUserId = event.headers["x-dev-user-id"];
-  if (devUserId && process.env.NODE_ENV !== "production") {
+  // For development/testing: only when explicitly allowed.
+  // Production must NOT set ALLOW_DEV_AUTH_HEADER (Lambda does not set NODE_ENV by default).
+  const allowDevAuth =
+    process.env.ALLOW_DEV_AUTH_HEADER === "true" ||
+    process.env.ALLOW_DEV_AUTH_HEADER === "1";
+  const devUserId = allowDevAuth ? event.headers["x-dev-user-id"] : undefined;
+  if (devUserId) {
     return {
       userId: devUserId,
       roles: ["user"],

@@ -34,7 +34,7 @@ so that **all Lambda functions have consistent logging, error handling, validati
    - WHEN I import the db utilities
    - THEN I have a configured DynamoDB DocumentClient
    - AND common query patterns are provided as helpers
-   - AND X-Ray tracing is enabled
+   - AND X-Ray trace ID is available via Lambda env (_X_AMZN_TRACE_ID); subsegment capture is deferred to a later story
 
 5. **AC5: @ai-learning-hub/middleware provides Lambda middleware**
    - GIVEN an API Gateway Lambda
@@ -114,7 +114,7 @@ This story implements per:
 ```
 @ai-learning-hub/types       → (no deps)
 @ai-learning-hub/logging     → types
-@ai-learning-hub/validation  → types, zod
+@ai-learning-hub/validation → types, zod
 @ai-learning-hub/db          → types, logging, @aws-sdk/lib-dynamodb
 @ai-learning-hub/middleware  → types, logging, validation
 ```
@@ -182,9 +182,22 @@ Claude Code / Cursor
 ### File List
 
 - package.json (root: @vitest/coverage-v8)
+- tsconfig.base.json
 - eslint.config.js (no-unused-vars argsIgnorePattern)
 - backend/shared/types: package.json, tsconfig.json, vitest.config.ts, src/index.ts, api.ts, entities.ts, errors.ts, test/api.test.ts, entities.test.ts, errors.test.ts, index.test.ts
 - backend/shared/logging: package.json, tsconfig.json, vitest.config.ts, src/index.ts, logger.ts, test/logger.test.ts
 - backend/shared/validation: package.json, tsconfig.json, vitest.config.ts, src/index.ts, schemas.ts, validator.ts, test/schemas.test.ts, validator.test.ts
 - backend/shared/db: package.json, tsconfig.json, vitest.config.ts, src/index.ts, client.ts, helpers.ts, test/client.test.ts, helpers.test.ts
 - backend/shared/middleware: package.json, tsconfig.json, vitest.config.ts, src/index.ts, auth.ts, error-handler.ts, wrapper.ts, test/auth.test.ts, error-handler.test.ts, wrapper.test.ts
+
+## Review Follow-ups (AI)
+
+*From BMAD code review (Story 1-2). See `_bmad-output/implementation-artifacts/1-2-bmad-code-review.md` and `.github/story-1-2-review-issues.md`.*
+
+- [x] [AI-Review][HIGH] Align @ai-learning-hub/db with AC4: X-Ray tracing — enable instrumentation or update AC/artifact. [#55](https://github.com/cirruslycurious/ai-learning-hub/issues/55)
+- [x] [AI-Review][HIGH] Add tsconfig.base.json to story File List. [#56](https://github.com/cirruslycurious/ai-learning-hub/issues/56)
+- [x] [AI-Review][HIGH] Add this Review Follow-ups (AI) section (done when this section exists). [#57](https://github.com/cirruslycurious/ai-learning-hub/issues/57)
+- [x] [AI-Review][MEDIUM] Gate auth stub x-dev-user-id on NODE_ENV or document deployment. [#58](https://github.com/cirruslycurious/ai-learning-hub/issues/58)
+- [x] [AI-Review][MEDIUM] Use top-level import for @ai-learning-hub/types in wrapper.ts. [#59](https://github.com/cirruslycurious/ai-learning-hub/issues/59)
+- [x] [AI-Review][MEDIUM] Pagination schema and query param coercion (or docs). [#60](https://github.com/cirruslycurious/ai-learning-hub/issues/60)
+- [x] [AI-Review][LOW] Fix double space in Package Dependencies in this artifact. [#61](https://github.com/cirruslycurious/ai-learning-hub/issues/61)

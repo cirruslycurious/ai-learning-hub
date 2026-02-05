@@ -1,5 +1,9 @@
 /**
- * DynamoDB client with X-Ray tracing
+ * DynamoDB client for Lambda.
+ *
+ * X-Ray: Lambda injects _X_AMZN_TRACE_ID; trace ID is available via env for
+ * logging/correlation. DynamoDB subsegment capture (aws-xray-sdk) is deferred
+ * to a later story; use the Lambda trace for request-level tracing until then.
  */
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
@@ -13,7 +17,7 @@ export interface DynamoDBClientOptions {
 }
 
 /**
- * Create a configured DynamoDB DocumentClient with X-Ray tracing
+ * Create a configured DynamoDB DocumentClient
  */
 export function createDynamoDBClient(
   options: DynamoDBClientOptions = {}

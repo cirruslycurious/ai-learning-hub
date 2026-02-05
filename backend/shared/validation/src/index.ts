@@ -11,6 +11,7 @@ export {
   emailSchema,
   nonEmptyStringSchema,
   paginationSchema,
+  paginationQuerySchema,
   sortDirectionSchema,
   isoDateSchema,
   resourceTypeSchema,

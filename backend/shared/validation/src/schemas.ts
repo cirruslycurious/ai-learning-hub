@@ -37,10 +37,28 @@ export const nonEmptyStringSchema = z
   .describe("Non-empty string");
 
 /**
- * Pagination parameters schema
+ * Pagination parameters schema (for typed/JSON input; expects numeric limit)
  */
 export const paginationSchema = z.object({
   limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .default(20)
+    .describe("Number of items per page (1-100)"),
+  cursor: z
+    .string()
+    .optional()
+    .describe("Cursor for pagination (from previous response)"),
+});
+
+/**
+ * Pagination schema for API Gateway query params (strings).
+ * Use with validateQueryParams(); limit is coerced from string to number.
+ */
+export const paginationQuerySchema = z.object({
+  limit: z.coerce
     .number()
     .int()
     .min(1)

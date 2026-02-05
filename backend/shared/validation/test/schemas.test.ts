@@ -5,6 +5,7 @@ import {
   emailSchema,
   nonEmptyStringSchema,
   paginationSchema,
+  paginationQuerySchema,
   sortDirectionSchema,
   isoDateSchema,
   resourceTypeSchema,
@@ -105,6 +106,33 @@ describe("Validation Schemas", () => {
 
     it("should reject limit under 1", () => {
       const result = paginationSchema.safeParse({ limit: 0 });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("paginationQuerySchema", () => {
+    it("should coerce limit from string (query params)", () => {
+      const result = paginationQuerySchema.safeParse({
+        limit: "25",
+        cursor: "next",
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.limit).toBe(25);
+        expect(result.data.cursor).toBe("next");
+      }
+    });
+
+    it("should apply defaults when limit omitted", () => {
+      const result = paginationQuerySchema.safeParse({});
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.limit).toBe(20);
+      }
+    });
+
+    it("should reject non-numeric limit string", () => {
+      const result = paginationQuerySchema.safeParse({ limit: "abc" });
       expect(result.success).toBe(false);
     });
   });
