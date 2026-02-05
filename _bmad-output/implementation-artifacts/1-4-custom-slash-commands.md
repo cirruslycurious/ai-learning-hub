@@ -146,9 +146,28 @@ so that **I can invoke fix-issue, create-lambda, create-component, run-tests, an
 
 ---
 
+### Re-review (2026-02-04)
+
+**Story:** 1-4-custom-slash-commands  
+**Git vs Story:** Story 1-4 deliverables committed in `a58027f` (feat: add custom slash commands for workflows (story 1-4)). All seven File List items are in repo history. Current uncommitted: `sprint-status.yaml` (modified), `.github/story-1-3-review-issues.md` and `.github/story-1-4-review-issues.md` (untracked).
+
+**Verification:** All six Review Follow-ups (AI) are marked [x]. Spot-check of implementation:
+
+- **MEDIUM 1 (CLAUDE.md hyphen syntax):** Fixed. CLAUDE.md Commands section (lines 58–62) uses `/project-fix-github-issue N`, `/project-create-lambda name`, etc.
+- **MEDIUM 2 (commit deliverables):** Fixed. Commit `a58027f` includes story 1-4 deliverables.
+- **LOW 3 (README model-selection):** Fixed. README says "planned in Story 1.12 (not yet implemented)."
+- **LOW 4 (create-component placeholder):** Fixed. Prefill uses `frontend/src/components/<Name>/` and "(Name is the component name in PascalCase.)"
+- **LOW 5 (deploy default stack):** Fixed. Rules include "Prefer `cdk deploy --all` from infra/ unless the user specified a single stack."
+- **LOW 6 (run-tests workspace scope):** Fixed. Background specifies root workspace filter or `cd <workspace> && npm test`.
+
+**Re-review outcome:** No open issues. Story 1-4 remains **done**; code review follow-ups are complete.
+
+---
+
 ## Change Log
 
 | Date       | Event                    | Notes |
 | ---------- | ------------------------- | ----- |
 | 2026-02-04 | Validation                | AC1–AC5 spot-checked; story marked done. |
 | 2026-02-04 | Senior Developer Review   | Adversarial review: 2 Medium, 4 Low; CLAUDE.md command syntax and uncommitted deliverables. |
+| 2026-02-04 | Re-review                 | All six Review Follow-ups verified implemented; no open issues. Story 1-4 done. |
