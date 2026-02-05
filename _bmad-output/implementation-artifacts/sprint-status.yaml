@@ -47,7 +47,7 @@ development_status:
   1-3-claude-md-progressive-disclosure: done
   1-4-custom-slash-commands: done
   1-5-claude-code-hooks: done
-  1-6-github-templates: review
+  1-6-github-templates: done
   1-7-ci-cd-pipeline: ready-for-dev
   1-8-dynamodb-s3-infrastructure: backlog
   1-9-observability-foundation: backlog
