@@ -1,0 +1,19 @@
+---
+description: PR and branch workflow for stories and tasks; use branch + issue + PR before merge
+alwaysApply: true
+---
+
+# PR & Branch Workflow
+
+When working on **story/task work** (epic implementation, BMAD stories, features, bugs):
+
+1. **Issue** — One GitHub issue per scope. Create or link before coding.
+2. **Branch** — Work on a branch from `main` (e.g. `story-1-6-github-templates`, `fix/42-save-error`). Do not commit story/task work directly to `main`.
+3. **Commits** — Reference the issue in commit messages (e.g. `feat: add PR template #17`).
+4. **PR before merge** — Push branch, open Pull Request with "Closes #issue-number", fill `.github/PULL_REQUEST_TEMPLATE.md` (summary, changes, testing, checklist). Run `npm test` and `npm run lint` before considering done. Merge after review (self-review is fine when solo).
+
+**When starting a story or task:** If the user has not already created a branch or linked an issue, remind them to use `/project-start-story` or to create/link an issue and create a branch before making changes.
+
+**Before marking work complete:** If changes were made on a branch, remind to push, open the PR (with "Closes #N"), fill the template, run tests/lint, and merge. Do not say the task is done until the PR is opened (or user confirms they will do it).
+
+**Exclusions:** Typo-only or trivial doc edits do not require a branch/PR. Use judgment for "real" implementation work vs. tiny fixes.
