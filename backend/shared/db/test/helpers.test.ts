@@ -75,6 +75,7 @@ describe("DynamoDB Helpers", () => {
     it("should throw CONFLICT on conditional check failure", async () => {
       const error = new ConditionalCheckFailedException({
         message: "Conditional check failed",
+        $metadata: {},
       });
       mockSend.mockRejectedValueOnce(error);
 
@@ -224,6 +225,7 @@ describe("DynamoDB Helpers", () => {
     it("should throw NOT_FOUND on conditional check failure", async () => {
       const error = new ConditionalCheckFailedException({
         message: "Conditional check failed",
+        $metadata: {},
       });
       mockSend.mockRejectedValueOnce(error);
 

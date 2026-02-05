@@ -37,18 +37,22 @@ fi
 
 # ═══════════════════════════════════════════════════════════════════
 # ADR-006: DynamoDB Key Patterns (warning, not blocking)
+# Portable: avoid PCRE (?!...) since BSD/macOS grep -E does not support it
 # ═══════════════════════════════════════════════════════════════════
 
-# Check for hardcoded DynamoDB keys that don't follow pattern
-if echo "$CONTENT" | grep -qE "PK.*=.*['\"][^U][^S][^E][^R]"; then
-    # This is a soft check - just add context
-    if echo "$CONTENT" | grep -qE "PK.*=.*['\"](?!USER#|CONTENT#|COLLECTION#|FOLDER#)"; then
-        jq -n '{
-            hookSpecificOutput: {
-                additionalContext: "💡 DynamoDB key may not follow standard pattern (ADR-006). Keys should start with USER#, CONTENT#, COLLECTION#, or FOLDER#. Please verify."
-            }
-        }'
-        exit 0
+# Look for PK='...' or PK="..." and warn if value doesn't start with allowed prefix
+if echo "$CONTENT" | grep -qE "PK\s*=\s*['\"]"; then
+    # If line has PK= but does NOT contain any of the standard prefixes, add context
+    if ! echo "$CONTENT" | grep -qE "PK\s*=\s*['\"][^'\"]*(USER#|CONTENT#|COLLECTION#|FOLDER#)"; then
+        # Double-check: we have a PK assignment that looks non-standard (has PK= but no standard prefix on same line)
+        if echo "$CONTENT" | grep -qE "PK\s*=\s*['\"][^'\"]+['\"]"; then
+            jq -n '{
+                hookSpecificOutput: {
+                    additionalContext: "💡 DynamoDB key may not follow standard pattern (ADR-006). Keys should start with USER#, CONTENT#, COLLECTION#, or FOLDER#. Please verify."
+                }
+            }'
+            exit 0
+        fi
     fi
 fi
 

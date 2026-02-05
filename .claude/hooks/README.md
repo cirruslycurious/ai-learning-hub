@@ -17,6 +17,11 @@ Deterministic enforcement layer for AI Learning Hub. Hooks run at PreToolUse, Po
 | **type-check.sh**         | PostToolUse (Edit\|Write)           | Runs `tsc --noEmit` for TS files; outputs hookSpecificOutput with errors (context only, does not block).                                                                                                                                   |
 | **Stop**                  | Stop                                | Agent prompt: verify npm test (and 80%+ coverage where enforced), npm run lint, npm run build; block stop if any fails.                                                                                                                    |
 
+## Requirements
+
+- **Node.js** — for `bash-guard.js`, `file-guard.js`, `tdd-guard.js`
+- **jq** — for shell hooks (`architecture-guard.sh`, `import-guard.sh`, `auto-format.sh`, `type-check.sh`). Install: `brew install jq` (macOS), or your system package manager
+
 ## How to test hooks
 
 Feed sample JSON on stdin. Exit 0 = allow; exit 2 = deny. For escalation/deny, expect JSON with `hookSpecificOutput.permissionDecision` and `permissionDecisionReason`.
