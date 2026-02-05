@@ -55,6 +55,7 @@ All Lambdas MUST import from `@ai-learning-hub/*`:
 
 ## Commands
 
+- `/project-start-story` - Start story/task work with branch + issue + PR workflow (enforces habit)
 - `/project-fix-github-issue N` - Fix issue #N
 - `/project-create-lambda name` - Create new Lambda
 - `/project-create-component Name` - Create React component
@@ -75,6 +76,17 @@ For detailed docs, read from `.claude/docs/`:
 - Read `docs/progress/epic-N.md` for current epic status
 - Read `docs/stories/N.M/progress.md` for story status
 - Update progress.md as you complete tasks
+
+## Workflow (PRs & branches)
+
+For **story/task work** (epic implementation, BMAD stories, features, bugs), use a branch and PR so work is traceable and the PR checklist runs before merge.
+
+1. **Issue** — Create or link a GitHub issue (story/task/feature/bug). One issue = one PR.
+2. **Branch** — Create a branch from `main` (e.g. `story-1-6-github-templates`, `fix/42-save-error`). Do not commit story/task work directly to `main`.
+3. **Work** — Implement, test, and reference the issue in commits (e.g. `feat: add PR template #17`).
+4. **PR** — Push the branch, open a Pull Request with "Closes #issue-number", fill the PR template (summary, changes, testing, checklist), run tests/lint/build. Merge after review (self-review is fine when solo).
+
+**Light habit:** When starting a BMAD story or a task, run `/project-start-story` (or ensure issue + branch yourself) so the session begins with the right workflow. Before considering the task done, remind to open the PR and merge.
 
 ## NEVER
 

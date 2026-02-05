@@ -8,6 +8,7 @@ AI Learning Hub–specific workflows. Each follows the **7-layer prompt structur
 
 | Command                        | Description                                                               | Model in Cursor                           |
 | ------------------------------ | ------------------------------------------------------------------------- | ----------------------------------------- |
+| `project-start-story`          | Start story/task with branch + issue + PR workflow (enforces habit)       | **Auto**                                  |
 | `project-fix-github-issue`     | Fix GitHub issue #N: read issue, implement, test, reference in commits    | **Auto** (or Sonnet/Opus for hard issues) |
 | `project-create-lambda`        | Create new Lambda handler with shared libs, tests, CDK wiring             | **Auto**                                  |
 | `project-create-component`     | Create new React component with tests and structure                       | **Auto**                                  |
