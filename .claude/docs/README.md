@@ -11,6 +11,7 @@
 | **api-patterns.md**              | Implementing or changing API handlers, error responses, or middleware.                                     |
 | **testing-guide.md**             | Adding or changing tests, checking coverage, or running the test suite.                                    |
 | **branch-commit-conventions.md** | Branch naming, commit message style, and referencing issue numbers in commits.                             |
+| **secrets-and-config.md**        | Keeping AWS account ID, real table/bucket/API names, and secrets out of the repo; Parameter Store; .env.   |
 
 For **Claude Code hooks** (PreToolUse, PostToolUse, Stop): see `.claude/hooks/README.md` and `_bmad-output/planning-artifacts/diagrams/06-hooks-enforcement-strategy.md`.
 

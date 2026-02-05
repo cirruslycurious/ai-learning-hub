@@ -20,7 +20,7 @@ You are a senior developer on AI Learning Hub. Your task is to deploy the applic
 - **ALWAYS** remind the user to run tests and build before deploy, or run them if the user asks you to "deploy and run checks."
 - **ALWAYS** run CDK commands from the `infra/` directory (e.g. `cd infra && cdk deploy`).
 - Prefer `cdk deploy --all` from infra/ unless the user specified a single stack. If they specified a stack name, use that.
-- Do not store secrets in code; use Parameter Store or Secrets Manager. Do not commit `.env` or credentials.
+- Do not store secrets in code; use Parameter Store or Secrets Manager. Do not commit `.env` or credentials. Do not put AWS account ID or real table/bucket/API names in the repo; see `.claude/docs/secrets-and-config.md`.
 
 # 4. Context
 

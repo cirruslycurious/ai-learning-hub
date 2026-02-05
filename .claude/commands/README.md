@@ -6,13 +6,14 @@ This directory contains slash commands for **Cursor** (and compatible tools). Co
 
 AI Learning Hub–specific workflows. Each follows the **7-layer prompt structure**. Use them in Cursor as-is.
 
-| Command                    | Description                                                            | Model in Cursor                           |
-| -------------------------- | ---------------------------------------------------------------------- | ----------------------------------------- |
-| `project-fix-github-issue` | Fix GitHub issue #N: read issue, implement, test, reference in commits | **Auto** (or Sonnet/Opus for hard issues) |
-| `project-create-lambda`    | Create new Lambda handler with shared libs, tests, CDK wiring          | **Auto**                                  |
-| `project-create-component` | Create new React component with tests and structure                    | **Auto**                                  |
-| `project-run-tests`        | Run full test suite; optionally fix failures                           | **Auto** (or a faster model)              |
-| `project-deploy`           | Deploy to dev (or specified) environment via CDK                       | **Auto**                                  |
+| Command                        | Description                                                               | Model in Cursor                           |
+| ------------------------------ | ------------------------------------------------------------------------- | ----------------------------------------- |
+| `project-fix-github-issue`     | Fix GitHub issue #N: read issue, implement, test, reference in commits    | **Auto** (or Sonnet/Opus for hard issues) |
+| `project-create-lambda`        | Create new Lambda handler with shared libs, tests, CDK wiring             | **Auto**                                  |
+| `project-create-component`     | Create new React component with tests and structure                       | **Auto**                                  |
+| `project-run-tests`            | Run full test suite; optionally fix failures                              | **Auto** (or a faster model)              |
+| `project-deploy`               | Deploy to dev (or specified) environment via CDK                          | **Auto**                                  |
+| `project-check-secrets-config` | Verify no AWS account ID, real table/bucket/API names, or secrets in repo | **Auto**                                  |
 
 **Cursor:** Prefer **Auto** for all of these. Cursor will pick an appropriate model (cost vs quality). Override only when you want: a faster/cheaper run for simple tasks (e.g. run-tests), or a stronger model for complex fixes/architecture. See `.claude/docs/model-selection.md` — planned in Story 1.12 (not yet implemented).
 

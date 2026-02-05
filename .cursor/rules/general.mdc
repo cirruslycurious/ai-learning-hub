@@ -57,7 +57,7 @@ NEVER create custom utilities that duplicate shared library functionality.
 - Force push to main or master
 - Mix multiple issues in one PR
 - Make Lambda-to-Lambda calls
-- Store secrets in code (use Parameter Store)
+- NEVER store secrets in code (use Parameter Store)
 - Use console.log in Lambda handlers (use @ai-learning-hub/logging)
 
 ## ALWAYS

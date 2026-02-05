@@ -31,3 +31,15 @@ In `backend/**/functions/**`, `**/handlers/**`, or `**/lambdas/**`:
 - **Use** `@ai-learning-hub/db` for all DynamoDB access. See `backend/shared/db`.
 
 If you need raw DynamoDB for a one-off script (not a handler), document why and keep it out of handler code.
+
+## No real AWS identifiers in repo
+
+Do **not** put these in any committed file:
+- **AWS account ID** (12-digit number)
+- **Real resource names/IDs:** DynamoDB table names, S3 bucket names, API Gateway REST API IDs
+
+**In CDK:** Pass resource names to Lambda via **environment variables** (e.g. `table.tableName`, `bucket.bucketName`). Do not hardcode account/region; use CDK default from deployer credentials.
+
+**In application code:** Read table/bucket/API names from **env vars** (e.g. `process.env.TABLE_SAVES`) set by CDK at deploy time. Never hardcode real names.
+
+**Secrets:** Use Parameter Store or Secrets Manager; never commit values. See `.claude/docs/secrets-and-config.md`.
