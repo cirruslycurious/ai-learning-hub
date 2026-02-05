@@ -6,6 +6,7 @@ import {
   AppError,
   ErrorCode,
   type ApiErrorResponse,
+  type ApiResponseMeta,
 } from "@ai-learning-hub/types";
 import { createLogger, type Logger } from "@ai-learning-hub/logging";
 
@@ -69,25 +70,28 @@ export function handleError(
 }
 
 /**
- * Create a success response
+ * Create a success response (optionally with meta for pagination etc.)
  */
 export function createSuccessResponse<T>(
   data: T,
   requestId: string,
-  statusCode = 200
+  statusCode = 200,
+  meta?: ApiResponseMeta
 ): APIGatewayProxyResult {
+  const body: { data: T; meta?: ApiResponseMeta } = { data };
+  if (meta !== undefined) body.meta = meta;
   return {
     statusCode,
     headers: {
       "Content-Type": "application/json",
       "X-Request-Id": requestId,
     },
-    body: JSON.stringify({ data }),
+    body: JSON.stringify(body),
   };
 }
 
 /**
- * Create a no-content response (204)
+ * Create a no-content response (204). Omits body per HTTP spec for 204 No Content.
  */
 export function createNoContentResponse(
   requestId: string
@@ -97,6 +101,6 @@ export function createNoContentResponse(
     headers: {
       "X-Request-Id": requestId,
     },
-    body: "",
+    body: "", // APIGatewayProxyResult type requires body; empty string for 204
   };
 }

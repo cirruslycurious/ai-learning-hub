@@ -37,7 +37,8 @@ export const nonEmptyStringSchema = z
   .describe("Non-empty string");
 
 /**
- * Pagination parameters schema (for typed/JSON input; expects numeric limit)
+ * Pagination parameters schema (for typed/JSON input; expects numeric limit).
+ * For API Gateway query params (where limit is a string), use paginationQuerySchema instead.
  */
 export const paginationSchema = z.object({
   limit: z
@@ -56,6 +57,7 @@ export const paginationSchema = z.object({
 /**
  * Pagination schema for API Gateway query params (strings).
  * Use with validateQueryParams(); limit is coerced from string to number.
+ * Prefer this over paginationSchema when validating event.queryStringParameters.
  */
 export const paginationQuerySchema = z.object({
   limit: z.coerce

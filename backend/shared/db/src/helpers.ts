@@ -1,6 +1,7 @@
 /**
  * DynamoDB query helpers
  */
+import { ConditionalCheckFailedException } from "@aws-sdk/client-dynamodb";
 import {
   GetCommand,
   PutCommand,
@@ -94,8 +95,7 @@ export async function putItem<T extends Record<string, unknown>>(
       table: config.tableName,
     });
 
-    // Handle conditional check failure
-    if (err.name === "ConditionalCheckFailedException") {
+    if (error instanceof ConditionalCheckFailedException) {
       throw new AppError(ErrorCode.CONFLICT, "Item already exists");
     }
 
@@ -274,8 +274,7 @@ export async function updateItem<T>(
       table: config.tableName,
     });
 
-    // Handle conditional check failure (item not found or condition failed)
-    if (err.name === "ConditionalCheckFailedException") {
+    if (error instanceof ConditionalCheckFailedException) {
       throw new AppError(ErrorCode.NOT_FOUND, "Item not found");
     }
 

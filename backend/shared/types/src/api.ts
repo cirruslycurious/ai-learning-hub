@@ -50,7 +50,9 @@ export interface AuthContext {
 }
 
 /**
- * Extended Lambda context with request correlation
+ * Extended Lambda context with request correlation.
+ * Intended for handler/future use (e.g. passing requestId, traceId, auth into business logic).
+ * Middleware uses HandlerContext (event, context, logger, etc.); RequestContext is a slimmer type for downstream use.
  */
 export interface RequestContext {
   requestId: string;

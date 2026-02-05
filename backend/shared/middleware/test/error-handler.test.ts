@@ -116,6 +116,16 @@ describe("Error Handler", () => {
       expect(body.data).toEqual(data);
     });
 
+    it("should accept optional meta (pagination etc.)", () => {
+      const data = { items: [] };
+      const meta = { nextCursor: "abc", pageSize: 20 };
+      const response = createSuccessResponse(data, "req-meta", 200, meta);
+
+      const body = JSON.parse(response.body);
+      expect(body.data).toEqual(data);
+      expect(body.meta).toEqual(meta);
+    });
+
     it("should accept custom status code", () => {
       const data = { id: "456" };
       const response = createSuccessResponse(data, "req-456", 201);

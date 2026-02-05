@@ -79,14 +79,14 @@ so that **all Lambda functions have consistent logging, error handling, validati
 - [x] **Task 5: Implement @ai-learning-hub/db** (AC: 4)
   - [x] Add @aws-sdk/lib-dynamodb as dependency
   - [x] Create configured DynamoDB DocumentClient
-  - [x] Enable X-Ray tracing
-  - [x] Create query helpers (getItem, putItem, query with pagination)
+  - [x] Document X-Ray trace ID from Lambda env; defer subsegment capture
+  - [x] Create query helpers (getItem, putItem, deleteItem, queryItems, updateItem)
 
 - [x] **Task 6: Implement @ai-learning-hub/middleware** (AC: 5)
   - [x] Create error handling wrapper (per ADR-008)
   - [x] Create auth middleware stub (JWT/API key verification placeholder)
   - [x] Create correlation ID middleware
-  - [x] Create compose function for middleware chaining
+  - [x] wrapHandler is the composition (auth, error handling, correlation); no separate compose function
 
 - [x] **Task 7: Write tests for all packages** (AC: 6)
   - [x] types: Type compilation tests
@@ -115,7 +115,7 @@ This story implements per:
 @ai-learning-hub/types       → (no deps)
 @ai-learning-hub/logging     → types
 @ai-learning-hub/validation → types, zod
-@ai-learning-hub/db          → types, logging, @aws-sdk/lib-dynamodb
+@ai-learning-hub/db          → types, logging, @aws-sdk/client-dynamodb, @aws-sdk/lib-dynamodb
 @ai-learning-hub/middleware  → types, logging, validation
 ```
 

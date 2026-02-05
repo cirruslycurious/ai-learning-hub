@@ -9,6 +9,7 @@
 - **Minimum:** 80% line coverage per package (CI gate).
 - **Command:** From repo root: `npm test`. Per workspace: `npm test` in that directory.
 - **Coverage report:** Run tests with coverage (e.g. Vitest `--coverage`); enforce in CI.
+- **Shared packages:** Every shared package (`backend/shared/*`) must set coverage thresholds in its `vitest.config.ts` (e.g. `coverage: { lines: 80 }`) so that `npm test` in that workspace fails if coverage drops below 80%.
 
 ## Test Levels
 

@@ -1,7 +1,8 @@
 /**
  * @ai-learning-hub/validation
  *
- * Zod-based validation utilities for Lambda functions
+ * Zod-based validation utilities for Lambda functions.
+ * For API Gateway query params (e.g. pagination limit as string), use paginationQuerySchema (coerces limit from string).
  */
 
 // Common schemas

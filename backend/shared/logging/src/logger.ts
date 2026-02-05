@@ -152,13 +152,14 @@ export class Logger {
   }
 
   /**
-   * Core logging method
+   * Core logging method. entryOverrides (e.g. durationMs) are set at top level on the log entry.
    */
   private log(
     level: LogLevel,
     message: string,
     data?: Record<string, unknown>,
-    error?: Error
+    error?: Error,
+    entryOverrides?: Pick<LogEntry, "durationMs">
   ): void {
     if (LOG_LEVELS[level] < LOG_LEVELS[this.minLevel]) {
       return;
@@ -180,6 +181,8 @@ export class Logger {
     if (this.context.entityId) entry.entityId = this.context.entityId as string;
     if (this.context.durationMs)
       entry.durationMs = this.context.durationMs as number;
+    if (entryOverrides?.durationMs !== undefined)
+      entry.durationMs = entryOverrides.durationMs;
 
     // Add additional data (redacted)
     if (data) {
@@ -221,7 +224,8 @@ export class Logger {
   }
 
   /**
-   * Log with timing information (useful for performance tracking)
+   * Log with timing information (useful for performance tracking).
+   * Sets durationMs at top level on the log entry and in data for compatibility.
    */
   timed(
     message: string,
@@ -229,7 +233,9 @@ export class Logger {
     data?: Record<string, unknown>
   ): void {
     const durationMs = Date.now() - startTime;
-    this.log("info", message, { ...data, durationMs });
+    this.log("info", message, { ...data, durationMs }, undefined, {
+      durationMs,
+    });
   }
 }
 

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ConditionalCheckFailedException } from "@aws-sdk/client-dynamodb";
 import {
   getItem,
   putItem,
@@ -72,8 +73,9 @@ describe("DynamoDB Helpers", () => {
     });
 
     it("should throw CONFLICT on conditional check failure", async () => {
-      const error = new Error("Conditional check failed");
-      error.name = "ConditionalCheckFailedException";
+      const error = new ConditionalCheckFailedException({
+        message: "Conditional check failed",
+      });
       mockSend.mockRejectedValueOnce(error);
 
       try {
@@ -220,8 +222,9 @@ describe("DynamoDB Helpers", () => {
     });
 
     it("should throw NOT_FOUND on conditional check failure", async () => {
-      const error = new Error("Conditional check failed");
-      error.name = "ConditionalCheckFailedException";
+      const error = new ConditionalCheckFailedException({
+        message: "Conditional check failed",
+      });
       mockSend.mockRejectedValueOnce(error);
 
       try {
