@@ -55,11 +55,11 @@ All Lambdas MUST import from `@ai-learning-hub/*`:
 
 ## Commands
 
-- `/project:fix-github-issue N` - Fix issue #N
-- `/project:create-lambda name` - Create new Lambda
-- `/project:create-component Name` - Create React component
-- `/project:run-tests` - Run full test suite
-- `/project:deploy` - Deploy to dev environment
+- `/project-fix-github-issue N` - Fix issue #N
+- `/project-create-lambda name` - Create new Lambda
+- `/project-create-component Name` - Create React component
+- `/project-run-tests` - Run full test suite
+- `/project-deploy` - Deploy to dev environment
 
 ## Context Loading
 
