@@ -63,6 +63,7 @@ so that **agents and humans can open consistent, actionable issues and PRs that 
 
 - **Relevant architecture:** FR76–FR78 (Epic 1 Agentic GitHub workflow). Cross-cutting: "Complete PR checklist in `.github/pull_request_template.md`" (epics.md). CLAUDE.md is human-owned — document-only changes require approval.
 - **Source tree:** `.github/ISSUE_TEMPLATE/*.md`, `.github/PULL_REQUEST_TEMPLATE.md`; optional: `.claude/docs/` for branch/commit doc if not in CLAUDE.md.
+- **PR template path:** Repo uses `.github/PULL_REQUEST_TEMPLATE.md` (uppercase). Planning doc `_bmad-output/planning-artifacts/epics.md` may refer to lowercase `pull_request_template.md`; GitHub accepts both; repo convention is uppercase.
 - **Testing:** No code tests; validation is manual (create a sample issue from each template, open a draft PR and verify checklist).
 
 ### Project Structure Notes
@@ -100,6 +101,7 @@ so that **agents and humans can open consistent, actionable issues and PRs that 
 - .github/PULL_REQUEST_TEMPLATE.md
 - .claude/docs/branch-commit-conventions.md _(new)_
 - .claude/docs/README.md
+- scripts/validate-templates.mjs _(new, L4/#66)_
 
 ## Dev Agent Record
 
@@ -121,4 +123,31 @@ _(Optional)_
 
 ### Review Follow-ups (AI)
 
-_(To be filled after code review if any)_
+- [ ] [AI-Review][Medium] **#62** Add `branch-commit-conventions.md` to CLAUDE.md Context Loading section (lines 64–71). Requires human approval — CLAUDE.md is human-owned. Suggested bullet: `` `.claude/docs/branch-commit-conventions.md` - Branch naming, commit style, issue refs ``. [CLAUDE.md]
+- [x] [AI-Review][Low] **#63** Document in story Dev Notes: repo uses `.github/PULL_REQUEST_TEMPLATE.md` (uppercase); epics.md uses lowercase. Do not change planning-artifacts. [1-6-github-templates.md]
+- [x] [AI-Review][Low] **#64** Add one example line under Acceptance Criteria in task.md (e.g. Given X, when Y, then Z). [.github/ISSUE_TEMPLATE/task.md]
+- [x] [AI-Review][Low] **#65** Add one example epic AC in epic.md (e.g. All linked issues closed). [.github/ISSUE_TEMPLATE/epic.md]
+- [x] [AI-Review][Low] **#66** Add CI or script to validate issue/PR template frontmatter and required sections (optional). [scripts/validate-templates.mjs + npm run validate-templates]
+- [x] [AI-Review][Low] **#67** Add "(or N/A for docs-only PRs)" to PR template shared-libraries bullet. [.github/PULL_REQUEST_TEMPLATE.md]
+- [x] [AI-Review][Low] **#68** L6 cross-ref only — no code change; story File List already correct. [N/A]
+
+---
+
+## Senior Developer Review (AI)
+
+**Reviewer:** Adversarial code review (BMAD workflow)  
+**Date:** 2026-02-05
+
+**Git vs Story:** 0 discrepancies (no uncommitted changes; File List matches repo).
+
+**Issues found:** 1 Medium, 6 Low (7 total). All ACs implemented; all [x] tasks done.
+
+**Findings summary:**
+- **M1:** AC4 discoverability — CLAUDE.md Context Loading omits `branch-commit-conventions.md`; add bullet (requires human approval; CLAUDE.md is human-owned).
+- **L1–L6:** Doc casing (epics.md vs repo PR template path), task/epic template AC examples, optional automated template validation, PR shared-libraries N/A wording, cross-ref only for L6.
+
+**Full details:** `.github/story-1-6-review-issues.md`
+
+**Outcome:** Approve with minor follow-ups. No HIGH/CRITICAL.
+
+**#62 (M1) — Suggested CLAUDE.md change (human approval required):** In CLAUDE.md, under "Context Loading", add a fifth bullet: `` `.claude/docs/branch-commit-conventions.md` - Branch naming, commit style, issue refs ``. CLAUDE.md is human-owned; apply this change only with explicit approval.
