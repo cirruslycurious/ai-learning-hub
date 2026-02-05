@@ -44,7 +44,7 @@ development_status:
   epic-1: in-progress
   1-1-monorepo-scaffold: done
   1-2-shared-lambda-layer: done
-  1-3-claude-md-progressive-disclosure: backlog
+  1-3-claude-md-progressive-disclosure: done
   1-4-custom-slash-commands: backlog
   1-5-claude-code-hooks: backlog
   1-6-github-templates: backlog
