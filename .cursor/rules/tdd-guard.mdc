@@ -1,0 +1,28 @@
+---
+description: Enforce TDD — write failing tests before implementation; block implementation-only edits when tests pass; mirror of Claude tdd-guard
+globs: backend/**/*.ts, frontend/src/**/*.ts, frontend/src/**/*.tsx
+alwaysApply: false
+---
+
+# TDD Guard — Test-Driven Development
+
+When editing implementation code (not test files, not config), follow TDD. Mirrors `.claude/hooks/tdd-guard.js` (Claude PreToolUse).
+
+**Excluded:** `*.test.ts`, `*.spec.ts`, `*.config.ts`, `*.d.ts`, `node_modules`, `.next`, `dist`, `build`.
+
+## Workflow
+
+1. **Write or update a test** (e.g. `*.test.ts` / `*.spec.ts`) so that it defines the desired behavior and **fails**.
+2. **Run tests:** `npm test` (and ensure test results are captured if the project uses TDD guard data).
+3. **Implement** the minimal code so the test passes.
+4. **Run tests again.** If all tests pass and you need more behavior, go back to step 1 (new failing test), then implement.
+
+## Rules
+
+- **Adding new behavior:** Do not only edit implementation files. Add or update a failing test first, then implement.
+- **Test file location:** Co-locate with source, e.g. `src/utils/helper.ts` → `src/utils/helper.test.ts`.
+- **Implementation-only edits when all tests pass:** Remind the user to add a failing test first, or to run tests to confirm current state. Prefer: write failing test → then implement.
+
+## Bypass
+
+For rapid prototyping or one-off scripts, the user may choose to skip strict TDD. Do not block the user; treat this rule as the default unless they indicate otherwise.

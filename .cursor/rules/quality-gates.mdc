@@ -1,0 +1,29 @@
+---
+description: After editing code run format and type-check; before considering task done run test, lint, build; mirror of Claude PostToolUse and Stop hooks
+alwaysApply: true
+---
+
+# Quality Gates — After Edit & Before Done
+
+Mirrors Claude **PostToolUse** (auto-format, type-check) and **Stop** (test, lint, build). Cursor cannot run these automatically; apply them as **required steps** in your workflow.
+
+## After making code edits
+
+Before moving on or marking the task complete:
+
+1. **Format:** Run `npm run format` (Prettier). Ensure edited files are formatted.
+2. **Type-check:** Run `npm run type-check` (or `tsc --noEmit`). Fix any TypeScript errors.
+
+If the project has no `package.json` or these scripts yet, skip the missing steps.
+
+## Before considering the task done
+
+Before telling the user the task is complete or stopping work, verify:
+
+1. **Tests:** Run `npm test`. All tests must pass.
+2. **Lint:** Run `npm run lint`. No errors.
+3. **Build:** Run `npm run build`. No build or TypeScript errors.
+
+If **any** of these fail, do **not** say the task is done — fix the failures first, then re-run the checks.
+
+If the repo does not yet have these scripts (e.g. new scaffold), skip the checks that are not available and say so briefly.

@@ -1,0 +1,37 @@
+---
+description: Enforce shared library usage in backend and frontend — logging, db, validation, middleware from @ai-learning-hub/*; mirror of Claude import-guard
+globs: backend/**/*.ts, frontend/src/**/*.ts, frontend/src/**/*.tsx
+alwaysApply: false
+---
+
+# Import Guard — Shared Library Usage
+
+When editing backend or frontend TypeScript (excluding `backend/shared/*` and test files), use shared packages instead of custom utilities. Mirrors `.claude/hooks/import-guard.sh` (Claude PreToolUse).
+
+**Excluded from this rule:** Files under `backend/shared/*`, `*.test.ts`, `*.spec.ts`, `*config*.ts`, `*Config*.ts`.
+
+## Logging — use @ai-learning-hub/logging
+
+**BLOCK:** Creating a custom logger (e.g. `new Logger()`, `createLogger()`, `winston.create`, `pino()`).
+
+**Use:** `import { logger } from '@ai-learning-hub/logging';`
+
+In Lambda/handler code, **do not** use `console.log` / `console.error` / `console.warn` / `console.info`; use `@ai-learning-hub/logging` for structured logging and correlation IDs.
+
+## DynamoDB — use @ai-learning-hub/db
+
+**BLOCK:** Direct DynamoDB client usage (`DynamoDBClient`, `DocumentClient`, `new DynamoDB`, `DynamoDBDocumentClient`) outside shared packages.
+
+**Use:** `import { db } from '@ai-learning-hub/db';` (or equivalent from `@ai-learning-hub/db`). See `backend/shared/db`.
+
+## Validation — use @ai-learning-hub/validation
+
+When using Zod (`z.object`, `z.string`, `z.number`, `z.array`, `z.enum`), check if the schema already exists in `@ai-learning-hub/validation`. **Prefer** importing from `@ai-learning-hub/validation` instead of defining duplicate schemas in app code.
+
+## Middleware — use @ai-learning-hub/middleware
+
+**BLOCK:** Implementing handler wrappers for auth/validation/error handling that duplicate middleware behavior.
+
+**Use:** `import { withAuth, withValidation, withErrorHandling, ... } from '@ai-learning-hub/middleware';` for Lambda middleware patterns. See `backend/shared/middleware`.
+
+Do not implement custom `APIGatewayProxyHandler` wrappers when the shared middleware already provides the pattern.

@@ -1,0 +1,38 @@
+---
+description: When editing or creating files, never auto-modify protected files and escalate changes in sensitive directories; mirror of Claude PreToolUse file-guard
+alwaysApply: true
+---
+
+# File Guard — Protected Paths
+
+Do **not** auto-modify these files or paths. Ask the user before changing anything in escalate directories. This rule mirrors `.claude/hooks/file-guard.js` (Claude PreToolUse).
+
+## NEVER auto-modify (human-owned)
+
+**Files:**
+- `CLAUDE.md`
+- `.claude/settings.json`, `.claude/settings.local.json`
+- `.env`, `.env.local`, `.env.production`, `.env.development`
+- `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`
+- `.gitignore` (prevents accidental exposure of secrets)
+
+**Directories:**
+- `.git/`
+- `node_modules/`
+- `_bmad-output/planning-artifacts/` (planning docs are human-owned)
+
+**Allowed env variants:** `.env.example`, `.env.sample`, `.env.template`, `.env.schema`, `.env.defaults`, `.env.test` — these may be edited.
+
+## ESCALATE (ask before modifying)
+
+Require explicit user approval before editing:
+- `infra/` — CDK stacks affect production
+- `.github/` — CI/CD workflows
+- `.claude/hooks/` — hook scripts are critical
+
+## NEVER auto-modify (sensitive patterns)
+
+- Files matching `*.pem`, `*.key`, `*.crt`, `*.p12`, `*.pfx`
+- Paths containing `credentials`, `secrets`, `passwords` in the name
+
+If the user explicitly asks to change a protected path, confirm once and then proceed.

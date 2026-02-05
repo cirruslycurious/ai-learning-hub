@@ -1,0 +1,33 @@
+---
+description: Enforce ADRs in backend and infra code — no Lambda-to-Lambda, DynamoDB key patterns, no direct DynamoDB in handlers; mirror of Claude architecture-guard
+globs: backend/**/*.ts, backend/**/*.tsx, infra/**/*.ts, **/functions/**/*.ts
+alwaysApply: false
+---
+
+# Architecture Guard — ADR Enforcement
+
+When editing backend or infra TypeScript, enforce these architecture rules. Mirrors `.claude/hooks/architecture-guard.sh` (Claude PreToolUse).
+
+## ADR-007: No Lambda-to-Lambda calls
+
+**BLOCK:** Direct Lambda invocation from another Lambda.
+
+Do **not** use:
+- `lambda.invoke`, `invokeFunction`
+- `LambdaClient` + `InvokeCommand` / `Invoke`
+
+**Use instead:** API Gateway for sync, EventBridge (or Step Functions) for async. See `docs/ARCHITECTURE.md`.
+
+## ADR-006: DynamoDB key patterns
+
+Keys must follow project patterns:
+- `USER#<userId>`, `CONTENT#<urlHash>`, `COLLECTION#<id>`, `FOLDER#<id>`
+- Do not hardcode arbitrary `PK`/`SK` prefixes that are not one of these.
+
+## ADR-014: No direct DynamoDB in handlers
+
+In `backend/**/functions/**`, `**/handlers/**`, or `**/lambdas/**`:
+- Do **not** import `@aws-sdk/client-dynamodb` or `aws-sdk/clients/dynamodb` for handler logic.
+- **Use** `@ai-learning-hub/db` for all DynamoDB access. See `backend/shared/db`.
+
+If you need raw DynamoDB for a one-off script (not a handler), document why and keep it out of handler code.

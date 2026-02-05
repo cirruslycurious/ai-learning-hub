@@ -1,0 +1,44 @@
+---
+description: When suggesting or running bash/shell commands, block dangerous commands and escalate high-risk ones; mirror of Claude PreToolUse bash-guard
+alwaysApply: true
+---
+
+# Bash / Shell Command Guard
+
+Apply these constraints **before suggesting or running any bash/shell command**. This rule mirrors `.claude/hooks/bash-guard.js` (Claude PreToolUse).
+
+## NEVER run or suggest (block)
+
+### Critical (catastrophic)
+- `rm -rf /` or `rm -rf ~` or `rm -rf *` — deleting root, home, or all files
+- Fork bombs: `:(){ :|:& };:`
+- `dd ... of=/dev/sd*` or similar — direct disk writes
+- `mkfs` — filesystem format
+- `chmod -R 777 /` — recursive chmod 777 on root
+
+### High risk (default level)
+- **Git destructive:** `git push --force main/master`, `git reset --hard`, `git clean -fd`, `git checkout .`
+- **Credential exposure:** `echo` of AWS_SECRET, PASSWORD, API_KEY, PRIVATE_KEY; `cat .env` (use .env.example); `cat` of credentials, id_rsa, .pem, .key
+- **Exfiltration:** `curl`/`scp`/`rsync`/`nc`/`wget --post-file` with .env, credentials, secrets, id_rsa
+- **Database:** `DROP TABLE`, `DROP DATABASE`, `TRUNCATE`
+- **System:** `sudo rm`, `chown -R`
+
+### Strict (if project uses strict safety)
+- Any `git push --force`
+- `docker prune` / `docker system prune`
+- `npm cache clean`
+
+## ESCALATE (ask user before running)
+
+Do not run these without explicit user approval; suggest the command and explain the risk:
+- `git push` to main/master
+- `npm publish`
+- `cdk deploy`
+- `aws ... delete`
+- `rm -rf` (recursive/forced delete)
+- `terraform destroy`
+
+## Safe alternatives
+
+- Use `git status`, `git diff`, `git restore` for specific files instead of `git checkout .` or `git reset --hard`.
+- Use `.env.example` or documented env vars; never read or echo real .env or secrets.
