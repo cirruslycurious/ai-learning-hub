@@ -1,6 +1,6 @@
 # Database Schema Summary
 
-7 DynamoDB tables, 10 GSIs. Full detail: `_bmad-output/planning-artifacts/architecture.md`.
+7 DynamoDB tables, 10 GSIs. Full detail: `_bmad-output/planning-artifacts/architecture.md` (canonical path: see .claude/docs/README.md).
 
 ## Tables and Keys
 

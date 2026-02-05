@@ -2,6 +2,8 @@
 
 80% coverage enforced. Full pipeline and persona paths: `_bmad-output/planning-artifacts/architecture.md` (ADR-007) and epics.
 
+**Persona paths** are golden paths for key user flows (save URL, manage project, add link, search) as defined in epics and used for E2E tests; see `docs/epics/` and the E2E row below.
+
 ## Coverage
 
 - **Minimum:** 80% line coverage per package (CI gate).

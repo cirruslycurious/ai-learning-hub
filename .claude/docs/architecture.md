@@ -1,6 +1,6 @@
 # Architecture Summary
 
-Condensed reference for agents. Full document: `_bmad-output/planning-artifacts/architecture.md`.
+Condensed reference for agents. Full document: `_bmad-output/planning-artifacts/architecture.md` (canonical path: see .claude/docs/README.md).
 
 ## Key ADRs
 
@@ -16,6 +16,12 @@ Condensed reference for agents. Full document: `_bmad-output/planning-artifacts/
 | **ADR-008** | Standardized error handling and logging via shared middleware.                                                       |
 | **ADR-009** | Eventual consistency accepted between content and user layer.                                                        |
 | **ADR-010** | Search on processed substrate, not raw notes.                                                                        |
+| **ADR-011** | Platform Strategy: V1 PWA + iOS Shortcut; native apps planned for V2.5 (iOS) and V3.5 (Android).                     |
+| **ADR-012** | Web Share Target API in PWA for Android (share sheet receive).                                                       |
+| **ADR-013** | Authentication: Clerk for auth and user management (JWT + API keys).                                                 |
+| **ADR-014** | API-first: APIs are the primary product; web UI is reference implementation.                                         |
+| **ADR-015** | Lambda Layers for shared utilities across all functions (@ai-learning-hub/\*).                                       |
+| **ADR-016** | Cold start latency accepted in V1; no provisioned concurrency at boutique scale.                                     |
 
 ## Stack Layout
 

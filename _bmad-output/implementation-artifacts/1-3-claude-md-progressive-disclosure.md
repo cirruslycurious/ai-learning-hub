@@ -52,7 +52,7 @@ so that **agents get essential rules in every session without context bloat, and
 - [x] **Task 1: Verify CLAUDE.md is essential-only and under 200 lines** (AC: 1)
   - [x] Confirm CLAUDE.md contains only quick start, structure, patterns, commands, context loading, NEVER/ALWAYS, status
   - [x] Confirm it references .claude/docs/ for detailed docs
-  - [x] Confirm line count < 200
+  - [x] Confirm line count < 200. Confirmed: 98 lines.
 
 - [x] **Task 2: Create .claude/docs/ directory and README** (AC: 2)
   - [x] Create .claude/docs/
@@ -78,6 +78,17 @@ so that **agents get essential rules in every session without context bloat, and
   - [x] Test levels (unit, integration, contract, E2E) and persona paths
   - [x] Where tests live per workspace
 
+## Review Follow-ups (AI)
+
+*From BMAD code review (Story 1-3). Tracked in GitHub issues.*
+
+- [x] [AI-Review][HIGH] Add CLAUDE.md to story File List — AC1 deliverable was CLAUDE.md but it is not listed. [#43](https://github.com/cirruslycurious/ai-learning-hub/issues/43)
+- [x] [AI-Review][HIGH] Complete ADR summary in .claude/docs/architecture.md — add ADR-011 through ADR-016. Full source has 16 ADRs; summary currently lists 10. [#44](https://github.com/cirruslycurious/ai-learning-hub/issues/44)
+- [x] [AI-Review][MEDIUM] Document planning-artifact paths in .claude/docs/README.md — add one-line note that _bmad-output/planning-artifacts/ is BMAD planning output and may be regenerated. [#45](https://github.com/cirruslycurious/ai-learning-hub/issues/45)
+- [x] [AI-Review][MEDIUM] Record CLAUDE.md line count in story — add actual count (e.g. 89 lines) to Task 1 so re-verification is trivial. [#46](https://github.com/cirruslycurious/ai-learning-hub/issues/46)
+- [x] [AI-Review][LOW] Consider centralizing planning-artifacts path — same path appears in CLAUDE.md, README, architecture.md; document once (e.g. README) and reference elsewhere to reduce drift. [#47](https://github.com/cirruslycurious/ai-learning-hub/issues/47)
+- [x] [AI-Review][LOW] Expand "persona paths" in testing-guide.md — add one sentence on what they are or link to epics so agents have context. [#48](https://github.com/cirruslycurious/ai-learning-hub/issues/48)
+
 ## Dependencies
 
 - **Depends on**: Story 1.1 (monorepo), Story 1.2 (shared libs — for api-patterns/testing references)
@@ -92,6 +103,7 @@ so that **agents get essential rules in every session without context bloat, and
 
 ## File List
 
+- CLAUDE.md
 - _bmad-output/implementation-artifacts/1-3-claude-md-progressive-disclosure.md
 - .claude/docs/README.md
 - .claude/docs/architecture.md

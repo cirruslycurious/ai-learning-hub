@@ -1,6 +1,6 @@
 # API Patterns Summary
 
-REST conventions and error handling. See ADR-008 in `_bmad-output/planning-artifacts/architecture.md`.
+REST conventions and error handling. See ADR-008 in `_bmad-output/planning-artifacts/architecture.md` (canonical path: see .claude/docs/README.md).
 
 ## REST Conventions
 

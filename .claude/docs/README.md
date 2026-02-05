@@ -21,6 +21,8 @@ Start with project-level only; add module/feature CLAUDE.md files as the codebas
 
 ## Full Sources
 
+**Canonical path for planning output:** `_bmad-output/planning-artifacts/` is BMAD planning output and may be regenerated; do not edit it directly for product docs. See this README for the canonical reference.
+
 For the complete architecture and rationale, see:
 
 - `_bmad-output/planning-artifacts/architecture.md` — full ADRs, pipelines, and examples.
