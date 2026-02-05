@@ -13,4 +13,4 @@ This document will contain:
 - Observability strategy
 - CDK stack organization
 
-*To be written after PRD is finalized.*
+_To be written after PRD is finalized._

@@ -1,14 +1,14 @@
 ---
 name: Bug
 about: Something isn't working correctly
-title: 'Bug: '
+title: "Bug: "
 labels: bug
-assignees: ''
+assignees: ""
 ---
 
 ## Summary
 
-*One sentence: what's broken?*
+_One sentence: what's broken?_
 
 ## Steps to Reproduce
 
@@ -18,11 +18,11 @@ assignees: ''
 
 ## Expected Behavior
 
-*What should happen?*
+_What should happen?_
 
 ## Actual Behavior
 
-*What actually happens?*
+_What actually happens?_
 
 ## Environment
 
@@ -32,8 +32,8 @@ assignees: ''
 
 ## Screenshots / Logs
 
-*If applicable.*
+_If applicable._
 
 ## Possible Cause
 
-*If you have a hypothesis. Optional.*
+_If you have a hypothesis. Optional._

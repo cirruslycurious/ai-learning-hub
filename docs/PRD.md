@@ -8,14 +8,16 @@
 
 ## 1. Problem Statement
 
-*TODO: Define the core problems this solves. Not features — problems.*
+_TODO: Define the core problems this solves. Not features — problems._
 
 ### Primary Problems
+
 1.
 2.
 3.
 
 ### Why Existing Solutions Fail
+
 - **Browser bookmarks**:
 - **Notion/notes apps**:
 - **Memory**:
@@ -27,53 +29,63 @@
 ### Stephen (Primary User)
 
 **Context:**
-- *TODO: Who are you in relation to AI learning? Background, experience level, goals.*
+
+- _TODO: Who are you in relation to AI learning? Background, experience level, goals._
 
 **Behaviors:**
-- *TODO: How do you currently discover resources? When/where?*
+
+- _TODO: How do you currently discover resources? When/where?_
 
 **Frustrations:**
-- *TODO: What specifically breaks down? When do you lose things?*
+
+- _TODO: What specifically breaks down? When do you lose things?_
 
 **Goals:**
-- *TODO: What does success look like? What do you want to be able to do?*
+
+- _TODO: What does success look like? What do you want to be able to do?_
 
 ---
 
 ## 3. Jobs to Be Done
 
-*Format: When [situation], I want to [motivation], so I can [outcome].*
+_Format: When [situation], I want to [motivation], so I can [outcome]._
 
 ### Resource Discovery & Capture
+
 1. When I find an interesting AI resource, I want to capture it in < 10 seconds, so I don't lose it and can engage with it later.
-2. *TODO*
+2. _TODO_
 
 ### Learning & Progress
-1. *TODO*
+
+1. _TODO_
 
 ### Building & Tracking
-1. *TODO*
+
+1. _TODO_
 
 ---
 
 ## 4. Core Features
 
-*Each feature must map back to a Job to Be Done.*
+_Each feature must map back to a Job to Be Done._
 
 ### 4.1 Resource Library
-- *TODO*
+
+- _TODO_
 
 ### 4.2 Tutorial Tracker
-- *TODO*
+
+- _TODO_
 
 ### 4.3 Project Tracker
-- *TODO*
+
+- _TODO_
 
 ---
 
 ## 5. User Stories
 
-*See individual epic documents in `docs/epics/` for detailed user stories.*
+_See individual epic documents in `docs/epics/` for detailed user stories._
 
 ---
 
@@ -82,8 +94,8 @@
 How do we know this is working?
 
 | Metric | Target | How to Measure |
-|--------|--------|----------------|
-| *TODO* | | |
+| ------ | ------ | -------------- |
+| _TODO_ |        |                |
 
 ---
 
@@ -102,18 +114,18 @@ How do we know this is working?
 
 Things we're explicitly NOT building in the first version:
 
-- *TODO*
+- _TODO_
 
 ---
 
 ## 9. Open Questions
 
-- *TODO*
+- _TODO_
 
 ---
 
 ## Revision History
 
-| Date | Author | Changes |
-|------|--------|---------|
+| Date              | Author  | Changes       |
+| ----------------- | ------- | ------------- |
 | $(date +%Y-%m-%d) | Stephen | Initial draft |

@@ -1,6 +1,6 @@
 ---
-name: 'create-excalidraw-diagram'
-description: 'Create system architecture diagrams, ERDs, UML diagrams, or general technical diagrams in Excalidraw format'
+name: "create-excalidraw-diagram"
+description: "Create system architecture diagrams, ERDs, UML diagrams, or general technical diagrams in Excalidraw format"
 ---
 
 IT IS CRITICAL THAT YOU FOLLOW THESE STEPS - while staying in character as the current agent persona you may have loaded:

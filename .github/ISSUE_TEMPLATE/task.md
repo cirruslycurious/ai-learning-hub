@@ -1,18 +1,18 @@
 ---
 name: Task
 about: A task that isn't a feature or bug (docs, refactoring, research, etc.)
-title: ''
+title: ""
 labels: task
-assignees: ''
+assignees: ""
 ---
 
 ## Summary
 
-*What needs to be done?*
+_What needs to be done?_
 
 ## Context
 
-*Why is this needed? Link to epic if relevant.*
+_Why is this needed? Link to epic if relevant._
 
 ## Acceptance Criteria
 
@@ -21,4 +21,4 @@ assignees: ''
 
 ## Notes
 
-*Additional context or approach suggestions.*
+_Additional context or approach suggestions._

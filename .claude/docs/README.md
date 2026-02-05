@@ -11,6 +11,8 @@
 | **api-patterns.md**    | Implementing or changing API handlers, error responses, or middleware.                                     |
 | **testing-guide.md**   | Adding or changing tests, checking coverage, or running the test suite.                                    |
 
+For **Claude Code hooks** (PreToolUse, PostToolUse, Stop): see `.claude/hooks/README.md` and `_bmad-output/planning-artifacts/diagrams/06-hooks-enforcement-strategy.md`.
+
 ## Hierarchy (future)
 
 - **Project level:** `CLAUDE.md` (primary; always loaded).

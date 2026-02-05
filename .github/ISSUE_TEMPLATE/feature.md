@@ -1,14 +1,14 @@
 ---
 name: Feature
 about: A new feature or enhancement
-title: ''
+title: ""
 labels: feature
-assignees: ''
+assignees: ""
 ---
 
 ## Summary
 
-*One sentence: what does this feature do?*
+_One sentence: what does this feature do?_
 
 ## User Story
 
@@ -18,25 +18,25 @@ assignees: ''
 
 ## Context
 
-*Why is this needed? Link to epic or PRD section.*
+_Why is this needed? Link to epic or PRD section._
 
 Epic: #epic-number
 
 ## Acceptance Criteria
 
-*Testable criteria. Use checkboxes.*
+_Testable criteria. Use checkboxes._
 
 - [ ] Given [context], when [action], then [result]
 - [ ] Given [context], when [action], then [result]
 
 ## Technical Notes
 
-*Implementation hints, constraints, or considerations. Optional.*
+_Implementation hints, constraints, or considerations. Optional._
 
 ## Design
 
-*Link to mockups or describe UI if applicable. Optional.*
+_Link to mockups or describe UI if applicable. Optional._
 
 ## Out of Scope
 
-*Explicitly what this issue does NOT cover.*
+_Explicitly what this issue does NOT cover._

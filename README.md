@@ -22,19 +22,19 @@ AI Learning Hub is a single place to capture, organize, and connect everything. 
 
 The API is the product — web and mobile UIs are "skins" over API calls. All operations (internal and external) flow through API Gateway. No Lambda-to-Lambda calls.
 
-| Layer | Technology |
-|-------|------------|
-| Frontend | React + Vite (PWA) |
-| Auth | Clerk (JWT + API keys) |
-| Backend | AWS Lambda (Node.js/TypeScript) |
-| Database | DynamoDB (7 tables, 10 GSIs) |
-| Storage | S3 (notes, static assets) |
-| Infrastructure | AWS CDK (TypeScript) |
-| Hosting | S3 + CloudFront |
-| Observability | CloudWatch, X-Ray, EMF metrics |
-| Mobile (V1) | PWA + iOS Shortcut |
-| Mobile (V2.5) | Native iOS app |
-| Mobile (V3.5) | Native Android app |
+| Layer          | Technology                      |
+| -------------- | ------------------------------- |
+| Frontend       | React + Vite (PWA)              |
+| Auth           | Clerk (JWT + API keys)          |
+| Backend        | AWS Lambda (Node.js/TypeScript) |
+| Database       | DynamoDB (7 tables, 10 GSIs)    |
+| Storage        | S3 (notes, static assets)       |
+| Infrastructure | AWS CDK (TypeScript)            |
+| Hosting        | S3 + CloudFront                 |
+| Observability  | CloudWatch, X-Ray, EMF metrics  |
+| Mobile (V1)    | PWA + iOS Shortcut              |
+| Mobile (V2.5)  | Native iOS app                  |
+| Mobile (V3.5)  | Native Android app              |
 
 ### Key Design Decisions (13 ADRs)
 
@@ -49,15 +49,15 @@ The API is the product — web and mobile UIs are "skins" over API calls. All op
 
 ### Data Model
 
-| Table | Purpose | Partition Key |
-|-------|---------|---------------|
-| users | Profiles + API keys | `USER#<clerkId>` |
-| saves | User's saved URLs | `USER#<userId>` |
-| projects | Projects + folders | `USER#<userId>` |
-| links | Project ↔ Save (M:N) | `USER#<userId>` |
-| content | Global URL metadata | `CONTENT#<urlHash>` |
-| search-index | Search substrate | `USER#<userId>` |
-| invite-codes | Invite system | `CODE#<code>` |
+| Table        | Purpose              | Partition Key       |
+| ------------ | -------------------- | ------------------- |
+| users        | Profiles + API keys  | `USER#<clerkId>`    |
+| saves        | User's saved URLs    | `USER#<userId>`     |
+| projects     | Projects + folders   | `USER#<userId>`     |
+| links        | Project ↔ Save (M:N) | `USER#<userId>`     |
+| content      | Global URL metadata  | `CONTENT#<urlHash>` |
+| search-index | Search substrate     | `USER#<userId>`     |
+| invite-codes | Invite system        | `CODE#<code>`       |
 
 ### API Surface
 
@@ -68,47 +68,47 @@ The API is the product — web and mobile UIs are "skins" over API calls. All op
 
 ## Version Roadmap
 
-| Version | Focus | Status |
-|---------|-------|--------|
-| **V1** | Foundation — API, capture, UI, data model, observability, security | Pre-development |
-| **V2** | Intelligence — LLM-powered connections, collective learning graph, semantic search, MCP server | Planned |
-| **V2.5** | Native iOS app | Planned |
-| **V3** | Community — published learning trails, portfolio for builders | Planned |
-| **V3.5** | Native Android app | Planned |
-| **V4** | Business model (if ever) | Out of scope |
+| Version  | Focus                                                                                          | Status          |
+| -------- | ---------------------------------------------------------------------------------------------- | --------------- |
+| **V1**   | Foundation — API, capture, UI, data model, observability, security                             | Pre-development |
+| **V2**   | Intelligence — LLM-powered connections, collective learning graph, semantic search, MCP server | Planned         |
+| **V2.5** | Native iOS app                                                                                 | Planned         |
+| **V3**   | Community — published learning trails, portfolio for builders                                  | Planned         |
+| **V3.5** | Native Android app                                                                             | Planned         |
+| **V4**   | Business model (if ever)                                                                       | Out of scope    |
 
 ## Current Status
 
 **Pre-development.** Building out specs using the [BMAD methodology](https://github.com/bmadcode/BMAD-METHOD).
 
-| Artifact | Status |
-|----------|--------|
-| Product Brief | ✅ Complete |
-| Domain Research | ✅ Complete |
-| PRD | ✅ Complete (69 FRs, 28 NFRs) |
-| Architecture | ✅ Complete (13 ADRs, 7 tables, 10 GSIs, full API spec) |
-| Epics & Stories | Not started |
-| UX Design | Not started |
+| Artifact        | Status                                                  |
+| --------------- | ------------------------------------------------------- |
+| Product Brief   | ✅ Complete                                             |
+| Domain Research | ✅ Complete                                             |
+| PRD             | ✅ Complete (69 FRs, 28 NFRs)                           |
+| Architecture    | ✅ Complete (13 ADRs, 7 tables, 10 GSIs, full API spec) |
+| Epics & Stories | Not started                                             |
+| UX Design       | Not started                                             |
 
 Track progress: [GitHub Issue #39](https://github.com/cirruslycurious/ai-learning-hub/issues/39)
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [Product Brief](_bmad-output/planning-artifacts/product-brief-ai-learning-hub-2026-01-31.md) | Comprehensive product vision, personas, entity model, security, observability |
-| [Domain Research](_bmad-output/planning-artifacts/research/domain-ai-genai-learning-workflows-research-2026-02-02.md) | AI/GenAI learning landscape research |
-| [PRD](_bmad-output/planning-artifacts/prd.md) | Product requirements document (69 FRs, 28 NFRs, API-first architecture) |
-| [Architecture](_bmad-output/planning-artifacts/architecture.md) | 13 ADRs, DynamoDB schemas, API specs, auth flows, analytics |
-| [CLAUDE.md](CLAUDE.md) | AI assistant context file |
+| Document                                                                                                              | Description                                                                   |
+| --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| [Product Brief](_bmad-output/planning-artifacts/product-brief-ai-learning-hub-2026-01-31.md)                          | Comprehensive product vision, personas, entity model, security, observability |
+| [Domain Research](_bmad-output/planning-artifacts/research/domain-ai-genai-learning-workflows-research-2026-02-02.md) | AI/GenAI learning landscape research                                          |
+| [PRD](_bmad-output/planning-artifacts/prd.md)                                                                         | Product requirements document (69 FRs, 28 NFRs, API-first architecture)       |
+| [Architecture](_bmad-output/planning-artifacts/architecture.md)                                                       | 13 ADRs, DynamoDB schemas, API specs, auth flows, analytics                   |
+| [CLAUDE.md](CLAUDE.md)                                                                                                | AI assistant context file                                                     |
 
 ### Legacy Docs (to be migrated)
 
-| Document | Description |
-|----------|-------------|
-| [docs/PRD.md](docs/PRD.md) | Original PRD outline (superseded by `_bmad-output` version) |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Placeholder (superseded by `_bmad-output` version) |
-| [docs/epics/000-project-foundation.md](docs/epics/000-project-foundation.md) | Epic 0 placeholder |
+| Document                                                                     | Description                                                 |
+| ---------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| [docs/PRD.md](docs/PRD.md)                                                   | Original PRD outline (superseded by `_bmad-output` version) |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                                 | Placeholder (superseded by `_bmad-output` version)          |
+| [docs/epics/000-project-foundation.md](docs/epics/000-project-foundation.md) | Epic 0 placeholder                                          |
 
 ## Repository Structure
 
