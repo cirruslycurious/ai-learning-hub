@@ -3,6 +3,11 @@
   "references": [
     { "path": "./infra" },
     { "path": "./frontend" },
-    { "path": "./backend" }
+    { "path": "./backend" },
+    { "path": "./backend/shared/types" },
+    { "path": "./backend/shared/logging" },
+    { "path": "./backend/shared/validation" },
+    { "path": "./backend/shared/db" },
+    { "path": "./backend/shared/middleware" }
   ]
 }

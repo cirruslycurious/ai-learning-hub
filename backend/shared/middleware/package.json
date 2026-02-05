@@ -1,0 +1,30 @@
+{
+  "name": "@ai-learning-hub/middleware",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run --coverage",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@ai-learning-hub/logging": "*",
+    "@ai-learning-hub/types": "*",
+    "@ai-learning-hub/validation": "*"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.131",
+    "@vitest/coverage-v8": "^1.6.1",
+    "typescript": "~5.3.0",
+    "vitest": "^1.6.1"
+  }
+}

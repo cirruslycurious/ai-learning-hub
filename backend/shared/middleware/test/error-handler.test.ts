@@ -1,0 +1,136 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import {
+  createErrorResponse,
+  normalizeError,
+  handleError,
+  createSuccessResponse,
+  createNoContentResponse,
+} from "../src/error-handler.js";
+import { AppError, ErrorCode } from "@ai-learning-hub/types";
+import type { Logger } from "@ai-learning-hub/logging";
+
+describe("Error Handler", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  describe("createErrorResponse", () => {
+    it("should create error response with correct structure", () => {
+      const error = new AppError(ErrorCode.NOT_FOUND, "User not found");
+      const response = createErrorResponse(error, "req-123");
+
+      expect(response.statusCode).toBe(404);
+      expect(response.headers?.["Content-Type"]).toBe("application/json");
+      expect(response.headers?.["X-Request-Id"]).toBe("req-123");
+
+      const body = JSON.parse(response.body);
+      expect(body.error.code).toBe("NOT_FOUND");
+      expect(body.error.message).toBe("User not found");
+      expect(body.error.requestId).toBe("req-123");
+    });
+
+    it("should include error details when present", () => {
+      const error = new AppError(ErrorCode.VALIDATION_ERROR, "Invalid input", {
+        field: "email",
+      });
+      const response = createErrorResponse(error, "req-456");
+      const body = JSON.parse(response.body);
+
+      expect(body.error.details?.field).toBe("email");
+    });
+  });
+
+  describe("normalizeError", () => {
+    it("should return AppError unchanged", () => {
+      const appError = new AppError(ErrorCode.FORBIDDEN, "Access denied");
+      const result = normalizeError(appError);
+
+      expect(result).toBe(appError);
+    });
+
+    it("should convert regular Error to AppError", () => {
+      const regularError = new Error("Something went wrong");
+      const result = normalizeError(regularError);
+
+      expect(AppError.isAppError(result)).toBe(true);
+      expect(result.code).toBe(ErrorCode.INTERNAL_ERROR);
+    });
+
+    it("should handle non-Error objects", () => {
+      const result = normalizeError("string error");
+
+      expect(AppError.isAppError(result)).toBe(true);
+      expect(result.code).toBe(ErrorCode.INTERNAL_ERROR);
+    });
+
+    it("should handle null", () => {
+      const result = normalizeError(null);
+
+      expect(AppError.isAppError(result)).toBe(true);
+      expect(result.code).toBe(ErrorCode.INTERNAL_ERROR);
+    });
+  });
+
+  describe("handleError", () => {
+    it("should return API Gateway response", () => {
+      const error = new AppError(ErrorCode.UNAUTHORIZED, "Token expired");
+      const response = handleError(error, "req-789");
+
+      expect(response.statusCode).toBe(401);
+      expect(response.headers?.["X-Request-Id"]).toBe("req-789");
+    });
+
+    it("should normalize regular errors", () => {
+      const regularError = new Error("Database connection failed");
+      const response = handleError(regularError, "req-abc");
+
+      expect(response.statusCode).toBe(500);
+    });
+
+    it("should use provided logger", () => {
+      const mockLogger = {
+        error: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        debug: vi.fn(),
+      };
+
+      const error = new AppError(ErrorCode.RATE_LIMITED, "Too many requests");
+      handleError(error, "req-def", mockLogger as unknown as Logger);
+
+      expect(mockLogger.error).toHaveBeenCalled();
+    });
+  });
+
+  describe("createSuccessResponse", () => {
+    it("should create success response with data", () => {
+      const data = { id: "123", name: "Test" };
+      const response = createSuccessResponse(data, "req-123");
+
+      expect(response.statusCode).toBe(200);
+      expect(response.headers?.["Content-Type"]).toBe("application/json");
+      expect(response.headers?.["X-Request-Id"]).toBe("req-123");
+
+      const body = JSON.parse(response.body);
+      expect(body.data).toEqual(data);
+    });
+
+    it("should accept custom status code", () => {
+      const data = { id: "456" };
+      const response = createSuccessResponse(data, "req-456", 201);
+
+      expect(response.statusCode).toBe(201);
+    });
+  });
+
+  describe("createNoContentResponse", () => {
+    it("should create 204 response", () => {
+      const response = createNoContentResponse("req-789");
+
+      expect(response.statusCode).toBe(204);
+      expect(response.body).toBe("");
+      expect(response.headers?.["X-Request-Id"]).toBe("req-789");
+    });
+  });
+});

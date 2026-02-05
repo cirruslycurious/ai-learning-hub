@@ -28,5 +28,11 @@ export default tseslint.config(
         // all config/test files to be in tsconfig or allowDefaultProject setup.
       },
     },
+    rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
+    },
   }
 );

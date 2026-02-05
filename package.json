@@ -8,7 +8,12 @@
   "workspaces": [
     "infra",
     "frontend",
-    "backend"
+    "backend",
+    "backend/shared/types",
+    "backend/shared/logging",
+    "backend/shared/validation",
+    "backend/shared/db",
+    "backend/shared/middleware"
   ],
   "scripts": {
     "test": "npm run test --workspaces --if-present",
@@ -19,6 +24,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
+    "@vitest/coverage-v8": "^1.6.1",
     "eslint": "^9.0.0",
     "prettier": "^3.2.0",
     "typescript": "~5.3.0",

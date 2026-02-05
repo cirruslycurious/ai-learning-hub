@@ -1,0 +1,30 @@
+{
+  "name": "@ai-learning-hub/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run --coverage",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@ai-learning-hub/logging": "*",
+    "@ai-learning-hub/types": "*",
+    "@aws-sdk/client-dynamodb": "^3.490.0",
+    "@aws-sdk/lib-dynamodb": "^3.490.0"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^1.6.1",
+    "typescript": "~5.3.0",
+    "vitest": "^1.6.1"
+  }
+}
