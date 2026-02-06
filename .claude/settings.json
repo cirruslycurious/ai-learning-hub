@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/bash-guard.js\"",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/bash-guard.cjs\"",
             "timeout": 5000
           }
         ]
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/file-guard.js\"",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/file-guard.cjs\"",
             "timeout": 5000
           }
         ]
@@ -41,7 +41,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/tdd-guard.js\"",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/tdd-guard.cjs\"",
             "timeout": 10000
           }
         ]
