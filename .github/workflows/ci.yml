@@ -30,7 +30,7 @@ jobs:
         run: npm ci
 
       - name: Run format check
-        run: npm run format -- --check
+        run: npm run format:check
 
       - name: Run lint
         run: npm run lint
@@ -190,10 +190,10 @@ jobs:
 
       - name: Dependency Vulnerability Scan (npm audit)
         run: |
-          npm audit --audit-level=moderate || true
-          # Note: Configured as warning for now due to transitive dependencies
-          # Will fail on critical/high in production
-          echo "ℹ️ Dependency scan completed - review findings above"
+          # Fail on high/critical vulnerabilities
+          # Use --production to ignore devDependencies for unavoidable transitive deps
+          npm audit --audit-level=high --production
+          echo "✅ No high or critical vulnerabilities found in production dependencies"
 
       - name: Secrets Detection
         uses: trufflesecurity/trufflehog@main

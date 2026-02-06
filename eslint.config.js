@@ -1,5 +1,7 @@
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
+import security from "eslint-plugin-security";
+import enforceSharedImports from "./scripts/eslint-rules/enforce-shared-imports.js";
 
 export default tseslint.config(
   {
@@ -18,6 +20,7 @@ export default tseslint.config(
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  security.configs.recommended,
   {
     files: ["scripts/**/*.mjs"],
     languageOptions: {
@@ -39,6 +42,20 @@ export default tseslint.config(
         "error",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
+    },
+  },
+  {
+    // Enforce shared library usage in Lambda handlers
+    files: ["backend/functions/**/*.ts", "backend/functions/**/*.js"],
+    plugins: {
+      "local-rules": {
+        rules: {
+          "enforce-shared-imports": enforceSharedImports,
+        },
+      },
+    },
+    rules: {
+      "local-rules/enforce-shared-imports": "error",
     },
   }
 );
