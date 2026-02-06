@@ -1246,6 +1246,607 @@ cat docs/progress/epic-N-auto-run.md
 
 ---
 
+## Architecture: Core vs CLI Separation
+
+### Overview
+
+The workflow documentation describes orchestration logic, but implementation must separate concerns for testability, portability, and composability.
+
+### Current State (Documentation Prototype)
+
+- Workflow doc mixes orchestration logic with CLI commands (`gh`, `git`)
+- Examples show implementation details inline
+- Hard to test without real GitHub
+- Hard to adapt for other tracking systems
+
+### Target Architecture (Implementation)
+
+#### Layer 1: Orchestration Core (`src/orchestrator/`)
+
+**Purpose:** Pure orchestration logic - no side effects
+
+**Responsibilities:**
+
+- Load and validate epic/story definitions
+- Build dependency graph and perform topological sort
+- Coordinate story execution through StoryRunner interface
+- Validate integration checkpoints
+- Manage state transitions
+
+**Key Classes:**
+
+```typescript
+// Core orchestrator - framework-agnostic
+class EpicOrchestrator {
+  constructor(
+    private runner: StoryRunner,
+    private stateManager: StateManager,
+    private config: OrchestratorConfig
+  ) {}
+
+  async executeEpic(
+    epic: Epic,
+    options: ExecutionOptions
+  ): Promise<ExecutionResult> {
+    // 1. Load story files and parse YAML frontmatter
+    const stories = await this.loadStories(epic);
+
+    // 2. Build dependency graph
+    const graph = DependencyAnalyzer.buildGraph(stories);
+
+    // 3. Detect cycles and perform topological sort
+    const executionOrder = DependencyAnalyzer.topologicalSort(graph);
+
+    // 4. Execute stories in order
+    for (const story of executionOrder) {
+      await this.executeStory(story);
+
+      // 5. Run integration checkpoints if story has dependents
+      if (story.dependents.length > 0) {
+        await this.runIntegrationCheckpoint(story);
+      }
+    }
+
+    return this.buildResult();
+  }
+
+  private async executeStory(story: Story): Promise<void> {
+    // Check dependencies satisfied
+    // Create issue + branch via runner
+    // Implement story (via AI agent or human)
+    // Create PR via runner
+    // Update state
+  }
+}
+
+// Pure dependency analysis - no I/O
+class DependencyAnalyzer {
+  static buildGraph(stories: Story[]): DependencyGraph {
+    // Build graph from story.dependencies arrays
+  }
+
+  static topologicalSort(graph: DependencyGraph): Story[] {
+    // Kahn's algorithm or DFS-based toposort
+  }
+
+  static detectCycles(graph: DependencyGraph): Cycle[] {
+    // Tarjan's algorithm for cycle detection
+  }
+}
+
+// Pure checkpoint validation - no GitHub API calls
+class IntegrationCheckpoint {
+  static async validate(
+    story: Story,
+    changedFiles: string[], // From git diff
+    dependents: Story[]
+  ): Promise<CheckpointResult> {
+    // 1. Check file overlaps
+    // 2. Detect type/interface changes (if TypeScript)
+    // 3. Return Green/Yellow/Red with reasoning
+  }
+}
+```
+
+**No Side Effects:**
+
+- No file I/O (state manager injected)
+- No GitHub API calls (StoryRunner injected)
+- No git commands (runner handles)
+- Pure functions for analysis
+
+**Testability:**
+
+```typescript
+// Unit tests with mock runner
+describe("EpicOrchestrator", () => {
+  it("executes stories in dependency order", async () => {
+    const mockRunner = new MockStoryRunner();
+    const orchestrator = new EpicOrchestrator(mockRunner, stateManager, config);
+
+    const result = await orchestrator.executeEpic(testEpic, {});
+
+    expect(mockRunner.executionOrder).toEqual(["1.1", "1.2", "1.3"]);
+  });
+
+  it("fails when circular dependency detected", async () => {
+    const epicWithCycle = createCyclicEpic();
+    await expect(orchestrator.executeEpic(epicWithCycle)).rejects.toThrow(
+      "Cycle detected"
+    );
+  });
+});
+```
+
+#### Layer 2: CLI Adapter (`src/cli/bmad-bmm-auto-epic.ts`)
+
+**Purpose:** CLI entry point - handles user interaction and I/O
+
+**Responsibilities:**
+
+- Parse CLI arguments (`--stories`, `--resume`, `--dry-run`)
+- Instantiate appropriate StoryRunner (GitHub, DryRun, etc.)
+- Provide human-readable progress output
+- Handle errors and display to user
+- Manage state file I/O
+
+**Implementation:**
+
+```typescript
+#!/usr/bin/env node
+import { EpicOrchestrator } from "../orchestrator/EpicOrchestrator";
+import { GitHubStoryRunner } from "../adapters/GitHubStoryRunner";
+import { DryRunStoryRunner } from "../adapters/DryRunStoryRunner";
+import { FileSystemStateManager } from "../state/FileSystemStateManager";
+
+async function main(args: string[]) {
+  const cliArgs = parseCLIArgs(args);
+
+  // 1. Select runner based on environment
+  const runner =
+    cliArgs.dryRun || process.env.DRY_RUN === "true"
+      ? new DryRunStoryRunner()
+      : new GitHubStoryRunner();
+
+  // 2. Load epic definition
+  const epic = await loadEpic(cliArgs.epicId);
+
+  // 3. Initialize state manager
+  const stateManager = new FileSystemStateManager(
+    `docs/progress/${epic.id}-auto-run.md`
+  );
+
+  // 4. Create orchestrator
+  const orchestrator = new EpicOrchestrator(runner, stateManager, {
+    requireMerged: cliArgs.requireMerged,
+    coverageGate: cliArgs.coverageGate || "no-decrease",
+  });
+
+  // 5. Execute epic with human-friendly output
+  console.log(`📋 Epic ${epic.id}: ${epic.title}`);
+  console.log(`Found ${epic.stories.length} stories\n`);
+
+  const result = await orchestrator.executeEpic(epic, {
+    resume: cliArgs.resume,
+    storyFilter: cliArgs.stories,
+  });
+
+  // 6. Display results
+  console.log(
+    `\n✅ Epic complete: ${result.successCount}/${result.totalCount} stories`
+  );
+  console.log(`⏱️  Total time: ${result.duration}`);
+  console.log(`📊 PRs created: ${result.prs.map((pr) => pr.url).join("\n")}`);
+}
+
+main(process.argv.slice(2)).catch((err) => {
+  console.error(`❌ Error: ${err.message}`);
+  process.exit(1);
+});
+```
+
+#### Layer 3: StoryRunner Adapters (`src/adapters/`)
+
+**Purpose:** Platform-specific integrations
+
+**GitHubStoryRunner** (`src/adapters/GitHubStoryRunner.ts`):
+
+- Uses `@octokit/rest` (NOT `gh` CLI) for API calls
+- Implements all StoryRunner interface methods
+- Handles authentication via GitHub App or PAT
+- Includes retry logic with exponential backoff
+
+```typescript
+import { Octokit } from "@octokit/rest";
+
+export class GitHubStoryRunner implements StoryRunner {
+  private octokit: Octokit;
+
+  constructor(auth: string) {
+    this.octokit = new Octokit({ auth });
+  }
+
+  async createIssue(story: Story, epic: Epic): Promise<IssueResult> {
+    const response = await this.octokit.issues.create({
+      owner: this.owner,
+      repo: this.repo,
+      title: `Story ${story.id}: ${story.title}`,
+      body: this.buildIssueBody(story, epic),
+      labels: ["story", `epic-${epic.id}`],
+    });
+
+    return {
+      issueNumber: response.data.number,
+      issueUrl: response.data.html_url,
+    };
+  }
+
+  async createBranch(story: Story, branchName: string): Promise<BranchResult> {
+    // Use git commands (via child_process) or Octokit git API
+    await execAsync(`git checkout -b ${branchName}`);
+    return { branchName };
+  }
+
+  async branchExists(branchName: string): Promise<boolean> {
+    // Check local first (fast)
+    const localExists = await execAsync(
+      `git show-ref --verify --quiet refs/heads/${branchName}`
+    ).then(
+      () => true,
+      () => false
+    );
+
+    if (localExists) return true;
+
+    // Check remote with ls-remote (no fetch needed)
+    const remoteExists = await execAsync(
+      `git ls-remote --exit-code --heads origin "${branchName}"`
+    ).then(
+      () => true,
+      () => false
+    );
+
+    return remoteExists;
+  }
+
+  // ... other methods
+}
+```
+
+**DryRunStoryRunner** (`src/adapters/DryRunStoryRunner.ts`):
+
+- Logs all operations (no side effects)
+- Returns mock results
+- Perfect for testing orchestration logic
+
+```typescript
+export class DryRunStoryRunner implements StoryRunner {
+  private log: string[] = [];
+
+  async createIssue(story: Story, epic: Epic): Promise<IssueResult> {
+    this.log.push(`[DRY RUN] Would create issue: Story ${story.id}`);
+    return {
+      issueNumber: Math.floor(Math.random() * 1000),
+      issueUrl: `https://github.com/mock/issues/123`,
+    };
+  }
+
+  async createBranch(story: Story, branchName: string): Promise<BranchResult> {
+    this.log.push(`[DRY RUN] Would create branch: ${branchName}`);
+    return { branchName };
+  }
+
+  getLog(): string[] {
+    return this.log;
+  }
+}
+```
+
+### File Structure
+
+```
+src/
+├── orchestrator/
+│   ├── EpicOrchestrator.ts         # Core orchestration logic
+│   ├── DependencyAnalyzer.ts       # Graph building, toposort, cycle detection
+│   ├── IntegrationCheckpoint.ts    # Validation logic (file overlaps, type changes)
+│   ├── StateTransitions.ts         # Story state machine
+│   └── __tests__/
+│       ├── EpicOrchestrator.test.ts
+│       ├── DependencyAnalyzer.test.ts
+│       └── IntegrationCheckpoint.test.ts
+├── adapters/
+│   ├── StoryRunner.interface.ts    # Interface definition
+│   ├── GitHubStoryRunner.ts        # Octokit + git integration
+│   ├── DryRunStoryRunner.ts        # No-op testing adapter
+│   ├── JiraStoryRunner.ts          # Jira API integration (future)
+│   ├── LinearStoryRunner.ts        # Linear API integration (future)
+│   └── __tests__/
+│       ├── GitHubStoryRunner.test.ts
+│       └── DryRunStoryRunner.test.ts
+├── state/
+│   ├── StateManager.interface.ts   # State persistence abstraction
+│   ├── FileSystemStateManager.ts   # Markdown state file
+│   ├── JSONStateManager.ts         # JSON state file (alternative)
+│   └── __tests__/
+│       └── StateManager.test.ts
+├── cli/
+│   ├── bmad-bmm-auto-epic.ts       # CLI entry point
+│   ├── CLIArgs.ts                  # Argument parsing
+│   └── Output.ts                   # Human-readable formatting
+├── types/
+│   ├── Epic.ts                     # Epic/Story type definitions
+│   ├── ExecutionResult.ts          # Orchestration result types
+│   ├── CheckpointResult.ts         # Integration checkpoint types
+│   └── Config.ts                   # Configuration types
+└── utils/
+    ├── git.ts                      # Git command wrappers
+    ├── yaml.ts                     # YAML frontmatter parsing
+    └── slugify.ts                  # Branch name generation
+```
+
+### Benefits
+
+1. **Testability**
+   - Unit test orchestrator with mock runner (no GitHub API calls)
+   - Integration test adapters against real/sandbox GitHub
+   - Fast test suite (no network I/O for core logic)
+
+2. **Portability**
+   - Swap GitHub for Jira without changing orchestration
+   - Support multiple tracking systems simultaneously
+   - Run in any environment (local, CI/CD, cloud)
+
+3. **Composability**
+   - Reuse orchestrator in web UI
+   - Embed in VSCode extension
+   - Expose as REST API
+   - Use in batch processing jobs
+
+4. **Maintainability**
+   - Clear separation of concerns
+   - Each layer has single responsibility
+   - Easy to add new features (new adapters, new checkpoints)
+
+### Migration Strategy (Epic 1 Implementation)
+
+**Story 1.1: Extract Interfaces and Types**
+
+- Define `StoryRunner` interface (already done in doc)
+- Define `Epic`, `Story`, `ExecutionResult` types
+- Define `StateManager` interface
+- Create skeleton file structure
+
+**Story 1.2: Implement Core Orchestrator**
+
+- Implement `EpicOrchestrator` class
+- Implement `DependencyAnalyzer` (graph, toposort, cycle detection)
+- Implement `IntegrationCheckpoint` validation logic
+- Write comprehensive unit tests (mock runner)
+
+**Story 1.3: Implement GitHubStoryRunner**
+
+- Install `@octokit/rest` dependency
+- Implement all StoryRunner methods using Octokit
+- Implement git command wrappers
+- Write integration tests (against sandbox repo or mocked Octokit)
+
+**Story 1.4: Implement CLI Layer**
+
+- Create `bmad-bmm-auto-epic.ts` entry point
+- Parse CLI arguments
+- Wire up orchestrator + runner + state manager
+- Maintain existing UX (same output format)
+
+**Story 1.5: Implement DryRunStoryRunner**
+
+- Create no-op adapter for testing
+- Update orchestrator tests to use DryRunStoryRunner
+- Add `--dry-run` flag to CLI
+
+**Story 1.6: Add State File Management**
+
+- Implement `FileSystemStateManager`
+- Handle resume logic (reconcile state file with GitHub)
+- Atomic writes (temp file + rename)
+
+**Acceptance Criteria:**
+
+- All existing workflow functionality works
+- 80%+ test coverage on orchestrator core
+- Can run full epic in `--dry-run` mode
+- State file format matches current spec
+
+---
+
+## Future Enhancement: Structured Event Log
+
+### Problem
+
+Current activity log in state file is prose, making it hard to:
+
+- Parse and query programmatically
+- Generate metrics and dashboards
+- Debug failed runs
+- Build tooling around the workflow
+
+### Solution
+
+Add machine-parseable JSON-lines event stream alongside state file.
+
+### Implementation
+
+**Location:** `docs/progress/epic-{id}-events.jsonl`
+
+**Schema:**
+
+Each line is a JSON object with this structure:
+
+```typescript
+interface WorkflowEvent {
+  ts: string; // ISO 8601 timestamp
+  event: EventType; // Event type (enum)
+  story_id?: string; // Story ID (if applicable)
+  [key: string]: any; // Event-specific fields
+}
+
+type EventType =
+  | "epic.started"
+  | "epic.completed"
+  | "epic.failed"
+  | "story.started"
+  | "story.completed"
+  | "story.failed"
+  | "story.skipped"
+  | "story.blocked"
+  | "dependency.checked"
+  | "dependency.failed"
+  | "issue.created"
+  | "issue.found"
+  | "branch.created"
+  | "branch.found"
+  | "pr.created"
+  | "pr.found"
+  | "tests.started"
+  | "tests.passed"
+  | "tests.failed"
+  | "hook.passed"
+  | "hook.failed"
+  | "checkpoint.started"
+  | "checkpoint.passed"
+  | "checkpoint.failed";
+```
+
+**Example Event Stream:**
+
+```jsonl
+{"ts":"2026-02-06T10:23:00Z","event":"epic.started","epic_id":"Epic-1","story_count":8}
+{"ts":"2026-02-06T10:23:05Z","event":"story.started","story_id":"1.1","title":"User registration"}
+{"ts":"2026-02-06T10:23:10Z","event":"issue.created","story_id":"1.1","issue_number":42,"issue_url":"https://github.com/repo/issues/42"}
+{"ts":"2026-02-06T10:23:12Z","event":"branch.created","story_id":"1.1","branch":"story-1-1-user-registration"}
+{"ts":"2026-02-06T10:25:30Z","event":"tests.started","story_id":"1.1"}
+{"ts":"2026-02-06T10:25:45Z","event":"tests.passed","story_id":"1.1","coverage":87,"duration_sec":15}
+{"ts":"2026-02-06T10:25:50Z","event":"pr.created","story_id":"1.1","pr_number":43,"pr_url":"https://github.com/repo/pull/43"}
+{"ts":"2026-02-06T10:25:55Z","event":"story.completed","story_id":"1.1","duration_sec":175}
+{"ts":"2026-02-06T10:26:00Z","event":"checkpoint.started","story_id":"1.1","dependents":["1.2","1.3"]}
+{"ts":"2026-02-06T10:26:05Z","event":"checkpoint.passed","story_id":"1.1","result":"green","conflicts":0}
+{"ts":"2026-02-06T10:26:10Z","event":"story.started","story_id":"1.2","title":"Save project"}
+{"ts":"2026-02-06T10:26:15Z","event":"dependency.checked","story_id":"1.2","depends_on":["1.1"],"satisfied":true}
+{"ts":"2026-02-06T10:28:45Z","event":"hook.failed","story_id":"1.2","hook":"tdd-guard","error":"No tests found for new code"}
+{"ts":"2026-02-06T10:30:00Z","event":"hook.passed","story_id":"1.2","hook":"tdd-guard","retry":1}
+{"ts":"2026-02-06T10:32:30Z","event":"story.completed","story_id":"1.2","duration_sec":380}
+```
+
+### Usage Examples
+
+**Query Failed Stories:**
+
+```bash
+jq 'select(.event=="story.failed")' epic-1-events.jsonl
+```
+
+**Calculate Average Story Duration:**
+
+```bash
+jq -s 'map(select(.event=="story.completed")) | map(.duration_sec) | add / length' epic-1-events.jsonl
+```
+
+**Find Hook Failures:**
+
+```bash
+jq 'select(.event=="hook.failed") | {story: .story_id, hook: .hook, error: .error}' epic-1-events.jsonl
+```
+
+**Generate Coverage Report:**
+
+```bash
+jq -s 'map(select(.event=="tests.passed")) | map({story: .story_id, coverage: .coverage})' epic-1-events.jsonl
+```
+
+**Timeline Visualization:**
+
+```bash
+# Convert to CSV for spreadsheet import
+jq -r '[.ts, .event, .story_id // "", .duration_sec // ""] | @csv' epic-1-events.jsonl > timeline.csv
+```
+
+### Integration with Orchestrator
+
+```typescript
+class EventLogger {
+  constructor(private filepath: string) {}
+
+  async log(event: WorkflowEvent): Promise<void> {
+    const line = JSON.stringify(event) + "\n";
+    await fs.appendFile(this.filepath, line);
+  }
+}
+
+// In EpicOrchestrator
+class EpicOrchestrator {
+  private eventLogger: EventLogger;
+
+  async executeStory(story: Story): Promise<void> {
+    await this.eventLogger.log({
+      ts: new Date().toISOString(),
+      event: "story.started",
+      story_id: story.id,
+      title: story.title,
+    });
+
+    try {
+      // ... execute story ...
+
+      await this.eventLogger.log({
+        ts: new Date().toISOString(),
+        event: "story.completed",
+        story_id: story.id,
+        duration_sec: elapsed,
+      });
+    } catch (error) {
+      await this.eventLogger.log({
+        ts: new Date().toISOString(),
+        event: "story.failed",
+        story_id: story.id,
+        error: error.message,
+      });
+      throw error;
+    }
+  }
+}
+```
+
+### Benefits
+
+1. **Post-Mortem Analysis**
+   - Identify bottlenecks (slow stories, frequent hook failures)
+   - Understand failure patterns
+   - Replay execution for debugging
+
+2. **Metrics and Dashboards**
+   - Average story duration
+   - Hook failure rates by type
+   - Test coverage trends
+   - Epic completion time prediction
+
+3. **Alerting and Monitoring**
+   - Trigger alerts on story failures
+   - Monitor long-running stories
+   - Track epic progress in real-time
+
+4. **Tooling Integration**
+   - Import into Grafana/Datadog/Splunk
+   - Build custom dashboards
+   - Generate executive reports
+
+### Implementation Priority
+
+**Not required for v1** - Prose activity log in state file is sufficient for initial implementation.
+
+**Recommended for v2** after core workflow is stable and in production use.
+
+---
+
 ## Dependencies
 
 ### Required
