@@ -54,6 +54,8 @@ for (const depStoryId of completedStory.dependents) {
 
 ### 2. Interface/Type Changes
 
+**Note:** `actualChangedFiles` (computed in Check 1 above) is reused here. Compute it once at the start of the integration checkpoint and use across all checks.
+
 Check if the completed story modified any TypeScript type definitions or exports that dependent stories may rely on. Use `git diff` to detect changes to type-related files:
 
 ```javascript

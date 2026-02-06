@@ -14,6 +14,7 @@ The orchestrator passes you:
 
 - **Story ID and title** — which story's code to fix
 - **Branch name** — the feature branch (already checked out)
+- **Story file path** — the story file with acceptance criteria (ensure fixes maintain AC compliance)
 - **Findings document path** — the review findings to address
 - **Round number** — which review-fix round this is
 
@@ -29,7 +30,10 @@ The orchestrator passes you:
    ```bash
    npm test
    ```
-4. **Commit fixes** with descriptive messages:
+4. **Stage and commit fixes** with descriptive messages:
+   ```bash
+   git add -A
+   ```
    ```
    fix: address code review round {round} - {brief description of fixes}
    ```

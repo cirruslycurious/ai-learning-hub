@@ -1,6 +1,6 @@
 # Multi-Agent Code Review Loop
 
-Supporting reference for the epic orchestrator. Read this file when entering Step 2.5 (Code Review Loop).
+Supporting reference for the epic orchestrator. Read this file when entering Step 2.4 (Code Review Loop).
 
 ## Protocol Overview
 
@@ -23,9 +23,11 @@ Task tool invocation:
     Review Story {story.id}: {story.title}
     Branch: {branchName}
     Base branch: {baseBranch}
+    Story file: {storyFilePath}
     Round: {round}
 
     Review the code changes on this branch compared to the base branch.
+    Read the story file to check acceptance criteria compliance.
     Write your findings to: docs/progress/story-{story.id}-review-findings-round-{round}.md
 
     Use the structured findings format with Critical/Important/Minor categories.
@@ -89,11 +91,11 @@ After the reviewer writes the findings document, the orchestrator reads it and c
 
 **Decision matrix:**
 
-| MUST-FIX Count | Round | Action                                        |
-| -------------- | ----- | --------------------------------------------- |
-| 0              | any   | Review clean! Exit loop → proceed to Step 2.6 |
-| > 0            | < 3   | Continue to Step C (spawn fixer)              |
-| > 0            | == 3  | Max rounds exceeded! Escalate to human        |
+| MUST-FIX Count | Round | Action                                                      |
+| -------------- | ----- | ----------------------------------------------------------- |
+| 0              | any   | Review clean! Exit loop → proceed to Step 2.5 (Commit & PR) |
+| > 0            | < 3   | Continue to Step C (spawn fixer)                            |
+| > 0            | == 3  | Max rounds exceeded! Escalate to human                      |
 
 **Max rounds exceeded escalation:**
 
@@ -117,7 +119,7 @@ Your choice:
 
 - **(a)** Mark story as `blocked`, save state, user fixes manually
 - **(b)** Mark story as `done` despite findings (user accepts risk)
-- **(c)** Increment max rounds by 1, loop back to Step A
+- **(c)** Increment max rounds by 1, loop back to Step A. **Hard cap: 5 total review rounds.** After 5 rounds, option (c) is no longer available — the user must choose (a) or (b). This prevents unbounded review loops.
 
 ## Step C: Spawn Fixer Subagent
 
@@ -129,12 +131,15 @@ Task tool invocation:
   prompt: |
     Fix code review findings for Story {story.id}: {story.title}
     Branch: {branchName}
+    Story file: {storyFilePath}
     Findings: docs/progress/story-{story.id}-review-findings-round-{round}.md
     Round: {round}
 
     Read the findings document. Address all Critical and Important issues.
+    Read the story file to ensure fixes maintain acceptance criteria compliance.
     Fix Minor issues if time permits.
-    Run tests after each fix. Commit fixes with message:
+    Run tests after each fix. Stage changes with `git add -A` before committing.
+    Commit fixes with message:
       fix: address code review round {round} - [brief description]
     Maintain 80%+ test coverage.
 ```
@@ -156,7 +161,7 @@ Task tool invocation:
 
 **Key:** Each reviewer round gets a FRESH context. The reviewer never sees previous review rounds or fixer actions. It only sees the current state of the code.
 
-**Branch locality:** The fixer commits locally but does NOT push during the review loop. The reviewer diffs against the local branch ref (`{branch_name}`), which includes fixer commits since it's in the same local repo. The triple-dot diff `origin/{base_branch}...{branch_name}` resolves `{branch_name}` as a local ref (not `origin/{branch_name}`), so fixer commits are visible to the reviewer. No push is needed until the review loop exits cleanly (push happens in Phase 2.3/2.6).
+**Branch locality:** The fixer commits locally but does NOT push during the review loop. The reviewer diffs against the local branch ref (`{branch_name}`), which includes fixer commits since it's in the same local repo. The triple-dot diff `origin/{base_branch}...{branch_name}` resolves `{branch_name}` as a local ref (not `origin/{branch_name}`), so fixer commits are visible to the reviewer. No push is needed until the review loop exits cleanly (push happens in Phase 2.5 Commit & PR, after the review loop completes).
 
 ## Dry Run Behavior
 
