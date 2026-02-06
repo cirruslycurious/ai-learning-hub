@@ -176,17 +176,30 @@ Execute up to 3 review-fix cycles to achieve code quality convergence:
 
 ##### Step B: Decision Point
 
-**If findings.count == 0:**
+**Clean State Definition:**
+
+A story is considered CLEAN when:
+
+- **MUST-FIX findings:** 0 (Critical + Important combined)
+- **NICE-TO-HAVE findings:** Acceptable (Minor, up to 3)
+
+**Reviewer MUST categorize all findings:**
+
+- **MUST-FIX (Critical):** Security vulnerabilities, crashes, data loss, ADR violations, hook violations, missing critical tests
+- **MUST-FIX (Important):** Performance issues, incomplete implementation, architectural concerns, significant test gaps
+- **NICE-TO-HAVE (Minor):** Code style, naming conventions, documentation, minor refactoring suggestions
+
+**If MUST-FIX count == 0:**
 
 - Review clean! ✅
 - Exit loop
 - Proceed to Step 2.6 (Finalize Story)
 
-**If findings.count > 0 AND round < 3:**
+**If MUST-FIX count > 0 AND round < 3:**
 
 - Continue to Step C (Spawn Fixer Agent)
 
-**If findings.count > 0 AND round == 3:**
+**If MUST-FIX count > 0 AND round == 3:**
 
 - **Max rounds exceeded!** ⚠️
 - Mark story as `blocked-review` in sprint-status.yaml
@@ -275,19 +288,73 @@ You are fixing code review findings for Story X.Y.
 
 #### 2.6 Finalize Story (After Clean Review)
 
-- **Update sprint-status.yaml:** Change story status `review` → `done`
-- **Update PR description:** Add review summary
+**Step 1: Rebase onto Latest Main**
 
-  ```markdown
-  ## Code Review Summary
+Before marking story complete, ensure it's up-to-date with main branch:
 
-  - Review rounds: 2
-  - Final status: ✅ Clean (no findings)
-  - Findings addressed: 5 (3 critical, 2 important)
-  - Review documents:
-    - Round 1: docs/progress/story-X-Y-review-findings-round-1.md
-    - Round 2: docs/progress/story-X-Y-review-findings-round-2.md
-  ```
+```bash
+# Fetch latest main
+git fetch origin main
+
+# Rebase onto main
+git rebase origin/main
+```
+
+**If rebase succeeds (no conflicts):**
+
+- Re-run tests: `npm test` (hooks enforce they pass)
+- Force push: `git push -f origin story-X-Y-branch`
+- Continue to Step 2
+
+**If rebase has conflicts:**
+
+- **Auto-resolve (if possible):**
+  - Simple additions to imports/exports
+  - Non-overlapping changes to different sections
+  - Package.json dependency additions
+- **Escalate to human (if complex):**
+  - Logic changes in same function
+  - Deletions or renames
+  - Multiple conflicts in same file
+  - Conflicts in critical files (shared libs, types, schemas)
+
+**Human escalation message:**
+
+```
+⚠️ Merge Conflicts Detected
+
+Story X.Y has conflicts with main branch:
+- Conflicting files: 3
+  - shared/types/index.ts (imports section)
+  - backend/functions/save/handler.ts (logic change)
+  - package.json (dependencies)
+
+Options:
+a) Auto-resolve simple conflicts (imports only)
+b) Manual resolution required (pause workflow)
+c) Skip story for now, continue to next
+
+Your choice:
+```
+
+**Step 2: Update sprint-status.yaml**
+
+- Change story status `review` → `done`
+
+**Step 3: Update PR description**
+
+Add review summary:
+
+```markdown
+## Code Review Summary
+
+- Review rounds: 2
+- Final status: ✅ Clean (no findings)
+- Findings addressed: 5 (3 critical, 2 important)
+- Review documents:
+  - Round 1: docs/progress/story-X-Y-review-findings-round-1.md
+  - Round 2: docs/progress/story-X-Y-review-findings-round-2.md
+```
 
 - **Update state file:** Mark story "✅ Complete - Reviewed & Clean"
 - **Show summary:**
