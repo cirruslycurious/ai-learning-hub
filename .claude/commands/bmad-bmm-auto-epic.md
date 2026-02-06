@@ -35,13 +35,13 @@
 
 ### Inputs
 
-| Parameter     | Type   | Required | Default       | Description                                                  |
-| ------------- | ------ | -------- | ------------- | ------------------------------------------------------------ |
-| `epic_id`     | string | Yes      | -             | Epic identifier (e.g., "Epic-1", "epic-1")                   |
-| `--stories`   | string | No       | all           | Comma-separated story IDs to implement (e.g., "1.1,1.2,1.5") |
-| `--resume`    | flag   | No       | false         | Resume from previous run using state file                    |
-| `--dry-run`   | flag   | No       | false         | Simulate workflow without creating branches/PRs/commits      |
-| `--epic-path` | string | No       | auto-detected | Override path to epic file                                   |
+| Parameter     | Type   | Required | Default       | Description                                                                              |
+| ------------- | ------ | -------- | ------------- | ---------------------------------------------------------------------------------------- |
+| `epic_id`     | string | Yes      | -             | Epic identifier (e.g., "Epic-1", "epic-1")                                               |
+| `--stories`   | string | No       | all           | Comma-separated story IDs to implement (e.g., "1.1,1.2,1.5")                             |
+| `--resume`    | flag   | No       | false         | Resume from previous run using state file                                                |
+| `--dry-run`   | flag   | No       | false         | Simulate workflow without creating branches/PRs/commits (sets `DRY_RUN=true` internally) |
+| `--epic-path` | string | No       | auto-detected | Override path to epic file                                                               |
 
 ### Outputs
 
@@ -62,7 +62,7 @@ The workflow enforces these invariants to prevent destructive actions:
 2. **Never bypass hooks** — All commits go through pre-commit hooks (architecture-guard, import-guard, TDD-guard, etc.)
 3. **Never force push** — All pushes use standard `git push` (no `--force` or `--force-with-lease`)
 4. **Never skip tests** — All stories must pass tests before marking complete
-5. **Never ignore failures** — Hook failures, test failures, or build errors halt execution and require human resolution
+5. **Never silently ignore failures** — Failures trigger auto-recovery (max 3 attempts with exponential backoff), then require human decision (fix/skip/pause)
 6. **Idempotent operations** — All GitHub operations (issue/branch/PR creation) reuse existing resources if found
 7. **State persistence** — Progress saved continuously; `--resume` picks up exactly where workflow left off
 8. **Human checkpoints** — Scope confirmation (Phase 1), integration checkpoints (Phase 2), and completion review (Phase 3) require human approval
@@ -353,8 +353,11 @@ type StoryStatus = "pending" | "in-progress" | "review" | "done" | "blocked";
 **Detection Logic:**
 
 ```javascript
+// Normalize dry-run flag: CLI flag takes precedence, then env var
+const isDryRun = argv.dryRun === true || process.env.DRY_RUN === "true";
+
 // Auto-detect runner based on environment
-if (process.env.DRY_RUN === "true") {
+if (isDryRun) {
   runner = new DryRunStoryRunner();
 } else if (fs.existsSync(".github")) {
   runner = new GitHubStoryRunner();
@@ -401,10 +404,11 @@ async function getOrCreateBranch(story) {
   // Compute branch name (deterministic, controlled by caller)
   const branchName = `story-${story.id.replace(".", "-")}-${slugify(story.title)}`;
 
-  // Check if branch already exists
+  // Check if branch already exists (local OR remote)
   const exists = await runner.branchExists(branchName);
   if (exists) {
     console.log(`✅ Branch already exists: ${branchName}`);
+    // Note: branchExists() handles checkout if remote-only
     return { branchName };
   }
 
@@ -412,7 +416,7 @@ async function getOrCreateBranch(story) {
   return await runner.createBranch(story, branchName);
 }
 
-async function getOrCreatePR(story, issue) {
+async function getOrCreatePR(story, epic, issue, coverage) {
   const branch = await getOrCreateBranch(story);
   const base = await runner.getDefaultBaseBranch(); // "main" or "master"
 
@@ -584,7 +588,7 @@ console.log(`✅ Branch: ${branch.branchName}`);
   - Read story acceptance criteria
   - **Write tests first** (tdd-guard enforces this)
   - Write implementation (hooks enforce architecture, shared libs)
-  - Run tests until passing (Stop hook enforces 80% coverage)
+  - Run tests until passing (Stop hook enforces quality gates: see below)
 
 **Hooks Active During This Phase:**
 
@@ -815,9 +819,13 @@ Continue to Story 1.2? (y/n/pause/review-1.3)
 1. **Shared File Changes (uses git diff, not `touches` field):**
 
 ```javascript
+// Get base branch dynamically (don't hardcode "main")
+const baseBranch = await runner.getDefaultBaseBranch(); // "main" or "master"
+
 // Get ACTUAL files modified in Story 1.1 (source of truth: git diff)
+// Use triple-dot for PR-style diff (merge base to HEAD)
 const actualChangedFiles = await execCommand(
-  `git diff --name-only origin/main ${story11.branch}`
+  `git diff --name-only origin/${baseBranch}...${story11.branch}`
 );
 
 // Check if any dependent stories expected to touch those files
@@ -1161,9 +1169,10 @@ cat docs/progress/epic-N-auto-run.md
 ### Quality Assurance
 
 - **100% hook enforcement** — Cannot bypass TDD, architecture, shared libs
-- **80%+ test coverage** — Enforced by Stop hook
+- **Test coverage gates** — Configurable per repo (default: coverage must not decrease; optionally: min-80% or per-story override via `coverage_gate` frontmatter field)
 - **Auto-formatted code** — Prettier + ESLint on every file
 - **TypeScript validated** — No type errors allowed
+- **Stop hook** — Enforces tests pass + coverage gates before allowing story completion
 
 ---
 
@@ -1217,7 +1226,15 @@ gh auth status
 - `createPR({ story, issue, base, head, title, body })` → `gh pr create --base ${base} --head ${head} --title "${title}" --body "${body}"`
 - `findIssueByStoryId(storyId)` → `gh issue list --search "Story X.Y" --json number,url`
 - `findPRByBranch(branchName)` → `gh pr list --head ${branchName} --json number,url`
-- `branchExists(branchName)` → `git rev-parse --verify ${branchName}`
+- `branchExists(branchName)` → Checks local (`refs/heads/${branchName}`) OR remote (`refs/remotes/origin/${branchName}`):
+  ```bash
+  git show-ref --verify --quiet refs/heads/$branchName \
+    || git show-ref --verify --quiet refs/remotes/origin/$branchName
+  ```
+  If remote exists but not local, checks out tracking branch:
+  ```bash
+  git checkout -b $branchName --track origin/$branchName
+  ```
 - `getDefaultBaseBranch()` → `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`
 - `updateStatus(story, status)` → Updates `sprint-status.yaml` file (YAML manipulation)
 
