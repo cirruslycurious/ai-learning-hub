@@ -235,28 +235,28 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate AWS Credentials Configured
+        run: |
+          if [ -z "${{ secrets.AWS_ROLE_ARN }}" ]; then
+            echo "❌ AWS_ROLE_ARN secret not configured"
+            echo "ℹ️ Deploying to main branch requires AWS credentials"
+            echo "ℹ️ Configure AWS_ROLE_ARN secret with OIDC role ARN"
+            echo "ℹ️ See: https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services"
+            exit 1
+          fi
+          echo "✅ AWS credentials configuration validated"
+
       - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
-        if: env.AWS_ROLE_ARN != ''
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-1
-        env:
-          AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
       - name: Deploy Infrastructure
         working-directory: ./infra
         run: |
-          if [ -n "$AWS_ROLE_ARN" ]; then
-            echo "🚀 Deploying to Dev environment"
-            npx cdk deploy --all --require-approval never
-          else
-            echo "⚠️ Skipping deployment - AWS credentials not configured"
-            echo "ℹ️ To enable deployments, configure AWS_ROLE_ARN secret with OIDC role"
-            echo "ℹ️ See: https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services"
-          fi
-        env:
-          AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+          echo "🚀 Deploying to Dev environment"
+          npx cdk deploy --all --require-approval never
 
   # Stage 9: E2E Tests (6 Persona Paths)
   e2e-tests:
@@ -313,24 +313,25 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate AWS Credentials Configured
+        run: |
+          if [ -z "${{ secrets.AWS_ROLE_ARN_PROD }}" ]; then
+            echo "❌ AWS_ROLE_ARN_PROD secret not configured"
+            echo "ℹ️ Production deployment requires AWS credentials"
+            echo "ℹ️ Configure AWS_ROLE_ARN_PROD secret with OIDC role ARN"
+            echo "ℹ️ See: https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services"
+            exit 1
+          fi
+          echo "✅ AWS credentials configuration validated"
+
       - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
-        if: env.AWS_ROLE_ARN_PROD != ''
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN_PROD }}
           aws-region: us-east-1
-        env:
-          AWS_ROLE_ARN_PROD: ${{ secrets.AWS_ROLE_ARN_PROD }}
 
       - name: Deploy to Production
         working-directory: ./infra
         run: |
-          if [ -n "$AWS_ROLE_ARN_PROD" ]; then
-            echo "🚀 Deploying to Production environment"
-            npx cdk deploy --all --require-approval never
-          else
-            echo "⚠️ Skipping production deployment - AWS credentials not configured"
-            echo "ℹ️ To enable prod deployments, configure AWS_ROLE_ARN_PROD secret"
-          fi
-        env:
-          AWS_ROLE_ARN_PROD: ${{ secrets.AWS_ROLE_ARN_PROD }}
+          echo "🚀 Deploying to Production environment"
+          npx cdk deploy --all --require-approval never
