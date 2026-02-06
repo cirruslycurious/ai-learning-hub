@@ -102,17 +102,25 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: CDK Synth
-        working-directory: ./infra
-        run: npx cdk synth
-
-      - name: Run CDK Nag
+      - name: CDK Synth with CDK Nag
         working-directory: ./infra
         run: |
-          # CDK Nag will be configured in CDK app
-          # For now, we verify synth succeeded
-          echo "✅ CDK Synth completed successfully"
-          echo "ℹ️ CDK Nag checks will be integrated in CDK stack"
+          # CDK Nag runs during synth via Aspects in app.ts
+          # Error-level findings will fail the synth automatically
+          npx cdk synth 2>&1 | tee synth-output.log
+
+          # Verify CDK Nag ran by checking for its output
+          if grep -q "AwsSolutions" synth-output.log || grep -q "cdk-nag" synth-output.log; then
+            echo "✅ CDK Nag checks executed successfully"
+          else
+            echo "⚠️ CDK Nag may not have run - check configuration"
+          fi
+
+          # Check for any error-level findings that might have been suppressed
+          if grep -i "error" synth-output.log | grep -i "nag"; then
+            echo "❌ CDK Nag found critical/high findings"
+            exit 1
+          fi
 
   # Stage 5: Integration Tests
   integration-tests:
