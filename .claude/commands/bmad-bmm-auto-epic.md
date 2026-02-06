@@ -160,7 +160,7 @@ risk: low
 - Extract: `id`, `title`, `depends_on`, `touches`, `risk`
 - **Normalize:** Store `depends_on` as `story.dependencies` for consistent access throughout workflow
 
-#### 1.3 Dependency Analysis (NEW)
+#### 1.3 Dependency Analysis
 
 **Parse Story Metadata (YAML Frontmatter):**
 
@@ -219,6 +219,31 @@ Story 1.4 → depends on 1.2, 1.3
 Story 1.5 (no dependencies)
 ```
 
+**Compute Dependents (Inverse Graph):**
+
+After building the dependency graph, compute the **inverse** to populate `story.dependents` — the list of stories that depend on each story. This is needed for integration checkpoints and skip validation:
+
+```javascript
+// Build inverse dependency map: story → stories that depend on it
+function computeDependents(stories) {
+  for (const story of stories) {
+    story.dependents = []; // Initialize
+  }
+  for (const story of stories) {
+    for (const depId of story.dependencies) {
+      const depStory = stories.find((s) => s.id === depId);
+      if (depStory) {
+        depStory.dependents.push(story.id);
+      }
+    }
+  }
+  // Also set convenience flag
+  for (const story of stories) {
+    story.hasDependents = story.dependents.length > 0;
+  }
+}
+```
+
 **Detect Cycles:**
 
 If circular dependencies detected (e.g., 1.2 → 1.3 → 1.2):
@@ -259,13 +284,57 @@ Mark stories that have dependents:
 
 At each checkpoint, re-validate dependent stories are still valid.
 
-#### 1.3 Scope Confirmation (Human Checkpoint)
+#### 1.4 Scope Confirmation (Human Checkpoint)
 
 - Show user: "Found N stories in Epic X"
 - Display story list with IDs, titles, **and dependencies**
 - Show execution order (after topological sort)
 - Ask: "Implement: (a) all stories in order, (b) select specific stories, or (c) cancel?"
-- If (b), prompt for comma-separated story IDs (must respect dependencies)
+- If (b), prompt for comma-separated story IDs **(with upfront dependency validation, see below)**
+
+**Upfront Dependency Validation for `--stories` / option (b):**
+
+When the user selects specific stories (via `--stories` flag or option b), validate that all required dependencies are satisfied before starting any work:
+
+```javascript
+function validateStorySelection(selectedIds, allStories) {
+  const warnings = [];
+
+  for (const storyId of selectedIds) {
+    const story = allStories.find((s) => s.id === storyId);
+    if (!story) {
+      warnings.push(`❌ Story ${storyId} not found in epic`);
+      continue;
+    }
+
+    for (const depId of story.dependencies) {
+      const depInScope = selectedIds.includes(depId);
+      const depAlreadyDone = getStoryStatus(depId) === "done";
+
+      if (!depInScope && !depAlreadyDone) {
+        warnings.push(
+          `⚠️ Story ${storyId} depends on ${depId}, which is not in scope and not yet done`
+        );
+      }
+    }
+  }
+
+  if (warnings.length > 0) {
+    console.log("Dependency warnings for selected stories:\n");
+    for (const w of warnings) {
+      console.log(`  ${w}`);
+    }
+    const choice = askUser(
+      "\nOptions:\n" +
+        "  a) Add missing dependencies to scope automatically\n" +
+        "  b) Proceed anyway (may fail at dependency check)\n" +
+        "  c) Cancel and re-select stories\n" +
+        "Your choice:"
+    );
+    // Handle choice...
+  }
+}
+```
 
 **Example Output:**
 
@@ -288,7 +357,7 @@ Checkpoints: 3 integration checkpoints scheduled
 Implement: (a) all stories in order, (b) select specific, (c) cancel?
 ```
 
-#### 1.4 Initialize Story Runner (NEW)
+#### 1.5 Initialize Story Runner
 
 **Create Story Runner Interface:**
 
@@ -318,6 +387,9 @@ interface StoryRunner {
   findPRByBranch(branchName: string): Promise<PRResult | null>;
   branchExists(branchName: string): Promise<boolean>; // Pure check (no side effects)
   ensureBranchCheckedOut(branchName: string): Promise<void>; // Checkout if remote-only
+
+  // Merge verification (for dependency completion policy)
+  isPRMerged(story: Story): Promise<boolean>;
 
   // Status management
   updateStatus(story: Story, status: StoryStatus): Promise<void>;
@@ -431,6 +503,13 @@ async function getOrCreatePR(story, epic, issue, coverage) {
   const existingPR = await runner.findPRByBranch(branch.branchName);
   if (existingPR) {
     console.log(`✅ PR already exists: #${existingPR.prNumber}`);
+    // Update PR description with latest coverage/test data if stale
+    await runner.updatePRDescription(existingPR, {
+      story,
+      epic,
+      issue,
+      coverage,
+    });
     return existingPR;
   }
 
@@ -474,9 +553,23 @@ Part of Epic ${epic.id}: ${epic.title}
 }
 ```
 
-#### 1.5 Status Source of Truth (NEW)
+#### 1.6 Status Source of Truth
 
 The workflow maintains status across multiple systems. Understanding which source is authoritative for orchestration decisions is critical:
+
+**Status Mapping (Canonical):**
+
+The workflow uses a single status enum across all systems. Each system renders it differently:
+
+| Status        | State File (emoji) | sprint-status.yaml | GitHub     |
+| ------------- | ------------------ | ------------------ | ---------- |
+| `pending`     | ⏳ Pending         | `backlog`          | No issue   |
+| `in-progress` | 🔄 In Progress     | `in-progress`      | Issue open |
+| `review`      | 🔍 In Review       | `review`           | PR open    |
+| `done`        | ✅ Complete        | `done`             | PR merged  |
+| `blocked`     | ❌ Blocked         | `blocked`          | Issue open |
+
+All status transitions go through `updateStoryStatus(story, newStatus)` which updates both the state file and syncs to secondary sources.
 
 **Primary Source (Orchestration):**
 
@@ -541,11 +634,35 @@ If secondary sources diverge from state file:
 - Workflow may warn: "⚠️ sprint-status.yaml shows Story 1.2 = 'in-progress', but state file shows 'done'. Using state file."
 - Manual sync command (future): `/bmad-bmm-auto-epic --sync-status` to reconcile
 
-#### 1.6 Create State Tracking File
+#### 1.7 Create State Tracking File
 
 - Location: `docs/progress/epic-N-auto-run.md`
 - Initialize with: epic ID, stories list (with dependencies), start timestamp
 - Track: story status, PRs, test results, blockers, **integration checkpoints**
+
+**State File Parsing:**
+
+The state file uses markdown for human readability. The workflow parses it using structured YAML frontmatter at the top, NOT the markdown table (which is for display only):
+
+```markdown
+---
+epic_id: Epic-1
+status: in-progress
+started: 2026-02-06T14:30:00Z
+last_updated: 2026-02-06T15:15:00Z
+stories:
+  "1.1":
+    { status: done, pr: 74, commit: abc123, coverage: 87, review_rounds: 2 }
+  "1.2":
+    { status: done, pr: 75, commit: def456, coverage: 92, review_rounds: 1 }
+  "1.3": { status: in-progress }
+  "1.4": { status: pending }
+---
+
+<!-- Human-readable display below (generated from frontmatter) -->
+```
+
+The YAML frontmatter is the machine-readable source of truth. The markdown table below it is regenerated from the frontmatter on each update. This avoids fragile markdown table parsing.
 
 **Resume Semantics (--resume flag):**
 
@@ -603,15 +720,14 @@ for (const depStoryId of story.dependencies) {
   // For stories WITH dependents, verify code reached base branch (default behavior)
   if (!config.noRequireMerged && depStory.hasDependents) {
     const prMerged = await runner.isPRMerged(depStory);
-    const commitOnBase = await isCommitOnBaseBranch(
-      depStory.lastCommit,
-      baseBranch
-    );
+    // Get commit SHA from state file (stored when story was marked done)
+    const commitSha = stateFile.stories[depStoryId].commit;
+    const commitOnBase = await isCommitOnBaseBranch(commitSha, baseBranch);
 
     if (!prMerged && !commitOnBase) {
       throw new Error(
         `Cannot start Story ${story.id}: dependency ${depStoryId} is marked "done" but code not on base branch.\n` +
-          `PR #${depStory.prNumber} is not merged and commit not reachable from ${baseBranch}.\n` +
+          `PR #${stateFile.stories[depStoryId].pr} is not merged and commit not reachable from ${baseBranch}.\n` +
           `Merge the PR or use --no-require-merged flag (not recommended).`
       );
     }
@@ -634,7 +750,7 @@ async function isCommitOnBaseBranch(commit, baseBranch) {
 **Update Status:**
 
 ```javascript
-await runner.updateStatus(story, "in-progress");
+await updateStoryStatus(story, "in-progress");
 ```
 
 **Create Issue & Branch (via StoryRunner):**
@@ -662,7 +778,7 @@ console.log(`✅ Branch: ${branch.branchName}`);
 
 **Hooks Active During This Phase:**
 
-- ✅ `tdd-guard.cjs` (PreToolUse) — Blocks implementation before tests written
+- ✅ `tdd-guard.js` (PreToolUse) — Blocks implementation before tests written
 - ✅ `architecture-guard.sh` (PreToolUse) — Blocks ADR violations (no Lambda→Lambda)
 - ✅ `import-guard.sh` (PreToolUse) — Enforces `@ai-learning-hub/*` shared libraries
 - ✅ `auto-format.sh` (PostToolUse) — Auto-formats all code (Prettier + ESLint)
@@ -703,6 +819,14 @@ This ensures:
 git commit -m "feat: implement story ${story.id} #${issue.issueNumber}"
 ```
 
+**Record commit SHA in state file** (needed for dependency merge-check):
+
+```javascript
+const commitSha = await execCommand("git rev-parse HEAD");
+stateFile.stories[story.id].commit = commitSha.trim();
+await saveStateFile();
+```
+
 **Push branch:**
 
 ```bash
@@ -718,6 +842,7 @@ git push -u origin ${branch.branchName}
 const coverage = await extractCoverageFromTestResults(); // e.g., 85 or "n/a"
 
 // Idempotent: checks if PR already exists for this branch
+// If PR exists, updates description with latest coverage/test data
 const pr = await getOrCreatePR(story, epic, issue, coverage);
 
 console.log(`✅ PR: #${pr.prNumber} (${pr.prUrl})`);
@@ -791,7 +916,7 @@ try {
   );
 
   // Mark story as blocked
-  await runner.updateStatus(story, "blocked");
+  await updateStoryStatus(story, "blocked");
 
   // Continue to next story or pause
   const choice = await askUser(
@@ -805,8 +930,7 @@ try {
 
 #### 2.4 Mark Story for Review
 
-- **Update sprint-status.yaml:** Change story status from `in-progress` → `review`
-- **Update state file:** Mark story as "🔍 In Review"
+- **Update status:** `updateStoryStatus(story, "review")` (updates state file + sprint-status.yaml)
 - **Commit state change:** `git commit -m "chore: mark story X.Y for review"`
 
 #### 2.5 Multi-Agent Code Review Loop (Max 3 Rounds)
@@ -893,7 +1017,7 @@ A story is considered CLEAN when:
 **If MUST-FIX count > 0 AND round == 3:**
 
 - **Max rounds exceeded!** ⚠️
-- Mark story as `blocked-review` in sprint-status.yaml
+- Mark story as `blocked` via `updateStoryStatus(story, "blocked")`
 - Update state file: "❌ Blocked - Max review rounds exceeded"
 - **Escalate to human:**
 
@@ -977,7 +1101,9 @@ You are fixing code review findings for Story X.Y.
 - If round <= 3, spawn new reviewer agent (fresh context)
 - Repeat until findings.count == 0 or round == 3
 
-#### 2.6 Finalize Story (After Clean Review)
+#### 2.6 Finalize Story & Human Checkpoint
+
+This step combines story finalization with the human approval gate.
 
 **Step 1: Sync with Latest Main**
 
@@ -1035,11 +1161,7 @@ c) Skip story for now, continue to next
 Your choice:
 ```
 
-**Step 2: Update sprint-status.yaml**
-
-- Change story status `review` → `done`
-
-**Step 3: Update PR description**
+**Step 2: Update PR description**
 
 Add review summary:
 
@@ -1054,8 +1176,11 @@ Add review summary:
   - Round 2: docs/progress/story-X-Y-review-findings-round-2.md
 ```
 
-- **Update state file:** Mark story "✅ Complete - Reviewed & Clean"
-- **Show summary:**
+**Step 3: Mark Complete & Prompt User**
+
+- **Update status:** `updateStoryStatus(story, "done")` (updates state file + sprint-status.yaml)
+- **Record final commit SHA:** `stateFile.stories[story.id].commit = await getHeadCommit()`
+- **Show combined summary:**
 
   ```
   ✅ Story X.Y Complete & Reviewed
@@ -1066,53 +1191,40 @@ Add review summary:
   - Final status: Clean (no findings)
   - Findings fixed: 5 total
 
+  Progress: 3/8 stories complete
+
   Ready for human merge approval.
-  ```
 
-#### 2.7 Post-Story Checkpoint (Human Approval)
+  Next: Story X.Z - [Title]
 
-- **Update state file:** Mark story "✅ Complete", add PR link
-- **Show summary:**
-
-  ```
-  ✅ Story 1.1 Complete
-  - PR: #74 (https://github.com/.../pull/74)
-  - Tests: 15 passed, 0 failed
-  - Coverage: 85%
-  - Branch: story-1-1-description
-
-  Progress: 1/8 stories complete
-
-  Next: Story 1.2 - [Title]
-
-  Continue to Story 1.2? (y/n/pause/skip)
+  Continue to Story X.Z? (y/n/pause/skip)
   ```
 
 - **User Options:**
   - `y` or `yes` → Continue to next story
   - `n` or `no` → Stop execution, save progress
   - `pause` → Save state, can resume later with `--resume`
-  - `skip` → Skip current story (with dependency validation, see below)
+  - `skip` → Skip next story (with dependency validation, see below)
 
 **Skip Validation (Prevents Dependency Integrity Violations):**
 
 When user chooses `skip`, check if skipped story has dependents:
 
 ```javascript
-async function handleSkip(currentStory, remainingStories) {
-  // Find stories that depend on the current story
+async function handleSkip(nextStory, remainingStories) {
+  // Use pre-computed dependents from Phase 1.3
   const dependents = remainingStories.filter((s) =>
-    s.dependencies.includes(currentStory.id)
+    s.dependencies.includes(nextStory.id)
   );
 
   if (dependents.length === 0) {
     // Safe to skip - no downstream impact
-    console.log(`✅ Skipping Story ${currentStory.id} (no dependents)`);
+    console.log(`✅ Skipping Story ${nextStory.id} (no dependents)`);
     return { action: "skip", blockedStories: [] };
   }
 
   // Show downstream impact
-  console.warn(`⚠️ Skipping Story ${currentStory.id} will block:`);
+  console.warn(`⚠️ Skipping Story ${nextStory.id} will block:`);
   for (const dep of dependents) {
     console.warn(`   - Story ${dep.id}: ${dep.title}`);
   }
@@ -1130,7 +1242,7 @@ async function handleSkip(currentStory, remainingStories) {
     // Mark all dependents as blocked
     return {
       action: "skip_with_dependents",
-      blockedStories: [currentStory.id, ...dependents.map((d) => d.id)],
+      blockedStories: [nextStory.id, ...dependents.map((d) => d.id)],
     };
   } else if (choice === "b") {
     // Cancel skip, return to story
@@ -1142,7 +1254,7 @@ async function handleSkip(currentStory, remainingStories) {
     );
     return {
       action: "skip_and_remove_dependents",
-      blockedStories: [currentStory.id],
+      blockedStories: [nextStory.id],
       removedStories: dependents.map((d) => d.id),
     };
   }
@@ -1171,11 +1283,11 @@ Your choice: a
 Next: Story 1.5 - Project search
 ```
 
-#### 2.5 Integration Checkpoint (NEW - Runs After Stories with Dependents)
+#### 2.7 Integration Checkpoint (Runs After Stories with Dependents)
 
 **When to Run:**
 
-After completing a story that has dependent stories (detected in Phase 1.2).
+After completing a story that has dependent stories (detected in Phase 1.3 via `story.dependents`).
 
 **Purpose:**
 
@@ -1226,16 +1338,18 @@ function branchNameFor(story) {
 const baseBranch = await runner.getDefaultBaseBranch(); // "main" or "master"
 
 // Compute branch name deterministically
-const story11BranchName = branchNameFor(story11); // e.g., "story-1-1-user-registration"
+const completedBranchName = branchNameFor(completedStory);
 
-// Get ACTUAL files modified in Story 1.1 (source of truth: git diff)
+// Get ACTUAL files modified (source of truth: git diff)
 // Use triple-dot for PR-style diff (merge base to HEAD)
 const actualChangedFiles = await execCommand(
-  `git diff --name-only origin/${baseBranch}...${story11BranchName}`
+  `git diff --name-only origin/${baseBranch}...${completedBranchName}`
 );
 
 // Check if any dependent stories expected to touch those files
-for (const depStory of story11.dependents) {
+// Uses pre-computed dependents from Phase 1.3
+for (const depStoryId of completedStory.dependents) {
+  const depStory = getStory(depStoryId);
   const expectedFiles = depStory.touches || []; // Advisory hint from frontmatter
   const overlap = actualChangedFiles.filter((f) =>
     expectedFiles.some((expected) => f.includes(expected))
@@ -1253,7 +1367,7 @@ for (const depStory of story11.dependents) {
   );
   if (unexpectedChanges.length > 0) {
     console.warn(
-      `⚠️ Story ${story11.id}: Unexpected file changes not in \`touches\`: ${unexpectedChanges.join(", ")}`
+      `⚠️ Story ${completedStory.id}: Unexpected file changes not in \`touches\`: ${unexpectedChanges.join(", ")}`
     );
   }
 }
@@ -1264,13 +1378,14 @@ for (const depStory of story11.dependents) {
 2. **Interface/Type Changes:**
 
 ```javascript
-// Parse TypeScript types exported by Story 1.1
-const story11Types = await getExportedTypes(story11BranchName);
+// Parse TypeScript types exported by completed story
+const exportedTypes = await getExportedTypes(completedBranchName);
 
 // Check if dependent stories import those types
-for (const depStory of story11.dependents) {
+for (const depStoryId of completedStory.dependents) {
+  const depStory = getStory(depStoryId);
   const depStoryImports = await getExpectedImports(depStory);
-  const typeChanges = story11Types.filter((t) =>
+  const typeChanges = exportedTypes.filter((t) =>
     depStoryImports.some((i) => i.includes(t.name))
   );
 
@@ -1285,15 +1400,15 @@ for (const depStory of story11.dependents) {
 3. **Acceptance Criteria Validation:**
 
 ```javascript
-// Re-run acceptance tests for Story 1.1 to ensure they still pass
-const testResults = await runTests(story11.testFiles);
+// Re-run acceptance tests for completed story to ensure they still pass
+const testResults = await runTests(completedStory.testFiles);
 
 if (testResults.failed > 0) {
   console.error(
-    `❌ Story ${story11.id}: Acceptance tests failing after implementation`
+    `❌ Story ${completedStory.id}: Acceptance tests failing after implementation`
   );
   console.error(
-    `   This may affect dependent stories: ${story11.dependents.map((d) => d.id).join(", ")}`
+    `   This may affect dependent stories: ${completedStory.dependents.join(", ")}`
   );
 
   // Escalate to user
@@ -1453,7 +1568,39 @@ Your choice:
 
 Location: `docs/progress/epic-N-auto-run.md`
 
-````markdown
+```markdown
+---
+epic_id: Epic-1
+status: in-progress
+started: 2026-02-06T14:30:00Z
+last_updated: 2026-02-06T15:15:00Z
+stories:
+  "1.1":
+    {
+      status: done,
+      pr: 74,
+      commit: abc123,
+      coverage: 87,
+      review_rounds: 2,
+      duration: 15m,
+    }
+  "1.2":
+    {
+      status: done,
+      pr: 75,
+      commit: def456,
+      coverage: 92,
+      review_rounds: 1,
+      duration: 18m,
+    }
+  "1.3": { status: in-progress }
+  "1.4": { status: pending }
+  "1.5": { status: pending }
+  "1.6": { status: pending }
+  "1.7": { status: pending }
+  "1.8": { status: pending }
+---
+
 # Epic 1 Auto-Run Progress
 
 **Status:** In Progress
@@ -1496,10 +1643,7 @@ None
 
 ## Resume Command
 
-```bash
-/bmad-bmm-auto-epic Epic-1 --resume
-```
-````
+    /bmad-bmm-auto-epic Epic-1 --resume
 
 ## Activity Log
 
@@ -1510,8 +1654,14 @@ None
 - 15:03: Story 1.2 complete (PR #75)
 - 15:03: Story 1.3 started
 - 15:15: Checkpoint - waiting for user approval to continue
+```
 
-````
+**Key design notes:**
+
+- YAML frontmatter at the top is the **machine-readable source of truth** for `--resume`
+- The markdown body below is **regenerated from frontmatter** on each update (human-readable display)
+- Commit SHA stored per story in frontmatter enables dependency merge-check
+- Atomic writes (write temp file + rename) prevent corruption on crash
 
 ---
 
@@ -1521,16 +1671,16 @@ None
 
 All implementation is protected by hooks configured in `.claude/settings.json`:
 
-| Hook | Phase | Protection |
-|------|-------|-----------|
-| `tdd-guard.cjs` | PreToolUse (Write/Edit) | Blocks implementation before tests |
-| `architecture-guard.sh` | PreToolUse (Write/Edit) | Blocks ADR violations |
-| `import-guard.sh` | PreToolUse (Write/Edit) | Enforces shared library usage |
-| `file-guard.cjs` | PreToolUse (Write/Edit) | Protects CLAUDE.md, .env, etc. |
-| `bash-guard.cjs` | PreToolUse (Bash) | Prevents destructive commands |
-| `auto-format.sh` | PostToolUse (Write/Edit) | Auto-formats code |
-| `type-check.sh` | PostToolUse (Write/Edit) | Validates TypeScript |
-| Stop hook (agent) | Stop | Ensures tests pass before completion |
+| Hook                    | Phase                    | Protection                           |
+| ----------------------- | ------------------------ | ------------------------------------ |
+| `tdd-guard.js`          | PreToolUse (Write/Edit)  | Blocks implementation before tests   |
+| `architecture-guard.sh` | PreToolUse (Write/Edit)  | Blocks ADR violations                |
+| `import-guard.sh`       | PreToolUse (Write/Edit)  | Enforces shared library usage        |
+| `file-guard.js`         | PreToolUse (Write/Edit)  | Protects CLAUDE.md, .env, etc.       |
+| `bash-guard.js`         | PreToolUse (Bash)        | Prevents destructive commands        |
+| `auto-format.sh`        | PostToolUse (Write/Edit) | Auto-formats code                    |
+| `type-check.sh`         | PostToolUse (Write/Edit) | Validates TypeScript                 |
+| Stop hook (agent)       | Stop                     | Ensures tests pass before completion |
 
 ### Human Checkpoints
 
@@ -1554,7 +1704,7 @@ git checkout main
 
 # State file preserved for debugging
 cat docs/progress/epic-N-auto-run.md
-````
+```
 
 ---
 
@@ -1569,17 +1719,19 @@ cat docs/progress/epic-N-auto-run.md
 
 **Autonomous (This Workflow):**
 
-- Time per story: 5-15 min of agent work
-- Epic 1 (8 stories): 40-120 min total
+- Time per story: 10-25 min of agent work (includes review rounds)
+- Epic 1 (8 stories): 80-200 min total
 - **Human time:** 5-10 min (initial prompt + 8 approvals @ 30s each)
 
-**Time savings:** 3-7 hours per epic
+**Time savings:** 2-6 hours per epic
 
 ### Cost Estimates
 
-- Per story: $0.50-$2.00 in API calls
-- Epic 1 (8 stories): $4-$16 total
-- All 11 epics: ~$44-$176 (modest budget)
+With multi-agent review loops (reviewer + fixer agents per story):
+
+- Per story: $2-$8 in API calls (implementation + 1-3 review rounds)
+- Epic 1 (8 stories): $16-$64 total
+- All 11 epics: ~$176-$704
 
 ### Quality Assurance
 
@@ -1591,619 +1743,12 @@ cat docs/progress/epic-N-auto-run.md
 
 ---
 
-## Architecture: Core vs CLI Separation
+## Architecture & Future Enhancements
 
-### Overview
+Detailed architecture design (Core vs CLI separation, StoryRunner adapters, file structure) and future enhancements (structured event log, parallel story implementation) are documented separately:
 
-The workflow documentation describes orchestration logic, but implementation must separate concerns for testability, portability, and composability.
-
-### Current State (Documentation Prototype)
-
-- Workflow doc mixes orchestration logic with CLI commands (`gh`, `git`)
-- Examples show implementation details inline
-- Hard to test without real GitHub
-- Hard to adapt for other tracking systems
-
-### Target Architecture (Implementation)
-
-#### Layer 1: Orchestration Core (`src/orchestrator/`)
-
-**Purpose:** Pure orchestration logic - no side effects
-
-**Responsibilities:**
-
-- Load and validate epic/story definitions
-- Build dependency graph and perform topological sort
-- Coordinate story execution through StoryRunner interface
-- Validate integration checkpoints
-- Manage state transitions
-
-**Key Classes:**
-
-```typescript
-// Core orchestrator - framework-agnostic
-class EpicOrchestrator {
-  constructor(
-    private runner: StoryRunner,
-    private stateManager: StateManager,
-    private config: OrchestratorConfig
-  ) {}
-
-  async executeEpic(
-    epic: Epic,
-    options: ExecutionOptions
-  ): Promise<ExecutionResult> {
-    // 1. Load story files and parse YAML frontmatter
-    const stories = await this.loadStories(epic);
-
-    // 2. Build dependency graph
-    const graph = DependencyAnalyzer.buildGraph(stories);
-
-    // 3. Detect cycles and perform topological sort
-    const executionOrder = DependencyAnalyzer.topologicalSort(graph);
-
-    // 4. Execute stories in order
-    for (const story of executionOrder) {
-      await this.executeStory(story);
-
-      // 5. Run integration checkpoints if story has dependents
-      if (story.dependents.length > 0) {
-        await this.runIntegrationCheckpoint(story);
-      }
-    }
-
-    return this.buildResult();
-  }
-
-  private async executeStory(story: Story): Promise<void> {
-    // Check dependencies satisfied
-    // Create issue + branch via runner
-    // Implement story (via AI agent or human)
-    // Create PR via runner
-    // Update state
-  }
-}
-
-// Pure dependency analysis - no I/O
-class DependencyAnalyzer {
-  static buildGraph(stories: Story[]): DependencyGraph {
-    // Build graph from story.dependencies arrays
-  }
-
-  static topologicalSort(graph: DependencyGraph): Story[] {
-    // Kahn's algorithm or DFS-based toposort
-  }
-
-  static detectCycles(graph: DependencyGraph): Cycle[] {
-    // Tarjan's algorithm for cycle detection
-  }
-}
-
-// Pure checkpoint validation - no GitHub API calls
-class IntegrationCheckpoint {
-  static async validate(
-    story: Story,
-    changedFiles: string[], // From git diff
-    dependents: Story[]
-  ): Promise<CheckpointResult> {
-    // 1. Check file overlaps
-    // 2. Detect type/interface changes (if TypeScript)
-    // 3. Return Green/Yellow/Red with reasoning
-  }
-}
-```
-
-**No Side Effects:**
-
-- No file I/O (state manager injected)
-- No GitHub API calls (StoryRunner injected)
-- No git commands (runner handles)
-- Pure functions for analysis
-
-**Testability:**
-
-```typescript
-// Unit tests with mock runner
-describe("EpicOrchestrator", () => {
-  it("executes stories in dependency order", async () => {
-    const mockRunner = new MockStoryRunner();
-    const orchestrator = new EpicOrchestrator(mockRunner, stateManager, config);
-
-    const result = await orchestrator.executeEpic(testEpic, {});
-
-    expect(mockRunner.executionOrder).toEqual(["1.1", "1.2", "1.3"]);
-  });
-
-  it("fails when circular dependency detected", async () => {
-    const epicWithCycle = createCyclicEpic();
-    await expect(orchestrator.executeEpic(epicWithCycle)).rejects.toThrow(
-      "Cycle detected"
-    );
-  });
-});
-```
-
-#### Layer 2: CLI Adapter (`src/cli/bmad-bmm-auto-epic.ts`)
-
-**Purpose:** CLI entry point - handles user interaction and I/O
-
-**Responsibilities:**
-
-- Parse CLI arguments (`--stories`, `--resume`, `--dry-run`)
-- Instantiate appropriate StoryRunner (GitHub, DryRun, etc.)
-- Provide human-readable progress output
-- Handle errors and display to user
-- Manage state file I/O
-
-**Implementation:**
-
-```typescript
-#!/usr/bin/env node
-import { EpicOrchestrator } from "../orchestrator/EpicOrchestrator";
-import { GitHubStoryRunner } from "../adapters/GitHubStoryRunner";
-import { DryRunStoryRunner } from "../adapters/DryRunStoryRunner";
-import { FileSystemStateManager } from "../state/FileSystemStateManager";
-
-async function main(args: string[]) {
-  const cliArgs = parseCLIArgs(args);
-
-  // 1. Select runner based on environment
-  const runner =
-    cliArgs.dryRun || process.env.DRY_RUN === "true"
-      ? new DryRunStoryRunner()
-      : new GitHubStoryRunner();
-
-  // 2. Load epic definition
-  const epic = await loadEpic(cliArgs.epicId);
-
-  // 3. Initialize state manager
-  const stateManager = new FileSystemStateManager(
-    `docs/progress/${epic.id}-auto-run.md`
-  );
-
-  // 4. Create orchestrator
-  const orchestrator = new EpicOrchestrator(runner, stateManager, {
-    requireMerged: cliArgs.requireMerged,
-    coverageGate: cliArgs.coverageGate || "no-decrease",
-  });
-
-  // 5. Execute epic with human-friendly output
-  console.log(`📋 Epic ${epic.id}: ${epic.title}`);
-  console.log(`Found ${epic.stories.length} stories\n`);
-
-  const result = await orchestrator.executeEpic(epic, {
-    resume: cliArgs.resume,
-    storyFilter: cliArgs.stories,
-  });
-
-  // 6. Display results
-  console.log(
-    `\n✅ Epic complete: ${result.successCount}/${result.totalCount} stories`
-  );
-  console.log(`⏱️  Total time: ${result.duration}`);
-  console.log(`📊 PRs created: ${result.prs.map((pr) => pr.url).join("\n")}`);
-}
-
-main(process.argv.slice(2)).catch((err) => {
-  console.error(`❌ Error: ${err.message}`);
-  process.exit(1);
-});
-```
-
-#### Layer 3: StoryRunner Adapters (`src/adapters/`)
-
-**Purpose:** Platform-specific integrations
-
-**Implementation Roadmap:**
-
-- **v1 (Current)**: `GitHubCLIRunner` - Uses `gh` CLI + git commands (fastest to ship, least auth ceremony)
-- **v2 (Future)**: `GitHubOctokitRunner` - Uses `@octokit/rest` Node library (better for CI/CD, finer control)
-
-**GitHubCLIRunner (v1)** (`src/adapters/GitHubCLIRunner.ts`):
-
-- **Default adapter for v1 implementation**
-- Uses `gh` CLI for GitHub operations (issues, PRs, repo queries)
-- Uses `git` commands for branch/commit operations
-- Simplest auth story (leverages existing `gh auth login`)
-- See "StoryRunner Adapters" section below for detailed operations
-
-**GitHubOctokitRunner (v2 - Future)** (`src/adapters/GitHubOctokitRunner.ts`):
-
-- Uses `@octokit/rest` Node library for API calls
-- Handles authentication via GitHub App or PAT
-- Better retry logic with exponential backoff
-- Finer-grained error handling
-- No CLI dependency (better for containerized environments)
-
-```typescript
-// Example v2 implementation (reference only - not yet built)
-import { Octokit } from "@octokit/rest";
-
-export class GitHubOctokitRunner implements StoryRunner {
-  private octokit: Octokit;
-
-  constructor(auth: string) {
-    this.octokit = new Octokit({ auth });
-  }
-
-  async createIssue(story: Story, epic: Epic): Promise<IssueResult> {
-    const response = await this.octokit.issues.create({
-      owner: this.owner,
-      repo: this.repo,
-      title: `Story ${story.id}: ${story.title}`,
-      body: this.buildIssueBody(story, epic),
-      labels: ["story", `epic-${epic.id}`],
-    });
-
-    return {
-      issueNumber: response.data.number,
-      issueUrl: response.data.html_url,
-    };
-  }
-
-  async createBranch(story: Story, branchName: string): Promise<BranchResult> {
-    // Use git commands (via child_process) or Octokit git API
-    await execAsync(`git checkout -b ${branchName}`);
-    return { branchName };
-  }
-
-  async branchExists(branchName: string): Promise<boolean> {
-    // Check local first (fast)
-    const localExists = await execAsync(
-      `git show-ref --verify --quiet refs/heads/${branchName}`
-    ).then(
-      () => true,
-      () => false
-    );
-
-    if (localExists) return true;
-
-    // Check remote with ls-remote (no fetch needed)
-    const remoteExists = await execAsync(
-      `git ls-remote --exit-code --heads origin "${branchName}"`
-    ).then(
-      () => true,
-      () => false
-    );
-
-    return remoteExists;
-  }
-
-  // ... other methods
-}
-```
-
-**DryRunStoryRunner** (`src/adapters/DryRunStoryRunner.ts`):
-
-- Logs all operations (no side effects)
-- Returns mock results
-- Perfect for testing orchestration logic
-
-```typescript
-export class DryRunStoryRunner implements StoryRunner {
-  private log: string[] = [];
-
-  async createIssue(story: Story, epic: Epic): Promise<IssueResult> {
-    this.log.push(`[DRY RUN] Would create issue: Story ${story.id}`);
-    return {
-      issueNumber: Math.floor(Math.random() * 1000),
-      issueUrl: `https://github.com/mock/issues/123`,
-    };
-  }
-
-  async createBranch(story: Story, branchName: string): Promise<BranchResult> {
-    this.log.push(`[DRY RUN] Would create branch: ${branchName}`);
-    return { branchName };
-  }
-
-  getLog(): string[] {
-    return this.log;
-  }
-}
-```
-
-### File Structure
-
-```
-src/
-├── orchestrator/
-│   ├── EpicOrchestrator.ts         # Core orchestration logic
-│   ├── DependencyAnalyzer.ts       # Graph building, toposort, cycle detection
-│   ├── IntegrationCheckpoint.ts    # Validation logic (file overlaps, type changes)
-│   ├── StateTransitions.ts         # Story state machine
-│   └── __tests__/
-│       ├── EpicOrchestrator.test.ts
-│       ├── DependencyAnalyzer.test.ts
-│       └── IntegrationCheckpoint.test.ts
-├── adapters/
-│   ├── StoryRunner.interface.ts    # Interface definition
-│   ├── GitHubStoryRunner.ts        # Octokit + git integration
-│   ├── DryRunStoryRunner.ts        # No-op testing adapter
-│   ├── JiraStoryRunner.ts          # Jira API integration (future)
-│   ├── LinearStoryRunner.ts        # Linear API integration (future)
-│   └── __tests__/
-│       ├── GitHubStoryRunner.test.ts
-│       └── DryRunStoryRunner.test.ts
-├── state/
-│   ├── StateManager.interface.ts   # State persistence abstraction
-│   ├── FileSystemStateManager.ts   # Markdown state file
-│   ├── JSONStateManager.ts         # JSON state file (alternative)
-│   └── __tests__/
-│       └── StateManager.test.ts
-├── cli/
-│   ├── bmad-bmm-auto-epic.ts       # CLI entry point
-│   ├── CLIArgs.ts                  # Argument parsing
-│   └── Output.ts                   # Human-readable formatting
-├── types/
-│   ├── Epic.ts                     # Epic/Story type definitions
-│   ├── ExecutionResult.ts          # Orchestration result types
-│   ├── CheckpointResult.ts         # Integration checkpoint types
-│   └── Config.ts                   # Configuration types
-└── utils/
-    ├── git.ts                      # Git command wrappers
-    ├── yaml.ts                     # YAML frontmatter parsing
-    └── slugify.ts                  # Branch name generation
-```
-
-### Benefits
-
-1. **Testability**
-   - Unit test orchestrator with mock runner (no GitHub API calls)
-   - Integration test adapters against real/sandbox GitHub
-   - Fast test suite (no network I/O for core logic)
-
-2. **Portability**
-   - Swap GitHub for Jira without changing orchestration
-   - Support multiple tracking systems simultaneously
-   - Run in any environment (local, CI/CD, cloud)
-
-3. **Composability**
-   - Reuse orchestrator in web UI
-   - Embed in VSCode extension
-   - Expose as REST API
-   - Use in batch processing jobs
-
-4. **Maintainability**
-   - Clear separation of concerns
-   - Each layer has single responsibility
-   - Easy to add new features (new adapters, new checkpoints)
-
-### Migration Strategy (Epic 1 Implementation)
-
-**Story 1.1: Extract Interfaces and Types**
-
-- Define `StoryRunner` interface (already done in doc)
-- Define `Epic`, `Story`, `ExecutionResult` types
-- Define `StateManager` interface
-- Create skeleton file structure
-
-**Story 1.2: Implement Core Orchestrator**
-
-- Implement `EpicOrchestrator` class
-- Implement `DependencyAnalyzer` (graph, toposort, cycle detection)
-- Implement `IntegrationCheckpoint` validation logic
-- Write comprehensive unit tests (mock runner)
-
-**Story 1.3: Implement GitHubStoryRunner**
-
-- Install `@octokit/rest` dependency
-- Implement all StoryRunner methods using Octokit
-- Implement git command wrappers
-- Write integration tests (against sandbox repo or mocked Octokit)
-
-**Story 1.4: Implement CLI Layer**
-
-- Create `bmad-bmm-auto-epic.ts` entry point
-- Parse CLI arguments
-- Wire up orchestrator + runner + state manager
-- Maintain existing UX (same output format)
-
-**Story 1.5: Implement DryRunStoryRunner**
-
-- Create no-op adapter for testing
-- Update orchestrator tests to use DryRunStoryRunner
-- Add `--dry-run` flag to CLI
-
-**Story 1.6: Add State File Management**
-
-- Implement `FileSystemStateManager`
-- Handle resume logic (reconcile state file with GitHub)
-- Atomic writes (temp file + rename)
-
-**Acceptance Criteria:**
-
-- All existing workflow functionality works
-- 80%+ test coverage on orchestrator core
-- Can run full epic in `--dry-run` mode
-- State file format matches current spec
-
----
-
-## Future Enhancement: Structured Event Log
-
-### Problem
-
-Current activity log in state file is prose, making it hard to:
-
-- Parse and query programmatically
-- Generate metrics and dashboards
-- Debug failed runs
-- Build tooling around the workflow
-
-### Solution
-
-Add machine-parseable JSON-lines event stream alongside state file.
-
-### Implementation
-
-**Location:** `docs/progress/epic-{id}-events.jsonl`
-
-**Schema:**
-
-Each line is a JSON object with this structure:
-
-```typescript
-interface WorkflowEvent {
-  ts: string; // ISO 8601 timestamp
-  event: EventType; // Event type (enum)
-  story_id?: string; // Story ID (if applicable)
-  [key: string]: any; // Event-specific fields
-}
-
-type EventType =
-  | "epic.started"
-  | "epic.completed"
-  | "epic.failed"
-  | "story.started"
-  | "story.completed"
-  | "story.failed"
-  | "story.skipped"
-  | "story.blocked"
-  | "dependency.checked"
-  | "dependency.failed"
-  | "issue.created"
-  | "issue.found"
-  | "branch.created"
-  | "branch.found"
-  | "pr.created"
-  | "pr.found"
-  | "tests.started"
-  | "tests.passed"
-  | "tests.failed"
-  | "hook.passed"
-  | "hook.failed"
-  | "checkpoint.started"
-  | "checkpoint.passed"
-  | "checkpoint.failed";
-```
-
-**Example Event Stream:**
-
-```jsonl
-{"ts":"2026-02-06T10:23:00Z","event":"epic.started","epic_id":"Epic-1","story_count":8}
-{"ts":"2026-02-06T10:23:05Z","event":"story.started","story_id":"1.1","title":"User registration"}
-{"ts":"2026-02-06T10:23:10Z","event":"issue.created","story_id":"1.1","issue_number":42,"issue_url":"https://github.com/repo/issues/42"}
-{"ts":"2026-02-06T10:23:12Z","event":"branch.created","story_id":"1.1","branch":"story-1-1-user-registration"}
-{"ts":"2026-02-06T10:25:30Z","event":"tests.started","story_id":"1.1"}
-{"ts":"2026-02-06T10:25:45Z","event":"tests.passed","story_id":"1.1","coverage":87,"duration_sec":15}
-{"ts":"2026-02-06T10:25:50Z","event":"pr.created","story_id":"1.1","pr_number":43,"pr_url":"https://github.com/repo/pull/43"}
-{"ts":"2026-02-06T10:25:55Z","event":"story.completed","story_id":"1.1","duration_sec":175}
-{"ts":"2026-02-06T10:26:00Z","event":"checkpoint.started","story_id":"1.1","dependents":["1.2","1.3"]}
-{"ts":"2026-02-06T10:26:05Z","event":"checkpoint.passed","story_id":"1.1","result":"green","conflicts":0}
-{"ts":"2026-02-06T10:26:10Z","event":"story.started","story_id":"1.2","title":"Save project"}
-{"ts":"2026-02-06T10:26:15Z","event":"dependency.checked","story_id":"1.2","depends_on":["1.1"],"satisfied":true}
-{"ts":"2026-02-06T10:28:45Z","event":"hook.failed","story_id":"1.2","hook":"tdd-guard","error":"No tests found for new code"}
-{"ts":"2026-02-06T10:30:00Z","event":"hook.passed","story_id":"1.2","hook":"tdd-guard","retry":1}
-{"ts":"2026-02-06T10:32:30Z","event":"story.completed","story_id":"1.2","duration_sec":380}
-```
-
-### Usage Examples
-
-**Query Failed Stories:**
-
-```bash
-jq 'select(.event=="story.failed")' epic-1-events.jsonl
-```
-
-**Calculate Average Story Duration:**
-
-```bash
-jq -s 'map(select(.event=="story.completed")) | map(.duration_sec) | add / length' epic-1-events.jsonl
-```
-
-**Find Hook Failures:**
-
-```bash
-jq 'select(.event=="hook.failed") | {story: .story_id, hook: .hook, error: .error}' epic-1-events.jsonl
-```
-
-**Generate Coverage Report:**
-
-```bash
-jq -s 'map(select(.event=="tests.passed")) | map({story: .story_id, coverage: .coverage})' epic-1-events.jsonl
-```
-
-**Timeline Visualization:**
-
-```bash
-# Convert to CSV for spreadsheet import
-jq -r '[.ts, .event, .story_id // "", .duration_sec // ""] | @csv' epic-1-events.jsonl > timeline.csv
-```
-
-### Integration with Orchestrator
-
-```typescript
-class EventLogger {
-  constructor(private filepath: string) {}
-
-  async log(event: WorkflowEvent): Promise<void> {
-    const line = JSON.stringify(event) + "\n";
-    await fs.appendFile(this.filepath, line);
-  }
-}
-
-// In EpicOrchestrator
-class EpicOrchestrator {
-  private eventLogger: EventLogger;
-
-  async executeStory(story: Story): Promise<void> {
-    await this.eventLogger.log({
-      ts: new Date().toISOString(),
-      event: "story.started",
-      story_id: story.id,
-      title: story.title,
-    });
-
-    try {
-      // ... execute story ...
-
-      await this.eventLogger.log({
-        ts: new Date().toISOString(),
-        event: "story.completed",
-        story_id: story.id,
-        duration_sec: elapsed,
-      });
-    } catch (error) {
-      await this.eventLogger.log({
-        ts: new Date().toISOString(),
-        event: "story.failed",
-        story_id: story.id,
-        error: error.message,
-      });
-      throw error;
-    }
-  }
-}
-```
-
-### Benefits
-
-1. **Post-Mortem Analysis**
-   - Identify bottlenecks (slow stories, frequent hook failures)
-   - Understand failure patterns
-   - Replay execution for debugging
-
-2. **Metrics and Dashboards**
-   - Average story duration
-   - Hook failure rates by type
-   - Test coverage trends
-   - Epic completion time prediction
-
-3. **Alerting and Monitoring**
-   - Trigger alerts on story failures
-   - Monitor long-running stories
-   - Track epic progress in real-time
-
-4. **Tooling Integration**
-   - Import into Grafana/Datadog/Splunk
-   - Build custom dashboards
-   - Generate executive reports
-
-### Implementation Priority
-
-**Not required for v1** - Prose activity log in state file is sufficient for initial implementation.
-
-**Recommended for v2** after core workflow is stable and in production use.
+- **Architecture:** `docs/auto-epic-architecture.md`
+- **Future Enhancements:** `docs/auto-epic-future-enhancements.md`
 
 ---
 
@@ -2218,7 +1763,7 @@ class EpicOrchestrator {
   - For DryRun: No external dependencies (testing mode)
 - Epic file exists at `_bmad-output/planning-artifacts/epics/epic-N.md`
 - Hooks configured and active in `.claude/settings.json`
-- Node.js (for `.cjs` hooks and StoryRunner logic)
+- Node.js (for `.js` hooks and StoryRunner logic)
 - npm/package.json (for test, lint, build commands)
 
 ### Optional
@@ -2234,8 +1779,6 @@ class EpicOrchestrator {
 ### GitHubCLIRunner (v1 - Default)
 
 Uses GitHub CLI (`gh`) and Git to manage issues, branches, and PRs.
-
-**This is the v1 implementation** referenced in "Architecture: Core vs CLI Separation" section.
 
 **Setup:**
 
@@ -2294,6 +1837,8 @@ gh auth status
     git checkout -b $branchName --track origin/$branchName
   fi
   ```
+- `isPRMerged(story)` → `gh pr view ${story.prNumber} --json state --jq .state` (returns "MERGED" if merged)
+- `updatePRDescription(pr, data)` → `gh pr edit ${pr.prNumber} --body "..."` (updates stale PR data on resume)
 - `getDefaultBaseBranch()` → `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`
 - `updateStatus(story, status)` → Updates `sprint-status.yaml` file (YAML manipulation)
 
@@ -2315,6 +1860,12 @@ export DRY_RUN=true
 # [DRY-RUN] Would create branch: story-1-1-user-registration
 # [DRY-RUN] Would create PR: Implement Story 1.1
 ```
+
+**Implementation notes:**
+
+- Uses sequential counters for deterministic mock IDs (issue #1, #2, #3...) instead of random numbers
+- Returns predictable URLs: `https://github.com/mock/issues/{counter}`, `https://github.com/mock/pull/{counter}`
+- Deterministic output enables comparison across dry-run invocations
 
 **Use Cases:**
 
@@ -2547,9 +2098,9 @@ function extractDependencies(storyContent) {
 
 ### "Hooks not blocking violations"
 
-- Test hooks manually: `echo '{"tool_input":{"command":"git push -f origin main"}}' | node .claude/hooks/bash-guard.cjs`
+- Test hooks manually: `echo '{"tool_input":{"command":"git push -f origin main"}}' | node .claude/hooks/bash-guard.js`
 - Check `.claude/settings.json` has correct hook paths
-- Verify `.cjs` extension (not `.js`) for JavaScript hooks
+- Verify `.js` extension for JavaScript hooks
 
 ### "Tests failing repeatedly"
 
@@ -2559,7 +2110,7 @@ function extractDependencies(storyContent) {
 
 ### "State file corrupted"
 
-- State file is markdown, can be manually edited
+- YAML frontmatter at top is the machine-readable portion; if corrupted, manually fix the YAML block
 - Delete state file to start fresh (loses progress tracking)
 - Each story branch/PR is independent, so no implementation is lost
 
@@ -2639,10 +2190,21 @@ Selected stories:
 1.4 - List user projects
 1.6 - Delete project
 
-Implement these 3 stories? (y/n)
+⚠️ Dependency warnings:
+  Story 1.4 depends on 1.3, which is not in scope and not yet done
+
+Options:
+  a) Add missing dependencies to scope automatically
+  b) Proceed anyway (may fail at dependency check)
+  c) Cancel and re-select stories
+Your choice: a
+
+Updated scope: 1.2, 1.3, 1.4, 1.6
+
+Implement these 4 stories? (y/n)
 > y
 
-[... implements only selected stories ...]
+[... implements stories with dependencies resolved ...]
 ```
 
 ---
@@ -2657,6 +2219,6 @@ Implement these 3 stories? (y/n)
 
 ---
 
-**Built with ❤️ for autonomous, safe, and fast epic implementation.**
+**Built for autonomous, safe, and fast epic implementation.**
 
 _Powered by hooks. Guided by humans. Enforced by code._
