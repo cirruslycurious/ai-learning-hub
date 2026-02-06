@@ -561,10 +561,22 @@ When resuming from state file, the workflow reconciles state file (primary) with
 
 Resume always favors state file status for control flow; secondary sources (GitHub) inform recovery strategy.
 
-**Risk Warning (Rule #2):** A story marked "done" with an unmerged PR means code never reached base branch. Dependent stories will proceed anyway, potentially causing broken epic. Mitigation options:
+**Dependency Completion Policy:**
 
-- **Default mode** (current): State file wins; user responsible for merge verification
-- **Strict mode** (optional `--require-merged`): Story only satisfies dependency if PR merged OR commit exists on base branch
+To prevent dependent stories from building on code that doesn't exist on base branch, the workflow enforces different completion requirements based on story type:
+
+- **Stories WITH dependents** (default: `--require-merged`): Story only satisfies dependency if:
+  - PR is merged to base branch, OR
+  - Commit is reachable from base branch (verified via `git merge-base --is-ancestor`)
+  - **Rationale**: Downstream stories need code on base branch to build correctly
+
+- **Leaf stories (NO dependents)** (relaxed): Story considered "done" when:
+  - PR is open AND tests passing
+  - **Rationale**: No downstream impact, safe to mark complete before human review/merge
+
+- **Override mode** (optional `--no-require-merged`): Disable strict checking (state file wins)
+  - **Warning**: Use only when you understand the risk of broken dependencies
+  - User responsible for merge verification before dependent stories start
 
 ### Phase 2: Story Implementation Loop
 
@@ -578,11 +590,43 @@ Before starting story, verify all dependencies are complete:
 
 ```javascript
 for (const depStoryId of story.dependencies) {
+  const depStory = getStory(depStoryId);
   const depStatus = getStoryStatus(depStoryId);
+
+  // Check basic completion
   if (depStatus !== "done") {
     throw new Error(
       `Cannot start Story ${story.id}: dependency ${depStoryId} is not complete (status: ${depStatus})`
     );
+  }
+
+  // For stories WITH dependents, verify code reached base branch (default behavior)
+  if (!config.noRequireMerged && depStory.hasDependents) {
+    const prMerged = await runner.isPRMerged(depStory);
+    const commitOnBase = await isCommitOnBaseBranch(
+      depStory.lastCommit,
+      baseBranch
+    );
+
+    if (!prMerged && !commitOnBase) {
+      throw new Error(
+        `Cannot start Story ${story.id}: dependency ${depStoryId} is marked "done" but code not on base branch.\n` +
+          `PR #${depStory.prNumber} is not merged and commit not reachable from ${baseBranch}.\n` +
+          `Merge the PR or use --no-require-merged flag (not recommended).`
+      );
+    }
+  }
+}
+
+// Helper: check if commit is reachable from base branch
+async function isCommitOnBaseBranch(commit, baseBranch) {
+  try {
+    await execCommand(
+      `git merge-base --is-ancestor ${commit} origin/${baseBranch}`
+    );
+    return true; // Exit code 0 = commit is ancestor
+  } catch {
+    return false; // Exit code 1 = commit not ancestor
   }
 }
 ```
@@ -618,12 +662,38 @@ console.log(`✅ Branch: ${branch.branchName}`);
 
 **Hooks Active During This Phase:**
 
-- ✅ `tdd-guard.cjs` — Blocks implementation before tests written
-- ✅ `architecture-guard.sh` — Blocks ADR violations (no Lambda→Lambda)
-- ✅ `import-guard.sh` — Enforces `@ai-learning-hub/*` shared libraries
-- ✅ `auto-format.sh` — Auto-formats all code (Prettier + ESLint)
-- ✅ `type-check.sh` — Validates TypeScript
+- ✅ `tdd-guard.cjs` (PreToolUse) — Blocks implementation before tests written
+- ✅ `architecture-guard.sh` (PreToolUse) — Blocks ADR violations (no Lambda→Lambda)
+- ✅ `import-guard.sh` (PreToolUse) — Enforces `@ai-learning-hub/*` shared libraries
+- ✅ `auto-format.sh` (PostToolUse) — Auto-formats all code (Prettier + ESLint)
+- ✅ `type-check.sh` (PostToolUse) — Validates TypeScript
 - ✅ Stop hook (agent) — Blocks completion if tests fail
+
+**CRITICAL: PostToolUse Hook Safety**
+
+PostToolUse hooks (`auto-format`, `type-check`) modify files AFTER the agent writes code. This creates a risk:
+
+1. Agent writes code
+2. Tests pass on un-formatted code
+3. PostToolUse hook formats code
+4. Formatted code is committed WITHOUT re-testing
+
+**Solution: Final Quality Gate**
+
+After ALL file modifications complete (including PostToolUse hooks), run final gate before commit:
+
+```bash
+# Final quality gate (run after PostToolUse hooks complete)
+npm run lint     # Verify format/style
+npm run typecheck # Verify TypeScript
+npm test         # Verify all tests still pass
+```
+
+This ensures:
+
+- ✅ PostToolUse mutations don't break tests
+- ✅ Formatted code is actually tested
+- ✅ No "format → commit → tests fail" scenarios
 
 #### 2.3 Commit & PR (via StoryRunner)
 
@@ -909,25 +979,32 @@ You are fixing code review findings for Story X.Y.
 
 #### 2.6 Finalize Story (After Clean Review)
 
-**Step 1: Rebase onto Latest Main**
+**Step 1: Sync with Latest Main**
 
-Before marking story complete, ensure it's up-to-date with main branch:
+Before marking story complete, ensure branch is up-to-date with main:
 
 ```bash
 # Fetch latest main
 git fetch origin main
 
-# Rebase onto main
-git rebase origin/main
+# Merge main into story branch (no force push needed)
+git merge origin/main
 ```
 
-**If rebase succeeds (no conflicts):**
+**Why merge instead of rebase:**
+
+- ✅ Preserves commit history (no rewrites)
+- ✅ Follows Invariant #3: "Never force push"
+- ✅ Safe for branches already pushed to remote
+- ✅ GitHub PR shows clean merge preview
+
+**If merge succeeds (no conflicts):**
 
 - Re-run tests: `npm test` (hooks enforce they pass)
-- Force push: `git push -f origin story-X-Y-branch`
+- Push: `git push origin story-X-Y-branch` (standard push, no `-f`)
 - Continue to Step 2
 
-**If rebase has conflicts:**
+**If merge has conflicts:**
 
 - **Auto-resolve (if possible):**
   - Simple additions to imports/exports
@@ -1717,17 +1794,32 @@ main(process.argv.slice(2)).catch((err) => {
 
 **Purpose:** Platform-specific integrations
 
-**GitHubStoryRunner** (`src/adapters/GitHubStoryRunner.ts`):
+**Implementation Roadmap:**
 
-- Uses `@octokit/rest` (NOT `gh` CLI) for API calls
-- Implements all StoryRunner interface methods
+- **v1 (Current)**: `GitHubCLIRunner` - Uses `gh` CLI + git commands (fastest to ship, least auth ceremony)
+- **v2 (Future)**: `GitHubOctokitRunner` - Uses `@octokit/rest` Node library (better for CI/CD, finer control)
+
+**GitHubCLIRunner (v1)** (`src/adapters/GitHubCLIRunner.ts`):
+
+- **Default adapter for v1 implementation**
+- Uses `gh` CLI for GitHub operations (issues, PRs, repo queries)
+- Uses `git` commands for branch/commit operations
+- Simplest auth story (leverages existing `gh auth login`)
+- See "StoryRunner Adapters" section below for detailed operations
+
+**GitHubOctokitRunner (v2 - Future)** (`src/adapters/GitHubOctokitRunner.ts`):
+
+- Uses `@octokit/rest` Node library for API calls
 - Handles authentication via GitHub App or PAT
-- Includes retry logic with exponential backoff
+- Better retry logic with exponential backoff
+- Finer-grained error handling
+- No CLI dependency (better for containerized environments)
 
 ```typescript
+// Example v2 implementation (reference only - not yet built)
 import { Octokit } from "@octokit/rest";
 
-export class GitHubStoryRunner implements StoryRunner {
+export class GitHubOctokitRunner implements StoryRunner {
   private octokit: Octokit;
 
   constructor(auth: string) {
@@ -2139,9 +2231,11 @@ class EpicOrchestrator {
 
 ## StoryRunner Adapters
 
-### GitHubStoryRunner (Default)
+### GitHubCLIRunner (v1 - Default)
 
 Uses GitHub CLI (`gh`) and Git to manage issues, branches, and PRs.
+
+**This is the v1 implementation** referenced in "Architecture: Core vs CLI Separation" section.
 
 **Setup:**
 
