@@ -35,21 +35,193 @@
 
 ### Phase 1: Planning & Scope Confirmation
 
-1. **Load Epic File**
-   - Read from `_bmad-output/planning-artifacts/epics/epic-N.md`
-   - Parse all story IDs, titles, and acceptance criteria
-   - Validate epic exists and is ready for implementation
+#### 1.1 Load Epic File
 
-2. **Scope Confirmation (Human Checkpoint)**
-   - Show user: "Found N stories in Epic X"
-   - Display story list with IDs and titles
-   - Ask: "Implement: (a) all stories, (b) select specific stories, or (c) cancel?"
-   - If (b), prompt for comma-separated story IDs
+- Read from `_bmad-output/planning-artifacts/epics/epic-N.md`
+- Parse all story IDs, titles, and acceptance criteria
+- Validate epic exists and is ready for implementation
 
-3. **Create State Tracking File**
-   - Location: `docs/progress/epic-N-auto-run.md`
-   - Initialize with: epic ID, stories list, start timestamp
-   - Track: story status, PRs, test results, blockers
+#### 1.2 Dependency Analysis (NEW)
+
+**Scan for Dependencies:**
+
+For each story, scan acceptance criteria and tech specs for dependency keywords:
+
+- `requires Story X.Y`
+- `depends on Story X.Y`
+- `builds on Story X.Y`
+- `after Story X.Y is complete`
+- `prerequisites: Story X.Y`
+
+**Build Dependency Graph:**
+
+```
+Story 1.1 (no dependencies)
+Story 1.2 → depends on 1.1
+Story 1.3 → depends on 1.1
+Story 1.4 → depends on 1.2, 1.3
+Story 1.5 (no dependencies)
+```
+
+**Detect Cycles:**
+
+If circular dependencies detected (e.g., 1.2 → 1.3 → 1.2):
+
+```
+❌ Dependency Cycle Detected
+
+Story 1.2 depends on Story 1.3
+Story 1.3 depends on Story 1.2
+
+This epic cannot be implemented until dependencies are resolved.
+Please fix the epic file and try again.
+```
+
+**Topological Sort:**
+
+Order stories for execution using topological sort:
+
+```
+Execution Order (respecting dependencies):
+1. Story 1.1
+2. Story 1.5 (no deps, can run in parallel with 1.1)
+3. Story 1.2 (after 1.1)
+4. Story 1.3 (after 1.1)
+5. Story 1.4 (after 1.2 and 1.3)
+```
+
+**Integration Checkpoints:**
+
+Mark stories that have dependents:
+
+- Story 1.1 → Checkpoint after (1.2 and 1.3 depend on it)
+- Story 1.2 → Checkpoint after (1.4 depends on it)
+- Story 1.3 → Checkpoint after (1.4 depends on it)
+
+At each checkpoint, re-validate dependent stories are still valid.
+
+#### 1.3 Scope Confirmation (Human Checkpoint)
+
+- Show user: "Found N stories in Epic X"
+- Display story list with IDs, titles, **and dependencies**
+- Show execution order (after topological sort)
+- Ask: "Implement: (a) all stories in order, (b) select specific stories, or (c) cancel?"
+- If (b), prompt for comma-separated story IDs (must respect dependencies)
+
+**Example Output:**
+
+```
+📋 Epic 1: User Authentication & Project Management
+
+Found 8 stories (ordered by dependencies):
+
+1. Story 1.1 - User registration with Clerk [no dependencies]
+2. Story 1.5 - Project search [no dependencies]
+3. Story 1.2 - Save project to DynamoDB [depends on 1.1] ⚠️ Checkpoint
+4. Story 1.3 - Project validation logic [depends on 1.1] ⚠️ Checkpoint
+5. Story 1.4 - List user projects [depends on 1.2, 1.3] ⚠️ Checkpoint
+6. Story 1.6 - Delete project [depends on 1.4]
+7. Story 1.7 - Project sharing [depends on 1.4]
+8. Story 1.8 - Project archiving [depends on 1.4]
+
+Checkpoints: 3 integration checkpoints scheduled
+
+Implement: (a) all stories in order, (b) select specific, (c) cancel?
+```
+
+#### 1.4 Initialize Story Runner (NEW)
+
+**Create Story Runner Interface:**
+
+The workflow no longer directly calls `gh issue create` or `gh pr create`. Instead, it uses a **StoryRunner** abstraction layer.
+
+**Interface Definition:**
+
+```typescript
+interface StoryRunner {
+  createIssue(story: Story, epic: Epic): Promise<IssueResult>;
+  createBranch(story: Story): Promise<BranchResult>;
+  createPR(story: Story, issue: IssueResult): Promise<PRResult>;
+  updateStatus(story: Story, status: StoryStatus): Promise<void>;
+}
+
+interface IssueResult {
+  issueNumber: number;
+  issueUrl: string;
+}
+
+interface BranchResult {
+  branchName: string;
+}
+
+interface PRResult {
+  prNumber: number;
+  prUrl: string;
+}
+
+type StoryStatus = "pending" | "in-progress" | "review" | "done" | "blocked";
+```
+
+**Available Adapters:**
+
+- **GitHubStoryRunner** — Real GitHub integration (default)
+- **DryRunStoryRunner** — No-op runner for testing (logs only, no API calls)
+- **JiraStoryRunner** — Jira integration (future)
+- **LinearStoryRunner** — Linear integration (future)
+
+**Detection Logic:**
+
+```javascript
+// Auto-detect runner based on environment
+if (process.env.DRY_RUN === "true") {
+  runner = new DryRunStoryRunner();
+} else if (fs.existsSync(".github")) {
+  runner = new GitHubStoryRunner();
+} else {
+  throw new Error("No story tracking system detected");
+}
+```
+
+**Error Handling:**
+
+All runner operations are wrapped in retry logic:
+
+```javascript
+async function createIssueWithRetry(story, epic, maxRetries = 3) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await runner.createIssue(story, epic);
+    } catch (error) {
+      if (i === maxRetries - 1) throw error;
+      await sleep(1000 * Math.pow(2, i)); // Exponential backoff
+    }
+  }
+}
+```
+
+**Idempotency:**
+
+Before creating issue/PR, check if one already exists:
+
+```javascript
+async function getOrCreateIssue(story, epic) {
+  // Check if issue already exists for this story
+  const existingIssue = await runner.findIssueByStoryId(story.id);
+  if (existingIssue) {
+    console.log(`✅ Issue already exists: #${existingIssue.issueNumber}`);
+    return existingIssue;
+  }
+
+  // Create new issue
+  return await createIssueWithRetry(story, epic);
+}
+```
+
+#### 1.5 Create State Tracking File
+
+- Location: `docs/progress/epic-N-auto-run.md`
+- Initialize with: epic ID, stories list (with dependencies), start timestamp
+- Track: story status, PRs, test results, blockers, **integration checkpoints**
 
 ### Phase 2: Story Implementation Loop
 
@@ -57,11 +229,41 @@ For each story in scope:
 
 #### 2.1 Pre-Implementation
 
-- **Status Update:** Mark story as "🔄 In Progress" in state file
-- **Branch & Issue:** Run `/project-start-story` pattern
-  - Creates feature branch (e.g., `story-1-1-description`)
-  - Creates GitHub issue referencing epic
-  - Links branch to issue
+**Check Dependencies:**
+
+Before starting story, verify all dependencies are complete:
+
+```javascript
+for (const depStoryId of story.dependencies) {
+  const depStatus = getStoryStatus(depStoryId);
+  if (depStatus !== "done") {
+    throw new Error(
+      `Cannot start Story ${story.id}: dependency ${depStoryId} is not complete (status: ${depStatus})`
+    );
+  }
+}
+```
+
+**Update Status:**
+
+```javascript
+await runner.updateStatus(story, "in-progress");
+```
+
+**Create Issue & Branch (via StoryRunner):**
+
+```javascript
+// Idempotent: checks if issue already exists
+const issue = await getOrCreateIssue(story, epic);
+
+// Idempotent: checks if branch already exists
+const branch = await getOrCreateBranch(story);
+
+console.log(`✅ Issue: #${issue.issueNumber}`);
+console.log(`✅ Branch: ${branch.branchName}`);
+```
+
+**No direct `gh` commands** — all operations go through StoryRunner interface.
 
 #### 2.2 Implementation (Protected by Hooks)
 
@@ -80,37 +282,81 @@ For each story in scope:
 - ✅ `type-check.sh` — Validates TypeScript
 - ✅ Stop hook (agent) — Blocks completion if tests fail
 
-#### 2.3 Commit & PR
+#### 2.3 Commit & PR (via StoryRunner)
 
-- **Commit with issue reference:** `git commit -m "feat: implement story 1.1 #73"`
-- **Push branch:** `git push -u origin story-1-1-description`
-- **Open PR:** Use `gh pr create` with template:
+**Commit with issue reference:**
 
-  ```markdown
-  ## Summary
+```bash
+git commit -m "feat: implement story ${story.id} #${issue.issueNumber}"
+```
 
-  Implements Story 1.1: [Story Title]
+**Push branch:**
 
-  Closes #73 (issue)
-  Part of Epic 1: [Epic Title]
+```bash
+git push -u origin ${branch.branchName}
+```
 
-  ## Changes
+**Create PR (via StoryRunner):**
 
-  - [Auto-generated from commits]
+```javascript
+// Idempotent: checks if PR already exists for this branch
+const pr = await getOrCreatePR(story, issue);
 
-  ## Testing
+console.log(`✅ PR: #${pr.prNumber} (${pr.prUrl})`);
+```
 
-  - ✅ All tests pass
-  - ✅ Coverage: XX%
-  - ✅ Hooks enforced: TDD, architecture, shared libs
+**PR Template (generated by StoryRunner):**
 
-  ## Checklist
+```markdown
+## Summary
 
-  - [x] Tests written and passing
-  - [x] Code follows architecture patterns
-  - [x] Shared libraries used
-  - [x] Documentation updated (if needed)
-  ```
+Implements Story ${story.id}: ${story.title}
+
+Closes #${issue.issueNumber}
+Part of Epic ${epic.id}: ${epic.title}
+
+## Changes
+
+- [Auto-generated from commits]
+
+## Testing
+
+- ✅ All tests pass
+- ✅ Coverage: ${coverage}%
+- ✅ Hooks enforced: TDD, architecture, shared libs
+
+## Checklist
+
+- [x] Tests written and passing
+- [x] Code follows architecture patterns
+- [x] Shared libraries used
+- [x] Documentation updated (if needed)
+```
+
+**Error Handling:**
+
+If PR creation fails (API error, network issue, etc.):
+
+```javascript
+try {
+  const pr = await runner.createPR(story, issue);
+} catch (error) {
+  console.error(`❌ PR creation failed: ${error.message}`);
+  console.log(`📝 Manual PR creation required:`);
+  console.log(`   gh pr create --base main --head ${branch.branchName}`);
+
+  // Mark story as blocked
+  await runner.updateStatus(story, "blocked");
+
+  // Continue to next story or pause
+  const choice = await askUser(
+    "Continue to next story or pause? (continue/pause)"
+  );
+  if (choice === "pause") {
+    throw new Error("User paused execution after PR creation failure");
+  }
+}
+```
 
 #### 2.4 Post-Story Checkpoint (Human Approval)
 
@@ -136,6 +382,118 @@ For each story in scope:
   - `n` or `no` → Stop execution, save progress
   - `pause` → Save state, can resume later with `--resume`
   - `skip` → Skip Story 1.2, move to Story 1.3
+
+#### 2.5 Integration Checkpoint (NEW - Runs After Stories with Dependents)
+
+**When to Run:**
+
+After completing a story that has dependent stories (detected in Phase 1.2).
+
+**Purpose:**
+
+Validate that dependent stories are still valid after upstream changes.
+
+**Example:**
+
+```
+✅ Story 1.1 Complete
+
+⚠️ Integration Checkpoint: Story 1.1 has 2 dependent stories (1.2, 1.3)
+
+Validating dependent stories:
+- Story 1.2: Save project to DynamoDB [depends on 1.1]
+- Story 1.3: Project validation logic [depends on 1.1]
+
+Running validation checks:
+1. Check if Story 1.1 changes affected shared files used by 1.2 or 1.3
+2. Check if Story 1.1 changes modified interfaces/types that 1.2 or 1.3 depend on
+3. Check if Story 1.1 acceptance criteria are still met
+
+Validation Results:
+✅ Story 1.2: No conflicts detected
+⚠️ Story 1.3: Shared type 'ProjectSchema' was modified
+
+Recommendation:
+- Story 1.2 can proceed as planned
+- Story 1.3 may need acceptance criteria review before implementation
+
+Continue to Story 1.2? (y/n/pause/review-1.3)
+```
+
+**Validation Checks:**
+
+1. **Shared File Changes:**
+
+```javascript
+// Get files modified in Story 1.1
+const story11Files = await getModifiedFiles(story11.branch);
+
+// Check if any dependent stories reference those files
+for (const depStory of story11.dependents) {
+  const depStoryFiles = await getExpectedFiles(depStory);
+  const overlap = story11Files.filter((f) => depStoryFiles.includes(f));
+
+  if (overlap.length > 0) {
+    console.warn(
+      `⚠️ Story ${depStory.id}: Upstream changes to ${overlap.join(", ")}`
+    );
+  }
+}
+```
+
+2. **Interface/Type Changes:**
+
+```javascript
+// Parse TypeScript types exported by Story 1.1
+const story11Types = await getExportedTypes(story11.branch);
+
+// Check if dependent stories import those types
+for (const depStory of story11.dependents) {
+  const depStoryImports = await getExpectedImports(depStory);
+  const typeChanges = story11Types.filter((t) =>
+    depStoryImports.some((i) => i.includes(t.name))
+  );
+
+  if (typeChanges.length > 0) {
+    console.warn(
+      `⚠️ Story ${depStory.id}: Type changes detected: ${typeChanges.map((t) => t.name).join(", ")}`
+    );
+  }
+}
+```
+
+3. **Acceptance Criteria Validation:**
+
+```javascript
+// Re-run acceptance tests for Story 1.1 to ensure they still pass
+const testResults = await runTests(story11.testFiles);
+
+if (testResults.failed > 0) {
+  console.error(
+    `❌ Story ${story11.id}: Acceptance tests failing after implementation`
+  );
+  console.error(
+    `   This may affect dependent stories: ${story11.dependents.map((d) => d.id).join(", ")}`
+  );
+
+  // Escalate to user
+  const choice = await askUser(
+    "Continue anyway or pause to investigate? (continue/pause)"
+  );
+  if (choice === "pause") {
+    throw new Error(
+      "User paused execution at integration checkpoint due to test failures"
+    );
+  }
+}
+```
+
+**User Options at Checkpoint:**
+
+- `y` or `yes` → Continue to next story
+- `n` or `no` → Stop execution
+- `pause` → Pause for manual investigation
+- `review-X.Y` → Show detailed diff for Story X.Y
 
 ### Phase 3: Completion & Reporting
 
@@ -408,10 +766,13 @@ cat docs/progress/epic-N-auto-run.md
 ### Required
 
 - Git repository with `main` branch
-- GitHub CLI (`gh`) installed and authenticated
+- **StoryRunner adapter** (GitHub, Jira, or DryRun)
+  - For GitHub: `gh` CLI installed and authenticated
+  - For Jira: Jira API credentials configured
+  - For DryRun: No external dependencies (testing mode)
 - Epic file exists at `_bmad-output/planning-artifacts/epics/epic-N.md`
 - Hooks configured and active in `.claude/settings.json`
-- Node.js (for `.cjs` hooks)
+- Node.js (for `.cjs` hooks and StoryRunner logic)
 - npm/package.json (for test, lint, build commands)
 
 ### Optional
@@ -419,6 +780,179 @@ cat docs/progress/epic-N-auto-run.md
 - Existing `/project-start-story` command (for branch/issue creation pattern)
 - Existing `/bmad-bmm-dev-story` command (for story implementation pattern)
 - Custom epic file location (can be specified with `--epic-path`)
+
+---
+
+## StoryRunner Adapters
+
+### GitHubStoryRunner (Default)
+
+Uses GitHub CLI (`gh`) and Git to manage issues, branches, and PRs.
+
+**Setup:**
+
+```bash
+# Install GitHub CLI
+brew install gh  # macOS
+# OR
+sudo apt install gh  # Linux
+
+# Authenticate
+gh auth login
+
+# Verify
+gh auth status
+```
+
+**Operations:**
+
+- `createIssue()` → `gh issue create`
+- `createBranch()` → `git checkout -b story-X-Y-name`
+- `createPR()` → `gh pr create`
+- `updateStatus()` → Updates `sprint-status.yaml` file
+- `findIssueByStoryId()` → `gh issue list --search "Story X.Y"`
+
+### DryRunStoryRunner (Testing)
+
+No-op adapter that logs operations without making external API calls.
+
+**Usage:**
+
+```bash
+# Enable dry-run mode
+export DRY_RUN=true
+
+# Run workflow
+/bmad-bmm-auto-epic Epic-1
+
+# Output:
+# [DRY-RUN] Would create issue: Story 1.1 - User registration
+# [DRY-RUN] Would create branch: story-1-1-user-registration
+# [DRY-RUN] Would create PR: Implement Story 1.1
+```
+
+**Use Cases:**
+
+- Testing workflow logic without creating real issues/PRs
+- CI/CD pipeline validation
+- Demo/training environments
+- Debugging dependency detection
+
+### JiraStoryRunner (Future)
+
+Integration with Jira for teams using Jira instead of GitHub Issues.
+
+**Planned Operations:**
+
+- `createIssue()` → Jira REST API `/issue`
+- `createBranch()` → Git (same as GitHub)
+- `createPR()` → GitHub PR with Jira issue link
+- `updateStatus()` → Jira workflow transition
+
+### LinearStoryRunner (Future)
+
+Integration with Linear for modern project management.
+
+**Planned Operations:**
+
+- `createIssue()` → Linear GraphQL API
+- `createBranch()` → Git (same as GitHub)
+- `createPR()` → GitHub PR with Linear issue link
+- `updateStatus()` → Linear state transition
+
+---
+
+## Dependency Syntax
+
+### How to Define Dependencies in Story Files
+
+Stories can declare dependencies in their **acceptance criteria** or **tech specs** using these keywords:
+
+**Keywords:**
+
+- `requires Story X.Y`
+- `depends on Story X.Y`
+- `builds on Story X.Y`
+- `after Story X.Y is complete`
+- `prerequisites: Story X.Y`
+- `blocked by Story X.Y`
+
+**Examples:**
+
+#### Example 1: Simple Dependency
+
+```markdown
+## Story 1.2: Save Project to DynamoDB
+
+**Prerequisites:** Requires Story 1.1 (User registration)
+
+**Acceptance Criteria:**
+
+- Save project uses user ID from Story 1.1 authentication
+- ...
+```
+
+#### Example 2: Multiple Dependencies
+
+```markdown
+## Story 1.4: List User Projects
+
+**Dependencies:**
+
+- Depends on Story 1.2 (Save project CRUD)
+- Depends on Story 1.3 (Project validation logic)
+
+**Acceptance Criteria:**
+
+- List projects endpoint returns validated projects only
+- ...
+```
+
+#### Example 3: Inline Dependency
+
+```markdown
+## Story 2.5: Advanced Search
+
+**Acceptance Criteria:**
+
+- Search uses indexing strategy from Story 2.3
+- After Story 2.4 (Basic search) is complete, add advanced filters
+- ...
+```
+
+### Automatic Detection
+
+The workflow scans these patterns using regex:
+
+```javascript
+const dependencyPatterns = [
+  /requires?\s+Story\s+(\d+\.\d+)/gi,
+  /depends?\s+on\s+Story\s+(\d+\.\d+)/gi,
+  /builds?\s+on\s+Story\s+(\d+\.\d+)/gi,
+  /after\s+Story\s+(\d+\.\d+)\s+is\s+complete/gi,
+  /prerequisites?:\s*Story\s+(\d+\.\d+)/gi,
+  /blocked\s+by\s+Story\s+(\d+\.\d+)/gi,
+];
+
+function extractDependencies(storyContent) {
+  const deps = [];
+  for (const pattern of dependencyPatterns) {
+    const matches = storyContent.matchAll(pattern);
+    for (const match of matches) {
+      deps.push(match[1]); // e.g., "1.2"
+    }
+  }
+  return [...new Set(deps)]; // Remove duplicates
+}
+```
+
+### Best Practices
+
+1. **Declare dependencies explicitly** — Don't assume the reader knows
+2. **Put dependencies near the top** — In prerequisites section or first AC
+3. **Use story IDs, not titles** — "Story 1.2" not "Save project story"
+4. **Avoid circular dependencies** — Workflow will error if detected
+5. **Keep dependency chains short** — Long chains (>3 levels) are fragile
 
 ---
 
