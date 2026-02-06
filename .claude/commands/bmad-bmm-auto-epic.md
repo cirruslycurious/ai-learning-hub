@@ -31,6 +31,79 @@
 
 ---
 
+## File Structure
+
+Before diving into the workflow, understand where dependencies and story metadata live:
+
+### Epic File (Catalog)
+
+**Location:** `_bmad-output/planning-artifacts/epics/epic-N.md`
+
+**Purpose:** High-level catalog of stories in the epic
+
+**Contains:**
+
+- Epic title and description
+- Story list: IDs, titles, and paths to story files
+- Epic-level acceptance criteria
+
+**Example:**
+
+```markdown
+# Epic 1: User Authentication & Project Management
+
+## Stories
+
+### Story 1.1: User Registration
+
+- **Path:** `_bmad-output/implementation-artifacts/stories/1.1.md`
+- **Status:** ready-for-dev
+
+### Story 1.2: Save Project
+
+- **Path:** `_bmad-output/implementation-artifacts/stories/1.2.md`
+- **Status:** backlog
+```
+
+### Story Files (Execution Units)
+
+**Location:** `_bmad-output/implementation-artifacts/stories/{story-id}.md`
+
+**Purpose:** Complete specification for implementing a single story
+
+**Contains:**
+
+- **YAML frontmatter** (dependencies, touches, risk)
+- Acceptance criteria
+- Technical notes
+- Test requirements
+
+**Example:** `_bmad-output/implementation-artifacts/stories/1.2.md`
+
+```markdown
+---
+id: 1.2
+title: Save Project to DynamoDB
+depends_on: [1.1]
+touches: [backend/api/projects, backend/db/projects.ts]
+risk: low
+---
+
+## Story 1.2: Save Project to DynamoDB
+
+**Acceptance Criteria:**
+
+- Save project uses user ID from Story 1.1 authentication
+- ...
+```
+
+**Key Distinction:**
+
+- **Epic file** = catalog (what stories exist)
+- **Story files** = specifications (YAML frontmatter + how to implement)
+
+---
+
 ## Workflow
 
 ### Phase 1: Planning & Scope Confirmation
@@ -38,14 +111,20 @@
 #### 1.1 Load Epic File
 
 - Read from `_bmad-output/planning-artifacts/epics/epic-N.md`
-- Parse all story IDs, titles, and acceptance criteria
+- Parse story IDs, titles, and **paths to story files**
 - Validate epic exists and is ready for implementation
 
-#### 1.2 Dependency Analysis (NEW)
+#### 1.2 Load Story Files
+
+- For each story ID from epic file, read the **story file** at the path specified
+- Parse YAML frontmatter from each story file
+- Extract: `id`, `title`, `depends_on`, `touches`, `risk`
+
+#### 1.3 Dependency Analysis (NEW)
 
 **Parse Story Metadata (YAML Frontmatter):**
 
-Stories should declare dependencies in machine-readable YAML frontmatter at the top of the story file:
+Each story file contains YAML frontmatter at the top with dependency metadata:
 
 ```yaml
 ---
@@ -176,10 +255,20 @@ The workflow no longer directly calls `gh issue create` or `gh pr create`. Inste
 
 ```typescript
 interface StoryRunner {
-  // Create operations
+  // Create operations (explicit args for determinism)
   createIssue(story: Story, epic: Epic): Promise<IssueResult>;
-  createBranch(story: Story): Promise<BranchResult>;
-  createPR(story: Story, issue: IssueResult): Promise<PRResult>;
+  createBranch(
+    story: Story,
+    branchName: string // Explicit branch name (computed by caller)
+  ): Promise<BranchResult>;
+  createPR(args: {
+    story: Story;
+    issue: IssueResult;
+    base: string; // Base branch (e.g., "main")
+    head: string; // Head branch (e.g., "story-1-2-save-project")
+    title: string; // PR title
+    body: string; // PR body (markdown)
+  }): Promise<PRResult>;
 
   // Find operations (for idempotency)
   findIssueByStoryId(storyId: string): Promise<IssueResult | null>;
@@ -209,6 +298,12 @@ interface PRResult {
 
 type StoryStatus = "pending" | "in-progress" | "review" | "done" | "blocked";
 ```
+
+**Why Explicit Args?**
+
+- **Deterministic:** No adapter guessing on branch name format or base/head
+- **Testable:** Caller controls exact values used
+- **Consistent:** All adapters use same naming convention
 
 **Available Adapters:**
 
@@ -265,6 +360,7 @@ async function getOrCreateIssue(story, epic) {
 }
 
 async function getOrCreateBranch(story) {
+  // Compute branch name (deterministic, controlled by caller)
   const branchName = `story-${story.id.replace(".", "-")}-${slugify(story.title)}`;
 
   // Check if branch already exists
@@ -274,12 +370,13 @@ async function getOrCreateBranch(story) {
     return { branchName };
   }
 
-  // Create new branch
-  return await runner.createBranch(story);
+  // Create new branch with explicit name
+  return await runner.createBranch(story, branchName);
 }
 
 async function getOrCreatePR(story, issue) {
   const branch = await getOrCreateBranch(story);
+  const base = await runner.getDefaultBaseBranch(); // "main" or "master"
 
   // Check if PR already exists for this branch
   const existingPR = await runner.findPRByBranch(branch.branchName);
@@ -288,8 +385,43 @@ async function getOrCreatePR(story, issue) {
     return existingPR;
   }
 
-  // Create new PR
-  return await runner.createPR(story, issue);
+  // Generate PR title and body
+  const title = `Implement Story ${story.id}: ${story.title}`;
+  const body = `
+## Summary
+
+Implements Story ${story.id}: ${story.title}
+
+Closes #${issue.issueNumber}
+Part of Epic ${epic.id}: ${epic.title}
+
+## Changes
+
+- [Auto-generated from commits]
+
+## Testing
+
+- ✅ All tests pass
+- ✅ Coverage: ${coverage}%
+- ✅ Hooks enforced: TDD, architecture, shared libs
+
+## Checklist
+
+- [x] Tests written and passing
+- [x] Code follows architecture patterns
+- [x] Shared libraries used
+- [x] Documentation updated (if needed)
+`.trim();
+
+  // Create new PR with explicit args
+  return await runner.createPR({
+    story,
+    issue,
+    base, // Explicit base branch
+    head: branch.branchName, // Explicit head branch
+    title, // Explicit PR title
+    body, // Explicit PR body
+  });
 }
 ```
 
@@ -575,24 +707,40 @@ Continue to Story 1.2? (y/n/pause/review-1.3)
 
 **Validation Checks:**
 
-1. **Shared File Changes:**
+1. **Shared File Changes (uses git diff, not `touches` field):**
 
 ```javascript
-// Get files modified in Story 1.1
-const story11Files = await getModifiedFiles(story11.branch);
+// Get ACTUAL files modified in Story 1.1 (source of truth: git diff)
+const actualChangedFiles = await execCommand(
+  `git diff --name-only origin/main ${story11.branch}`
+);
 
-// Check if any dependent stories reference those files
+// Check if any dependent stories expected to touch those files
 for (const depStory of story11.dependents) {
-  const depStoryFiles = await getExpectedFiles(depStory);
-  const overlap = story11Files.filter((f) => depStoryFiles.includes(f));
+  const expectedFiles = depStory.touches || []; // Advisory hint from frontmatter
+  const overlap = actualChangedFiles.filter((f) =>
+    expectedFiles.some((expected) => f.includes(expected))
+  );
 
   if (overlap.length > 0) {
     console.warn(
       `⚠️ Story ${depStory.id}: Upstream changes to ${overlap.join(", ")}`
     );
   }
+
+  // Detect surprises: actual changes differ from `touches` field
+  const unexpectedChanges = actualChangedFiles.filter(
+    (f) => !expectedFiles.some((expected) => f.includes(expected))
+  );
+  if (unexpectedChanges.length > 0) {
+    console.warn(
+      `⚠️ Story ${story11.id}: Unexpected file changes not in \`touches\`: ${unexpectedChanges.join(", ")}`
+    );
+  }
 }
 ```
+
+**Note:** `touches` field is **advisory only** (used for risk prediction before implementation). **Source of truth** for integration checkpoints is `git diff` (actual files changed).
 
 2. **Interface/Type Changes:**
 
@@ -959,14 +1107,14 @@ gh auth status
 
 **Operations:**
 
-- `createIssue()` → `gh issue create --title "Story X.Y: Title" --body "..."`
-- `createBranch()` → `git checkout -b story-X-Y-name`
-- `createPR()` → `gh pr create --title "..." --body "..."`
-- `findIssueByStoryId()` → `gh issue list --search "Story X.Y" --json number,url`
-- `findPRByBranch()` → `gh pr list --head story-X-Y-name --json number,url`
-- `branchExists()` → `git rev-parse --verify story-X-Y-name`
-- `getDefaultBaseBranch()` → `gh repo view --json defaultBranchRef`
-- `updateStatus()` → Updates `sprint-status.yaml` file (YAML manipulation)
+- `createIssue(story, epic)` → `gh issue create --title "Story X.Y: Title" --body "..."`
+- `createBranch(story, branchName)` → `git checkout -b ${branchName}`
+- `createPR({ story, issue, base, head, title, body })` → `gh pr create --base ${base} --head ${head} --title "${title}" --body "${body}"`
+- `findIssueByStoryId(storyId)` → `gh issue list --search "Story X.Y" --json number,url`
+- `findPRByBranch(branchName)` → `gh pr list --head ${branchName} --json number,url`
+- `branchExists(branchName)` → `git rev-parse --verify ${branchName}`
+- `getDefaultBaseBranch()` → `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`
+- `updateStatus(story, status)` → Updates `sprint-status.yaml` file (YAML manipulation)
 
 ### DryRunStoryRunner (Testing)
 
