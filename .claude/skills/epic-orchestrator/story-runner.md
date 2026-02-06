@@ -50,7 +50,14 @@ interface PRResult {
   prUrl: string;
 }
 
-type StoryStatus = "pending" | "in-progress" | "review" | "done" | "blocked";
+type StoryStatus =
+  | "pending"
+  | "in-progress"
+  | "review"
+  | "done"
+  | "blocked"
+  | "paused"
+  | "skipped";
 ```
 
 **Why explicit args?**
@@ -82,6 +89,13 @@ if (isDryRun) {
 Deterministic branch name computation (used by caller, not adapter):
 
 ```javascript
+function slugify(text) {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-") // Replace non-alphanumeric with hyphens
+    .replace(/^-|-$/g, ""); // Trim leading/trailing hyphens
+}
+
 function branchNameFor(story) {
   return `story-${story.id.replace(".", "-")}-${slugify(story.title)}`;
 }
@@ -159,7 +173,7 @@ Part of Epic {epic.id}: {epic.title}
 ## Testing
 
 - All tests pass
-- Coverage: {coverage}%
+- Coverage: {coverage !== null ? coverage + "%" : "N/A (could not parse from test output)"}
 - Hooks enforced: TDD, architecture, shared libs
 
 ## Checklist
@@ -228,8 +242,11 @@ git checkout -b ${branchName} origin/${branchName}
 ### createBranch
 
 ```bash
-git checkout -b ${branchName}
+git fetch origin ${baseBranch}
+git checkout -b ${branchName} origin/${baseBranch}
 ```
+
+**Important:** Always branch from `origin/${baseBranch}` (not HEAD) to ensure branch isolation. After completing Story 1.1, HEAD is on the story-1-1 branch. Without specifying the start point, `git checkout -b` would include Story 1.1's changes in Story 1.2's branch.
 
 ### createIssue
 
@@ -256,6 +273,17 @@ gh pr create \
 gh pr view ${branchName} --json state --jq '.state'
 # Returns "MERGED" if merged
 ```
+
+### updateStatus
+
+Sync story status to GitHub issue labels (secondary source):
+
+```bash
+# Add status label to issue
+gh issue edit ${issueNumber} --add-label "status:${status}" --remove-label "status:pending,status:in-progress,status:review,status:done,status:blocked,status:paused,status:skipped"
+```
+
+If the issue doesn't exist yet (story still `pending`), this is a no-op.
 
 ### getDefaultBaseBranch
 

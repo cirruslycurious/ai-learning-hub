@@ -8,7 +8,7 @@ Supporting reference for the epic orchestrator. Read this file when entering Pha
 
 **Structure:** YAML frontmatter (machine-readable source of truth) + markdown body (human-readable display, regenerated from frontmatter).
 
-**Story statuses:** `pending` | `in-progress` | `review` | `done` | `blocked` (see Status Source of Truth table below for mapping to external systems).
+**Story statuses:** `pending` | `in-progress` | `review` | `done` | `blocked` | `paused` | `skipped` (see Status Source of Truth table below for mapping to external systems).
 
 ```markdown
 ---
@@ -73,8 +73,25 @@ stories:
 | `review`      | 🔍 In Review       | `review`           | PR open    |
 | `done`        | ✅ Complete        | `done`             | PR merged  |
 | `blocked`     | ❌ Blocked         | `blocked`          | Issue open |
+| `paused`      | ⏸️ Paused          | `in-progress`      | Issue open |
+| `skipped`     | ⏭️ Skipped         | `backlog`          | No issue   |
 
 All status transitions go through `updateStoryStatus(story, newStatus)` which updates the state file (primary) and syncs to secondary sources via `runner.updateStatus()`.
+
+### `getStoryStatus(storyId)`
+
+Read the current status of a story from the state file YAML frontmatter:
+
+```javascript
+function getStoryStatus(storyId) {
+  const stateFile = readStateFile(); // parse YAML frontmatter from docs/progress/epic-{id}-auto-run.md
+  const storyEntry = stateFile.stories[storyId];
+  if (!storyEntry) return null; // story not in state file (e.g., new run not yet initialized)
+  return storyEntry.status; // returns StoryStatus: "pending" | "in-progress" | "review" | "done" | "blocked" | "paused" | "skipped"
+}
+```
+
+Used by `validateStorySelection` (dependency-analysis.md) to check if an out-of-scope dependency is already complete.
 
 **Decision flow:** The workflow reads the state file to make all control-flow decisions (e.g., "Can I start Story 1.4?" → check that 1.2 and 1.3 are "done" in state file). Secondary sources inform recovery, not decisions.
 
@@ -84,15 +101,19 @@ All status transitions go through `updateStoryStatus(story, newStatus)` which up
 
 When resuming from an existing state file, reconcile state file (primary) with GitHub reality (secondary):
 
-| State File Status | GitHub Reality     | Action                                                       |
-| ----------------- | ------------------ | ------------------------------------------------------------ |
-| `done`            | PR merged          | Skip story (already complete)                                |
-| `done`            | PR closed/unmerged | Keep "done" (state file wins; human closed PR intentionally) |
-| `in-progress`     | PR exists          | Resume from post-commit (skip to review/finalization)        |
-| `in-progress`     | Branch deleted     | Mark "blocked", require human decision                       |
-| `in-progress`     | No PR/branch       | Resume from last successful checkpoint in activity log       |
-| `pending`         | PR exists          | Treat as "review" (someone manually created PR)              |
-| `pending`         | Branch exists      | Check out branch, resume from implementation phase           |
+| State File Status | GitHub Reality     | Action                                                                         |
+| ----------------- | ------------------ | ------------------------------------------------------------------------------ |
+| `done`            | PR merged          | Skip story (already complete)                                                  |
+| `done`            | PR closed/unmerged | Keep "done" (state file wins; human closed PR intentionally)                   |
+| `in-progress`     | PR exists          | Resume from post-commit (skip to review/finalization)                          |
+| `in-progress`     | Branch deleted     | Mark "blocked", require human decision                                         |
+| `in-progress`     | No PR/branch       | Reset to `pending`, restart story from beginning (no recoverable state exists) |
+| `pending`         | PR exists          | Treat as "review" (someone manually created PR)                                |
+| `pending`         | Branch exists      | Check out branch, resume from implementation phase                             |
+| `paused`          | PR exists          | Resume from post-commit (skip to review/finalization)                          |
+| `paused`          | Branch exists      | Check out branch, resume from implementation phase                             |
+| `paused`          | No PR/branch       | Reset to `pending`, restart from beginning                                     |
+| `skipped`         | any                | Skip story (respect previous skip decision)                                    |
 
 **Resume always favors state file status for control flow.** Secondary sources (GitHub) inform recovery strategy.
 
@@ -117,13 +138,15 @@ Story considered "done" when:
 
 **Override:** `--no-require-merged` disables strict checking. Use only when you understand the risk.
 
-## Atomic Write Protocol
+## Write Protocol
 
-To prevent corruption on crash or interruption:
+To minimize corruption risk on crash or interruption:
 
-1. Write state file to temporary path: `docs/progress/epic-{id}-auto-run.md.tmp`
-2. Rename temp file to final path (atomic on most filesystems)
-3. Never write directly to the state file
+1. Write state file to temporary path using Write tool: `docs/progress/epic-{id}-auto-run.md.tmp`
+2. Rename temp file to final path using Bash: `mv docs/progress/epic-{id}-auto-run.md.tmp docs/progress/epic-{id}-auto-run.md`
+3. If the rename fails (e.g., interrupted), the `.tmp` file serves as recovery source on resume
+
+**Note:** This is best-effort atomicity using two tool calls (Write then Bash mv). A crash between steps 1 and 2 leaves a `.tmp` file which the resume logic should check for.
 
 ## Commit SHA Tracking
 
