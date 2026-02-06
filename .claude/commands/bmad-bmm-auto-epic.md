@@ -733,7 +733,199 @@ try {
 }
 ```
 
-#### 2.4 Post-Story Checkpoint (Human Approval)
+#### 2.4 Mark Story for Review
+
+- **Update sprint-status.yaml:** Change story status from `in-progress` → `review`
+- **Update state file:** Mark story as "🔍 In Review"
+- **Commit state change:** `git commit -m "chore: mark story X.Y for review"`
+
+#### 2.5 Multi-Agent Code Review Loop (Max 3 Rounds)
+
+Execute up to 3 review-fix cycles to achieve code quality convergence:
+
+**For round = 1 to 3:**
+
+##### Step A: Spawn Reviewer Agent (Fresh Context)
+
+- **Use Task tool** with `subagent_type: general-purpose`
+- **CRITICAL:** Reviewer agent has NO implementation context
+- **Runs:** `/bmad-bmm-code-review` workflow
+- **Output:** Creates `docs/progress/story-X-Y-review-findings-round-{round}.md`
+
+**Findings Document Format:**
+
+```markdown
+# Story X.Y Code Review Findings - Round {round}
+
+**Reviewer:** Agent (Fresh Context)
+**Date:** YYYY-MM-DD HH:MM
+**Branch:** story-X-Y-description
+**Commit:** abc123def
+
+## Critical Issues (Must Fix)
+
+1. **[Category]:** Description
+   - **File:** path/to/file.ts:line
+   - **Problem:** Specific problem description
+   - **Impact:** Why this matters
+   - **Fix:** Suggested fix
+
+## Important Issues (Should Fix)
+
+2. **[Category]:** Description
+   - **File:** path/to/file.ts:line
+   - **Problem:** Specific problem description
+   - **Impact:** Why this matters
+   - **Fix:** Suggested fix
+
+## Minor Issues (Nice to Have)
+
+3. **[Category]:** Description
+   - **File:** path/to/file.ts:line
+   - **Problem:** Specific problem description
+   - **Impact:** Why this matters
+   - **Fix:** Suggested fix
+
+## Summary
+
+- **Total findings:** 3
+- **Critical:** 1
+- **Important:** 1
+- **Minor:** 1
+- **Recommendation:** Fix critical and important issues, then re-review
+```
+
+##### Step B: Decision Point
+
+**If findings.count == 0:**
+
+- Review clean! ✅
+- Exit loop
+- Proceed to Step 2.6 (Finalize Story)
+
+**If findings.count > 0 AND round < 3:**
+
+- Continue to Step C (Spawn Fixer Agent)
+
+**If findings.count > 0 AND round == 3:**
+
+- **Max rounds exceeded!** ⚠️
+- Mark story as `blocked-review` in sprint-status.yaml
+- Update state file: "❌ Blocked - Max review rounds exceeded"
+- **Escalate to human:**
+
+  ```
+  ⚠️ Story X.Y Review Blocked
+
+  After 3 review rounds, issues remain:
+  - Critical: 1
+  - Important: 2
+  - Minor: 1
+
+  Findings document: docs/progress/story-X-Y-review-findings-round-3.md
+
+  Options:
+  a) Manual review and fix (pause autonomous workflow)
+  b) Accept findings and mark story complete (not recommended)
+  c) Continue with 1 more review round (override limit)
+
+  Your choice:
+  ```
+
+- Wait for human decision
+- Do NOT continue to next story
+
+##### Step C: Spawn Fixer Agent (Implementation Context)
+
+- **Use Task tool** with `subagent_type: general-purpose`
+- **Provide context:** Implementation history + findings document
+- **Task:** "Address all findings in `docs/progress/story-X-Y-review-findings-round-{round}.md`"
+
+**Fixer Agent Instructions:**
+
+```markdown
+You are fixing code review findings for Story X.Y.
+
+**Context:**
+
+- Story: [Story Title]
+- Findings: docs/progress/story-X-Y-review-findings-round-{round}.md
+- Branch: story-X-Y-description
+
+**Your task:**
+
+1. Read the findings document completely
+2. For each finding (Critical → Important → Minor):
+   - Understand the problem
+   - Implement the fix
+   - Ensure hooks still pass (TDD, architecture, shared libs)
+3. Run tests after each fix (must pass)
+4. Commit fixes: `fix: address code review round {round} - [brief description]`
+
+**Rules:**
+
+- Fix ALL critical and important issues
+- Fix minor issues if time permits
+- Maintain test coverage (80%+)
+- Follow hooks enforcement (they will block violations)
+- Do NOT skip tests
+- Commit after each logical group of fixes
+
+**When complete:**
+
+- Report: "Fixed X issues from round {round}"
+- List: Which findings were addressed
+- Note: Any findings that couldn't be fixed and why
+```
+
+**Fixer Agent Actions:**
+
+1. Read findings document
+2. For each finding:
+   - Navigate to file
+   - Implement fix
+   - Run tests (hooks enforce they pass)
+   - Commit: `fix: address review round {round} - [issue category]`
+3. Report completion with summary
+
+##### Step D: Loop Back to Step A (Next Review Round)
+
+- Increment round counter
+- If round <= 3, spawn new reviewer agent (fresh context)
+- Repeat until findings.count == 0 or round == 3
+
+#### 2.6 Finalize Story (After Clean Review)
+
+- **Update sprint-status.yaml:** Change story status `review` → `done`
+- **Update PR description:** Add review summary
+
+  ```markdown
+  ## Code Review Summary
+
+  - Review rounds: 2
+  - Final status: ✅ Clean (no findings)
+  - Findings addressed: 5 (3 critical, 2 important)
+  - Review documents:
+    - Round 1: docs/progress/story-X-Y-review-findings-round-1.md
+    - Round 2: docs/progress/story-X-Y-review-findings-round-2.md
+  ```
+
+- **Update state file:** Mark story "✅ Complete - Reviewed & Clean"
+- **Show summary:**
+
+  ```
+  ✅ Story X.Y Complete & Reviewed
+  - PR: #N (https://github.com/.../pull/N)
+  - Tests: 15 passed, 0 failed
+  - Coverage: 87%
+  - Review rounds: 2
+  - Final status: Clean (no findings)
+  - Findings fixed: 5 total
+
+  Ready for human merge approval.
+  ```
+
+#### 2.7 Post-Story Checkpoint (Human Approval)
 
 - **Update state file:** Mark story "✅ Complete", add PR link
 - **Show summary:**
@@ -997,22 +1189,28 @@ After all stories complete (or user stops):
    - PRs opened: 7
    - Tests passed: 142
    - Coverage: 83% average
+   - Review rounds: 14 total
+   - Findings fixed: 23 total
    - Blockers encountered: 1
 
    ## Story Status
 
-   | Story | Status      | PR  | Duration | Notes                             |
-   | ----- | ----------- | --- | -------- | --------------------------------- |
-   | 1.1   | ✅ Complete | #74 | 15m      | Clean                             |
-   | 1.2   | ✅ Complete | #75 | 18m      | Clean                             |
-   | 1.3   | ❌ Blocked  | -   | -        | Tests failed, needs investigation |
-   | 1.4   | ✅ Complete | #76 | 22m      | Clean                             |
-   | ...   | ...         | ... | ...      | ...                               |
+   | Story | Status      | PR  | Review Rounds | Findings Fixed | Duration | Notes                             |
+   | ----- | ----------- | --- | ------------- | -------------- | -------- | --------------------------------- |
+   | 1.1   | ✅ Complete | #74 | 2 (clean)     | 5              | 15m      | Clean after round 2               |
+   | 1.2   | ✅ Complete | #75 | 1 (clean)     | 0              | 18m      | Clean on first review             |
+   | 1.3   | ❌ Blocked  | -   | -             | -              | -        | Tests failed, needs investigation |
+   | 1.4   | ✅ Complete | #76 | 3 (clean)     | 8              | 22m      | Clean after round 3               |
+   | ...   | ...         | ... | ...           | ...            | ...      | ...                               |
 
    ## Metrics
 
-   - Average story time: 18 minutes
+   - Average story time: 18 minutes (includes review time)
    - Test pass rate: 98%
+   - **Review convergence:** 85% clean by round 2, 100% by round 3
+   - **Average review rounds:** 2 per story
+   - **Findings per story:** 3.3 average (ranging 0-8)
+   - **Most common issues:** Test coverage (40%), Architecture compliance (30%), Performance (20%), Security (10%)
    - Hook blocks: 3 (all self-corrected)
    - Human interventions: 1 (Story 1.3 test failure)
 
@@ -1125,16 +1323,16 @@ Location: `docs/progress/epic-N-auto-run.md`
 
 ## Stories
 
-| Story | Status         | PR  | Tests    | Coverage | Duration | Notes         |
-| ----- | -------------- | --- | -------- | -------- | -------- | ------------- |
-| 1.1   | ✅ Complete    | #74 | 15/15 ✅ | 87%      | 15m      | -             |
-| 1.2   | ✅ Complete    | #75 | 12/12 ✅ | 92%      | 18m      | -             |
-| 1.3   | 🔄 In Progress | -   | -        | -        | -        | Started 15:00 |
-| 1.4   | ⏳ Pending     | -   | -        | -        | -        | -             |
-| 1.5   | ⏳ Pending     | -   | -        | -        | -        | -             |
-| 1.6   | ⏳ Pending     | -   | -        | -        | -        | -             |
-| 1.7   | ⏳ Pending     | -   | -        | -        | -        | -             |
-| 1.8   | ⏳ Pending     | -   | -        | -        | -        | -             |
+| Story | Status         | PR  | Tests    | Coverage | Review Rounds | Duration | Notes         |
+| ----- | -------------- | --- | -------- | -------- | ------------- | -------- | ------------- |
+| 1.1   | ✅ Complete    | #74 | 15/15 ✅ | 87%      | 2 (clean)     | 15m      | -             |
+| 1.2   | ✅ Complete    | #75 | 12/12 ✅ | 92%      | 1 (clean)     | 18m      | -             |
+| 1.3   | 🔄 In Progress | -   | -        | -        | -             | -        | Started 15:00 |
+| 1.4   | ⏳ Pending     | -   | -        | -        | -             | -        | -             |
+| 1.5   | ⏳ Pending     | -   | -        | -        | -             | -        | -             |
+| 1.6   | ⏳ Pending     | -   | -        | -        | -             | -        | -             |
+| 1.7   | ⏳ Pending     | -   | -        | -        | -             | -        | -             |
+| 1.8   | ⏳ Pending     | -   | -        | -        | -             | -        | -             |
 
 ## Metrics
 
@@ -1142,6 +1340,9 @@ Location: `docs/progress/epic-N-auto-run.md`
 - PRs opened: 2
 - Tests passed: 27/27
 - Average coverage: 89.5%
+- **Review rounds:** 3 total (avg 1.5 per story)
+- **Findings fixed:** 8 total (5 critical, 3 important)
+- **Review convergence rate:** 100% (all stories reached clean state)
 - Total duration: 33m
 - Estimated remaining: 1h 48m
 
