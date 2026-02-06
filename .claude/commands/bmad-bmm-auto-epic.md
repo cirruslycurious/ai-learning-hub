@@ -238,10 +238,13 @@ Order stories for execution using topological sort:
 ```
 Execution Order (respecting dependencies):
 1. Story 1.1
-2. Story 1.5 (no deps, can run in parallel with 1.1)
+2. Story 1.5 (no deps, could be parallelized with 1.1 in future)
 3. Story 1.2 (after 1.1)
 4. Story 1.3 (after 1.1)
 5. Story 1.4 (after 1.2 and 1.3)
+
+Note: Dependency graph identifies parallelizable sets; current implementation
+executes serially, future enhancement may parallelize independent stories.
 ```
 
 **Integration Checkpoints:**
@@ -311,7 +314,8 @@ interface StoryRunner {
   // Find operations (for idempotency)
   findIssueByStoryId(storyId: string): Promise<IssueResult | null>;
   findPRByBranch(branchName: string): Promise<PRResult | null>;
-  branchExists(branchName: string): Promise<boolean>;
+  branchExists(branchName: string): Promise<boolean>; // Pure check (no side effects)
+  ensureBranchCheckedOut(branchName: string): Promise<void>; // Checkout if remote-only
 
   // Status management
   updateStatus(story: Story, status: StoryStatus): Promise<void>;
@@ -408,7 +412,8 @@ async function getOrCreateBranch(story) {
   const exists = await runner.branchExists(branchName);
   if (exists) {
     console.log(`✅ Branch already exists: ${branchName}`);
-    // Note: branchExists() handles checkout if remote-only
+    // Ensure branch is checked out locally (if remote-only)
+    await runner.ensureBranchCheckedOut(branchName);
     return { branchName };
   }
 
@@ -540,6 +545,20 @@ If secondary sources diverge from state file:
 - Initialize with: epic ID, stories list (with dependencies), start timestamp
 - Track: story status, PRs, test results, blockers, **integration checkpoints**
 
+**Resume Semantics (--resume flag):**
+
+When resuming from state file, the workflow reconciles state file (primary) with GitHub reality (secondary):
+
+1. **State = "done", PR merged** → Skip story (already complete)
+2. **State = "done", PR closed/unmerged** → Keep "done" (state file wins; human closed PR intentionally)
+3. **State = "in-progress", PR exists** → Resume from PR creation (skip to post-commit activities)
+4. **State = "in-progress", branch deleted** → Mark "blocked", require human decision (branch deletion likely intentional)
+5. **State = "in-progress", no PR/branch** → Resume from last successful checkpoint in activity log
+6. **State = "pending", PR exists** → Treat as "review" (someone manually created PR)
+7. **State = "pending", branch exists** → Check out branch, resume from implementation phase
+
+Resume always favors state file status for control flow; secondary sources (GitHub) inform recovery strategy.
+
 ### Phase 2: Story Implementation Loop
 
 For each story in scope:
@@ -616,8 +635,13 @@ git push -u origin ${branch.branchName}
 **Create PR (via StoryRunner):**
 
 ```javascript
+// Get test coverage from test output
+// Coverage is extracted from repo-specific test runner output (Jest, Vitest, nyc, etc.)
+// using a parser configured per repo; if not available, coverage is shown as "n/a"
+const coverage = await extractCoverageFromTestResults(); // e.g., 85 or "n/a"
+
 // Idempotent: checks if PR already exists for this branch
-const pr = await getOrCreatePR(story, issue);
+const pr = await getOrCreatePR(story, epic, issue, coverage);
 
 console.log(`✅ PR: #${pr.prNumber} (${pr.prUrl})`);
 ```
@@ -658,9 +682,10 @@ If PR creation fails (API error, network issue, etc.):
 try {
   const pr = await runner.createPR(story, issue);
 } catch (error) {
+  const base = await runner.getDefaultBaseBranch(); // Don't hardcode "main"
   console.error(`❌ PR creation failed: ${error.message}`);
   console.log(`📝 Manual PR creation required:`);
-  console.log(`   gh pr create --base main --head ${branch.branchName}`);
+  console.log(`   gh pr create --base ${base} --head ${branch.branchName}`);
 
   // Mark story as blocked
   await runner.updateStatus(story, "blocked");
@@ -1226,14 +1251,23 @@ gh auth status
 - `createPR({ story, issue, base, head, title, body })` → `gh pr create --base ${base} --head ${head} --title "${title}" --body "${body}"`
 - `findIssueByStoryId(storyId)` → `gh issue list --search "Story X.Y" --json number,url`
 - `findPRByBranch(branchName)` → `gh pr list --head ${branchName} --json number,url`
-- `branchExists(branchName)` → Checks local (`refs/heads/${branchName}`) OR remote (`refs/remotes/origin/${branchName}`):
+- `branchExists(branchName)` → Pure check (no side effects). Checks local (`refs/heads/${branchName}`) OR remote (`refs/remotes/origin/${branchName}`):
+
   ```bash
+  # Runner must ensure remote refs are fresh (via git fetch or ls-remote)
+  git fetch origin $branchName --quiet 2>/dev/null || true
+
+  # Check local OR remote
   git show-ref --verify --quiet refs/heads/$branchName \
     || git show-ref --verify --quiet refs/remotes/origin/$branchName
   ```
-  If remote exists but not local, checks out tracking branch:
+
+- `ensureBranchCheckedOut(branchName)` → Checks out branch locally if it exists only on remote:
   ```bash
-  git checkout -b $branchName --track origin/$branchName
+  # If remote exists but not local, check out tracking branch
+  if ! git show-ref --verify --quiet refs/heads/$branchName; then
+    git checkout -b $branchName --track origin/$branchName
+  fi
   ```
 - `getDefaultBaseBranch()` → `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`
 - `updateStatus(story, status)` → Updates `sprint-status.yaml` file (YAML manipulation)
@@ -1449,7 +1483,7 @@ function extractDependencies(storyContent) {
 3. **Add `touches` field** — Helps integration checkpoint detect conflicts
 4. **Use story IDs only** — "1.2" not "Story 1.2" or "Save project story"
 5. **Avoid circular dependencies** — Workflow will error if detected (1.2 → 1.3 → 1.2)
-6. **Keep dependency chains short** — Long chains (>3 levels) are fragile and hard to parallelize
+6. **Keep dependency chains short** — Long chains (>3 levels) are fragile; while current implementation is serial, shorter chains enable future parallelization
 7. **Update frontmatter when refactoring** — If dependencies change, update YAML immediately
 
 ---
