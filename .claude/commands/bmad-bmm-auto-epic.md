@@ -561,10 +561,22 @@ When resuming from state file, the workflow reconciles state file (primary) with
 
 Resume always favors state file status for control flow; secondary sources (GitHub) inform recovery strategy.
 
-**Risk Warning (Rule #2):** A story marked "done" with an unmerged PR means code never reached base branch. Dependent stories will proceed anyway, potentially causing broken epic. Mitigation options:
+**Dependency Completion Policy:**
 
-- **Default mode** (current): State file wins; user responsible for merge verification
-- **Strict mode** (optional `--require-merged`): Story only satisfies dependency if PR merged OR commit exists on base branch
+To prevent dependent stories from building on code that doesn't exist on base branch, the workflow enforces different completion requirements based on story type:
+
+- **Stories WITH dependents** (default: `--require-merged`): Story only satisfies dependency if:
+  - PR is merged to base branch, OR
+  - Commit is reachable from base branch (verified via `git merge-base --is-ancestor`)
+  - **Rationale**: Downstream stories need code on base branch to build correctly
+
+- **Leaf stories (NO dependents)** (relaxed): Story considered "done" when:
+  - PR is open AND tests passing
+  - **Rationale**: No downstream impact, safe to mark complete before human review/merge
+
+- **Override mode** (optional `--no-require-merged`): Disable strict checking (state file wins)
+  - **Warning**: Use only when you understand the risk of broken dependencies
+  - User responsible for merge verification before dependent stories start
 
 ### Phase 2: Story Implementation Loop
 
@@ -578,11 +590,43 @@ Before starting story, verify all dependencies are complete:
 
 ```javascript
 for (const depStoryId of story.dependencies) {
+  const depStory = getStory(depStoryId);
   const depStatus = getStoryStatus(depStoryId);
+
+  // Check basic completion
   if (depStatus !== "done") {
     throw new Error(
       `Cannot start Story ${story.id}: dependency ${depStoryId} is not complete (status: ${depStatus})`
     );
+  }
+
+  // For stories WITH dependents, verify code reached base branch (default behavior)
+  if (!config.noRequireMerged && depStory.hasDependents) {
+    const prMerged = await runner.isPRMerged(depStory);
+    const commitOnBase = await isCommitOnBaseBranch(
+      depStory.lastCommit,
+      baseBranch
+    );
+
+    if (!prMerged && !commitOnBase) {
+      throw new Error(
+        `Cannot start Story ${story.id}: dependency ${depStoryId} is marked "done" but code not on base branch.\n` +
+          `PR #${depStory.prNumber} is not merged and commit not reachable from ${baseBranch}.\n` +
+          `Merge the PR or use --no-require-merged flag (not recommended).`
+      );
+    }
+  }
+}
+
+// Helper: check if commit is reachable from base branch
+async function isCommitOnBaseBranch(commit, baseBranch) {
+  try {
+    await execCommand(
+      `git merge-base --is-ancestor ${commit} origin/${baseBranch}`
+    );
+    return true; // Exit code 0 = commit is ancestor
+  } catch {
+    return false; // Exit code 1 = commit not ancestor
   }
 }
 ```
@@ -618,12 +662,38 @@ console.log(`✅ Branch: ${branch.branchName}`);
 
 **Hooks Active During This Phase:**
 
-- ✅ `tdd-guard.cjs` — Blocks implementation before tests written
-- ✅ `architecture-guard.sh` — Blocks ADR violations (no Lambda→Lambda)
-- ✅ `import-guard.sh` — Enforces `@ai-learning-hub/*` shared libraries
-- ✅ `auto-format.sh` — Auto-formats all code (Prettier + ESLint)
-- ✅ `type-check.sh` — Validates TypeScript
+- ✅ `tdd-guard.cjs` (PreToolUse) — Blocks implementation before tests written
+- ✅ `architecture-guard.sh` (PreToolUse) — Blocks ADR violations (no Lambda→Lambda)
+- ✅ `import-guard.sh` (PreToolUse) — Enforces `@ai-learning-hub/*` shared libraries
+- ✅ `auto-format.sh` (PostToolUse) — Auto-formats all code (Prettier + ESLint)
+- ✅ `type-check.sh` (PostToolUse) — Validates TypeScript
 - ✅ Stop hook (agent) — Blocks completion if tests fail
+
+**CRITICAL: PostToolUse Hook Safety**
+
+PostToolUse hooks (`auto-format`, `type-check`) modify files AFTER the agent writes code. This creates a risk:
+
+1. Agent writes code
+2. Tests pass on un-formatted code
+3. PostToolUse hook formats code
+4. Formatted code is committed WITHOUT re-testing
+
+**Solution: Final Quality Gate**
+
+After ALL file modifications complete (including PostToolUse hooks), run final gate before commit:
+
+```bash
+# Final quality gate (run after PostToolUse hooks complete)
+npm run lint     # Verify format/style
+npm run typecheck # Verify TypeScript
+npm test         # Verify all tests still pass
+```
+
+This ensures:
+
+- ✅ PostToolUse mutations don't break tests
+- ✅ Formatted code is actually tested
+- ✅ No "format → commit → tests fail" scenarios
 
 #### 2.3 Commit & PR (via StoryRunner)
 
@@ -733,7 +803,273 @@ try {
 }
 ```
 
-#### 2.4 Post-Story Checkpoint (Human Approval)
+#### 2.4 Mark Story for Review
+
+- **Update sprint-status.yaml:** Change story status from `in-progress` → `review`
+- **Update state file:** Mark story as "🔍 In Review"
+- **Commit state change:** `git commit -m "chore: mark story X.Y for review"`
+
+#### 2.5 Multi-Agent Code Review Loop (Max 3 Rounds)
+
+Execute up to 3 review-fix cycles to achieve code quality convergence:
+
+**For round = 1 to 3:**
+
+##### Step A: Spawn Reviewer Agent (Fresh Context)
+
+- **Use Task tool** with `subagent_type: general-purpose`
+- **CRITICAL:** Reviewer agent has NO implementation context
+- **Runs:** `/bmad-bmm-code-review` workflow
+- **Output:** Creates `docs/progress/story-X-Y-review-findings-round-{round}.md`
+
+**Findings Document Format:**
+
+```markdown
+# Story X.Y Code Review Findings - Round {round}
+
+**Reviewer:** Agent (Fresh Context)
+**Date:** YYYY-MM-DD HH:MM
+**Branch:** story-X-Y-description
+**Commit:** abc123def
+
+## Critical Issues (Must Fix)
+
+1. **[Category]:** Description
+   - **File:** path/to/file.ts:line
+   - **Problem:** Specific problem description
+   - **Impact:** Why this matters
+   - **Fix:** Suggested fix
+
+## Important Issues (Should Fix)
+
+2. **[Category]:** Description
+   - **File:** path/to/file.ts:line
+   - **Problem:** Specific problem description
+   - **Impact:** Why this matters
+   - **Fix:** Suggested fix
+
+## Minor Issues (Nice to Have)
+
+3. **[Category]:** Description
+   - **File:** path/to/file.ts:line
+   - **Problem:** Specific problem description
+   - **Impact:** Why this matters
+   - **Fix:** Suggested fix
+
+## Summary
+
+- **Total findings:** 3
+- **Critical:** 1
+- **Important:** 1
+- **Minor:** 1
+- **Recommendation:** Fix critical and important issues, then re-review
+```
+
+##### Step B: Decision Point
+
+**Clean State Definition:**
+
+A story is considered CLEAN when:
+
+- **MUST-FIX findings:** 0 (Critical + Important combined)
+- **NICE-TO-HAVE findings:** Acceptable (Minor, up to 3)
+
+**Reviewer MUST categorize all findings:**
+
+- **MUST-FIX (Critical):** Security vulnerabilities, crashes, data loss, ADR violations, hook violations, missing critical tests
+- **MUST-FIX (Important):** Performance issues, incomplete implementation, architectural concerns, significant test gaps
+- **NICE-TO-HAVE (Minor):** Code style, naming conventions, documentation, minor refactoring suggestions
+
+**If MUST-FIX count == 0:**
+
+- Review clean! ✅
+- Exit loop
+- Proceed to Step 2.6 (Finalize Story)
+
+**If MUST-FIX count > 0 AND round < 3:**
+
+- Continue to Step C (Spawn Fixer Agent)
+
+**If MUST-FIX count > 0 AND round == 3:**
+
+- **Max rounds exceeded!** ⚠️
+- Mark story as `blocked-review` in sprint-status.yaml
+- Update state file: "❌ Blocked - Max review rounds exceeded"
+- **Escalate to human:**
+
+  ```
+  ⚠️ Story X.Y Review Blocked
+
+  After 3 review rounds, issues remain:
+  - Critical: 1
+  - Important: 2
+  - Minor: 1
+
+  Findings document: docs/progress/story-X-Y-review-findings-round-3.md
+
+  Options:
+  a) Manual review and fix (pause autonomous workflow)
+  b) Accept findings and mark story complete (not recommended)
+  c) Continue with 1 more review round (override limit)
+
+  Your choice:
+  ```
+
+- Wait for human decision
+- Do NOT continue to next story
+
+##### Step C: Spawn Fixer Agent (Implementation Context)
+
+- **Use Task tool** with `subagent_type: general-purpose`
+- **Provide context:** Implementation history + findings document
+- **Task:** "Address all findings in `docs/progress/story-X-Y-review-findings-round-{round}.md`"
+
+**Fixer Agent Instructions:**
+
+```markdown
+You are fixing code review findings for Story X.Y.
+
+**Context:**
+
+- Story: [Story Title]
+- Findings: docs/progress/story-X-Y-review-findings-round-{round}.md
+- Branch: story-X-Y-description
+
+**Your task:**
+
+1. Read the findings document completely
+2. For each finding (Critical → Important → Minor):
+   - Understand the problem
+   - Implement the fix
+   - Ensure hooks still pass (TDD, architecture, shared libs)
+3. Run tests after each fix (must pass)
+4. Commit fixes: `fix: address code review round {round} - [brief description]`
+
+**Rules:**
+
+- Fix ALL critical and important issues
+- Fix minor issues if time permits
+- Maintain test coverage (80%+)
+- Follow hooks enforcement (they will block violations)
+- Do NOT skip tests
+- Commit after each logical group of fixes
+
+**When complete:**
+
+- Report: "Fixed X issues from round {round}"
+- List: Which findings were addressed
+- Note: Any findings that couldn't be fixed and why
+```
+
+**Fixer Agent Actions:**
+
+1. Read findings document
+2. For each finding:
+   - Navigate to file
+   - Implement fix
+   - Run tests (hooks enforce they pass)
+   - Commit: `fix: address review round {round} - [issue category]`
+3. Report completion with summary
+
+##### Step D: Loop Back to Step A (Next Review Round)
+
+- Increment round counter
+- If round <= 3, spawn new reviewer agent (fresh context)
+- Repeat until findings.count == 0 or round == 3
+
+#### 2.6 Finalize Story (After Clean Review)
+
+**Step 1: Sync with Latest Main**
+
+Before marking story complete, ensure branch is up-to-date with main:
+
+```bash
+# Fetch latest main
+git fetch origin main
+
+# Merge main into story branch (no force push needed)
+git merge origin/main
+```
+
+**Why merge instead of rebase:**
+
+- ✅ Preserves commit history (no rewrites)
+- ✅ Follows Invariant #3: "Never force push"
+- ✅ Safe for branches already pushed to remote
+- ✅ GitHub PR shows clean merge preview
+
+**If merge succeeds (no conflicts):**
+
+- Re-run tests: `npm test` (hooks enforce they pass)
+- Push: `git push origin story-X-Y-branch` (standard push, no `-f`)
+- Continue to Step 2
+
+**If merge has conflicts:**
+
+- **Auto-resolve (if possible):**
+  - Simple additions to imports/exports
+  - Non-overlapping changes to different sections
+  - Package.json dependency additions
+- **Escalate to human (if complex):**
+  - Logic changes in same function
+  - Deletions or renames
+  - Multiple conflicts in same file
+  - Conflicts in critical files (shared libs, types, schemas)
+
+**Human escalation message:**
+
+```
+⚠️ Merge Conflicts Detected
+
+Story X.Y has conflicts with main branch:
+- Conflicting files: 3
+  - shared/types/index.ts (imports section)
+  - backend/functions/save/handler.ts (logic change)
+  - package.json (dependencies)
+
+Options:
+a) Auto-resolve simple conflicts (imports only)
+b) Manual resolution required (pause workflow)
+c) Skip story for now, continue to next
+
+Your choice:
+```
+
+**Step 2: Update sprint-status.yaml**
+
+- Change story status `review` → `done`
+
+**Step 3: Update PR description**
+
+Add review summary:
+
+```markdown
+## Code Review Summary
+
+- Review rounds: 2
+- Final status: ✅ Clean (no findings)
+- Findings addressed: 5 (3 critical, 2 important)
+- Review documents:
+  - Round 1: docs/progress/story-X-Y-review-findings-round-1.md
+  - Round 2: docs/progress/story-X-Y-review-findings-round-2.md
+```
+
+- **Update state file:** Mark story "✅ Complete - Reviewed & Clean"
+- **Show summary:**
+
+  ```
+  ✅ Story X.Y Complete & Reviewed
+  - PR: #N (https://github.com/.../pull/N)
+  - Tests: 15 passed, 0 failed
+  - Coverage: 87%
+  - Review rounds: 2
+  - Final status: Clean (no findings)
+  - Findings fixed: 5 total
+
+  Ready for human merge approval.
+  ```
+
+#### 2.7 Post-Story Checkpoint (Human Approval)
 
 - **Update state file:** Mark story "✅ Complete", add PR link
 - **Show summary:**
@@ -997,22 +1333,28 @@ After all stories complete (or user stops):
    - PRs opened: 7
    - Tests passed: 142
    - Coverage: 83% average
+   - Review rounds: 14 total
+   - Findings fixed: 23 total
    - Blockers encountered: 1
 
    ## Story Status
 
-   | Story | Status      | PR  | Duration | Notes                             |
-   | ----- | ----------- | --- | -------- | --------------------------------- |
-   | 1.1   | ✅ Complete | #74 | 15m      | Clean                             |
-   | 1.2   | ✅ Complete | #75 | 18m      | Clean                             |
-   | 1.3   | ❌ Blocked  | -   | -        | Tests failed, needs investigation |
-   | 1.4   | ✅ Complete | #76 | 22m      | Clean                             |
-   | ...   | ...         | ... | ...      | ...                               |
+   | Story | Status      | PR  | Review Rounds | Findings Fixed | Duration | Notes                             |
+   | ----- | ----------- | --- | ------------- | -------------- | -------- | --------------------------------- |
+   | 1.1   | ✅ Complete | #74 | 2 (clean)     | 5              | 15m      | Clean after round 2               |
+   | 1.2   | ✅ Complete | #75 | 1 (clean)     | 0              | 18m      | Clean on first review             |
+   | 1.3   | ❌ Blocked  | -   | -             | -              | -        | Tests failed, needs investigation |
+   | 1.4   | ✅ Complete | #76 | 3 (clean)     | 8              | 22m      | Clean after round 3               |
+   | ...   | ...         | ... | ...           | ...            | ...      | ...                               |
 
    ## Metrics
 
-   - Average story time: 18 minutes
+   - Average story time: 18 minutes (includes review time)
    - Test pass rate: 98%
+   - **Review convergence:** 85% clean by round 2, 100% by round 3
+   - **Average review rounds:** 2 per story
+   - **Findings per story:** 3.3 average (ranging 0-8)
+   - **Most common issues:** Test coverage (40%), Architecture compliance (30%), Performance (20%), Security (10%)
    - Hook blocks: 3 (all self-corrected)
    - Human interventions: 1 (Story 1.3 test failure)
 
@@ -1125,16 +1467,16 @@ Location: `docs/progress/epic-N-auto-run.md`
 
 ## Stories
 
-| Story | Status         | PR  | Tests    | Coverage | Duration | Notes         |
-| ----- | -------------- | --- | -------- | -------- | -------- | ------------- |
-| 1.1   | ✅ Complete    | #74 | 15/15 ✅ | 87%      | 15m      | -             |
-| 1.2   | ✅ Complete    | #75 | 12/12 ✅ | 92%      | 18m      | -             |
-| 1.3   | 🔄 In Progress | -   | -        | -        | -        | Started 15:00 |
-| 1.4   | ⏳ Pending     | -   | -        | -        | -        | -             |
-| 1.5   | ⏳ Pending     | -   | -        | -        | -        | -             |
-| 1.6   | ⏳ Pending     | -   | -        | -        | -        | -             |
-| 1.7   | ⏳ Pending     | -   | -        | -        | -        | -             |
-| 1.8   | ⏳ Pending     | -   | -        | -        | -        | -             |
+| Story | Status         | PR  | Tests    | Coverage | Review Rounds | Duration | Notes         |
+| ----- | -------------- | --- | -------- | -------- | ------------- | -------- | ------------- |
+| 1.1   | ✅ Complete    | #74 | 15/15 ✅ | 87%      | 2 (clean)     | 15m      | -             |
+| 1.2   | ✅ Complete    | #75 | 12/12 ✅ | 92%      | 1 (clean)     | 18m      | -             |
+| 1.3   | 🔄 In Progress | -   | -        | -        | -             | -        | Started 15:00 |
+| 1.4   | ⏳ Pending     | -   | -        | -        | -             | -        | -             |
+| 1.5   | ⏳ Pending     | -   | -        | -        | -             | -        | -             |
+| 1.6   | ⏳ Pending     | -   | -        | -        | -             | -        | -             |
+| 1.7   | ⏳ Pending     | -   | -        | -        | -             | -        | -             |
+| 1.8   | ⏳ Pending     | -   | -        | -        | -             | -        | -             |
 
 ## Metrics
 
@@ -1142,6 +1484,9 @@ Location: `docs/progress/epic-N-auto-run.md`
 - PRs opened: 2
 - Tests passed: 27/27
 - Average coverage: 89.5%
+- **Review rounds:** 3 total (avg 1.5 per story)
+- **Findings fixed:** 8 total (5 critical, 3 important)
+- **Review convergence rate:** 100% (all stories reached clean state)
 - Total duration: 33m
 - Estimated remaining: 1h 48m
 
@@ -1449,17 +1794,32 @@ main(process.argv.slice(2)).catch((err) => {
 
 **Purpose:** Platform-specific integrations
 
-**GitHubStoryRunner** (`src/adapters/GitHubStoryRunner.ts`):
+**Implementation Roadmap:**
 
-- Uses `@octokit/rest` (NOT `gh` CLI) for API calls
-- Implements all StoryRunner interface methods
+- **v1 (Current)**: `GitHubCLIRunner` - Uses `gh` CLI + git commands (fastest to ship, least auth ceremony)
+- **v2 (Future)**: `GitHubOctokitRunner` - Uses `@octokit/rest` Node library (better for CI/CD, finer control)
+
+**GitHubCLIRunner (v1)** (`src/adapters/GitHubCLIRunner.ts`):
+
+- **Default adapter for v1 implementation**
+- Uses `gh` CLI for GitHub operations (issues, PRs, repo queries)
+- Uses `git` commands for branch/commit operations
+- Simplest auth story (leverages existing `gh auth login`)
+- See "StoryRunner Adapters" section below for detailed operations
+
+**GitHubOctokitRunner (v2 - Future)** (`src/adapters/GitHubOctokitRunner.ts`):
+
+- Uses `@octokit/rest` Node library for API calls
 - Handles authentication via GitHub App or PAT
-- Includes retry logic with exponential backoff
+- Better retry logic with exponential backoff
+- Finer-grained error handling
+- No CLI dependency (better for containerized environments)
 
 ```typescript
+// Example v2 implementation (reference only - not yet built)
 import { Octokit } from "@octokit/rest";
 
-export class GitHubStoryRunner implements StoryRunner {
+export class GitHubOctokitRunner implements StoryRunner {
   private octokit: Octokit;
 
   constructor(auth: string) {
@@ -1871,9 +2231,11 @@ class EpicOrchestrator {
 
 ## StoryRunner Adapters
 
-### GitHubStoryRunner (Default)
+### GitHubCLIRunner (v1 - Default)
 
 Uses GitHub CLI (`gh`) and Git to manage issues, branches, and PRs.
+
+**This is the v1 implementation** referenced in "Architecture: Core vs CLI Separation" section.
 
 **Setup:**
 
