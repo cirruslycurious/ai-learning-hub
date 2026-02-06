@@ -6,9 +6,11 @@ Supporting reference for the epic orchestrator. Read this file when entering Ste
 
 Execute up to 3 review-fix cycles to achieve code quality convergence. The orchestrator coordinates between a **reviewer subagent** (fresh context, read-only) and a **fixer subagent** (implementation context, full edit tools).
 
-**Max rounds:** 3
+**Max rounds:** 3 (review rounds, meaning up to 2 fix cycles + 1 final review)
 **Clean state:** 0 MUST-FIX findings (Critical + Important)
 **Exit conditions:** Clean state reached OR max rounds exceeded
+
+**Round progression:** Round 1 review → fix → Round 2 review → fix → Round 3 review → escalate if still unclean. This gives 2 fix attempts before escalation.
 
 ## Step A: Spawn Reviewer Subagent
 
@@ -153,6 +155,8 @@ Task tool invocation:
 3. Repeat until MUST-FIX count == 0 or round exceeds limit
 
 **Key:** Each reviewer round gets a FRESH context. The reviewer never sees previous review rounds or fixer actions. It only sees the current state of the code.
+
+**Branch locality:** The fixer commits locally but does NOT push during the review loop. The reviewer diffs against the local branch ref (`{branch_name}`), which includes fixer commits since it's in the same local repo. The triple-dot diff `origin/{base_branch}...{branch_name}` resolves `{branch_name}` as a local ref (not `origin/{branch_name}`), so fixer commits are visible to the reviewer. No push is needed until the review loop exits cleanly (push happens in Phase 2.3/2.6).
 
 ## Dry Run Behavior
 

@@ -29,7 +29,7 @@ The orchestrator passes you:
    git diff origin/{base_branch}...{branch_name}
    ```
 
-2. **Review all changed files** thoroughly using the code review methodology from your preloaded skill
+2. **Review all changed files** thoroughly. Your preloaded `bmad-bmm-code-review` skill provides review categories and best practices as background knowledge. Use the structured findings format defined below (not the skill's own output format) since the orchestrator parses findings by the Critical/Important/Minor structure
 
 3. **Write findings** to the specified output path using this exact format:
 

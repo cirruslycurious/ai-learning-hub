@@ -54,36 +54,56 @@ for (const depStoryId of completedStory.dependents) {
 
 ### 2. Interface/Type Changes
 
-Parse TypeScript types exported by the completed story and check if dependent stories import them:
+Check if the completed story modified any TypeScript type definitions or exports that dependent stories may rely on. Use `git diff` to detect changes to type-related files:
 
 ```javascript
-const exportedTypes = await getExportedTypes(completedBranchName);
+// Find type/interface changes in the diff (look for modified .ts/.d.ts files with export changes)
+const diffOutput = await execCommand(
+  `git diff origin/${baseBranch}...${completedBranchName} -- "*.ts" "*.d.ts"`
+);
 
-for (const depStoryId of completedStory.dependents) {
-  const depStory = getStory(depStoryId);
-  const depStoryImports = await getExpectedImports(depStory);
-  const typeChanges = exportedTypes.filter((t) =>
-    depStoryImports.some((i) => i.includes(t.name))
-  );
+// Check for exported type/interface modifications
+const typeChangePattern =
+  /^[+-]\s*export\s+(type|interface|enum|const)\s+(\w+)/gm;
+const changedTypes = [...diffOutput.matchAll(typeChangePattern)].map(
+  (m) => m[2]
+);
 
-  if (typeChanges.length > 0) {
-    console.warn(
-      `⚠️ Story ${depStory.id}: Type changes detected: ${typeChanges.map((t) => t.name).join(", ")}`
+if (changedTypes.length > 0) {
+  // Cross-reference with dependent stories' `touches` fields
+  for (const depStoryId of completedStory.dependents) {
+    const depStory = getStory(depStoryId);
+    const depTouches = depStory.touches || [];
+    // If dependent story touches any of the same directories, warn about type changes
+    const relevantChanges = actualChangedFiles.filter(
+      (f) =>
+        depTouches.some((t) => f.includes(t)) &&
+        (f.endsWith(".ts") || f.endsWith(".d.ts"))
     );
+    if (relevantChanges.length > 0) {
+      console.warn(
+        `⚠️ Story ${depStory.id}: Type changes detected in shared files: ${changedTypes.join(", ")}`
+      );
+    }
   }
 }
 ```
 
 ### 3. Acceptance Criteria Validation
 
-Re-run tests for the completed story to ensure they still pass:
+Re-run the full test suite to ensure all tests still pass after the completed story's changes:
+
+```bash
+npm test
+```
 
 ```javascript
-const testResults = await runTests(completedStory.testFiles);
+const testOutput = await execCommand("npm test");
+const testFailed = testOutput.includes("FAIL") || testOutput.includes("failed");
 
-if (testResults.failed > 0) {
+if (testFailed) {
   console.error(
-    `❌ Story ${completedStory.id}: Acceptance tests failing after implementation`
+    `❌ Story ${completedStory.id}: Tests failing after implementation`
   );
   console.error(
     `   This may affect dependent stories: ${completedStory.dependents.join(", ")}`

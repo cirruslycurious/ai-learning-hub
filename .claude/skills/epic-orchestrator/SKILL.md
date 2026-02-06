@@ -18,7 +18,7 @@ These are **non-negotiable**. The orchestrator enforces ALL of these at all time
 3. **Never force push** — All pushes use standard `git push` (no `--force` or `--force-with-lease`)
 4. **Never push to base branch** — All story work happens on feature branches; base branch (main/master) remains protected
 5. **Never skip tests** — All stories must pass tests before marking complete
-6. **Never silently ignore failures** — Failures trigger auto-recovery (max 3 attempts), then require human decision (fix/skip/pause)
+6. **Never silently ignore failures** — Failures trigger auto-recovery (max 2 attempts), then require human decision (fix/skip/pause)
 7. **Idempotent operations** — All GitHub operations (issue/branch/PR creation) reuse existing resources if found
 8. **State persistence** — Progress saved continuously with atomic writes; `--resume` picks up exactly where workflow left off
 9. **Human checkpoints** — Scope confirmation (Phase 1), per-story approval (Phase 2), integration checkpoints (Phase 2), and completion review (Phase 3) require human approval
@@ -39,7 +39,7 @@ Locate and parse the epic file:
 
 For each story referenced in the epic:
 
-1. Read story file (typically at `_bmad-output/implementation-artifacts/stories/{story_id}.md`)
+1. Read story file at `_bmad-output/implementation-artifacts/stories/{story_id}.md`. If not found, use glob fallback: `_bmad-output/**/stories/{story_id}.md`. If still not found, error: `❌ Story file not found for ${story_id}. Expected at _bmad-output/implementation-artifacts/stories/{story_id}.md`
 2. Parse YAML frontmatter: `id`, `title`, `depends_on`, `touches`, `risk`
 3. Store as structured story objects with `story.dependencies` for consistent access
 
@@ -111,9 +111,20 @@ For each story in scope (topological order):
 
 **Check dependencies:**
 
+- **Fetch latest remote state** before checking: `git fetch origin ${baseBranch}` (ensures local remote-tracking ref is current for merge-base checks)
 - For each dependency, verify status is "done" in state file
 - For stories WITH dependents (default `--require-merged`): verify code reached base branch via `git merge-base --is-ancestor` (see state-file.md dependency completion policy)
-- If dependency not met → error with actionable message
+- If dependency not met → show actionable error and prompt user:
+
+  ```
+  ❌ Dependency not met for Story ${story.id}
+  Dependency ${depId} has status: ${depStatus}
+
+  Options:
+  a) Skip this story (mark as blocked, continue to next)
+  b) Pause workflow (resume after manually resolving dependency)
+  c) Override (proceed anyway — use only if you understand the risk)
+  ```
 
 **Update status:** `updateStoryStatus(story, "in-progress")`
 
@@ -128,7 +139,9 @@ All operations go through StoryRunner interface (see story-runner.md). No direct
 
 ### 2.2 Implementation (Protected by Hooks)
 
-**Invoke `/bmad-bmm-dev-story`** for the current story:
+**Dry-run gate:** If `--dry-run` mode is active, skip the entire implementation phase. Log `[DRY-RUN] Would invoke /bmad-bmm-dev-story for Story ${story.id}` and proceed directly to Phase 2.3 (commit & PR will also be handled by DryRunStoryRunner). Set `coverage = null` since no tests are actually run.
+
+**Invoke `/bmad-bmm-dev-story`** for the current story using the Skill tool: `Skill(skill: "bmad-bmm-dev-story", args: "${storyFilePath}")`. The orchestrator waits for the skill invocation to complete before proceeding. The skill runs inline in the current agent context (not as a subagent) and has access to the checked-out branch.
 
 - Read story acceptance criteria
 - Write tests first (tdd-guard enforces this)
@@ -150,6 +163,20 @@ All operations go through StoryRunner interface (see story-runner.md). No direct
 npm run lint      # Verify format/style
 npm run build     # Verify TypeScript compiles
 npm test          # Verify all tests still pass after formatting
+```
+
+**Capture coverage** from the `npm test` output. Parse the coverage summary line (e.g., `All files | 87.5 | ...`) to extract the overall percentage. Store as `coverage` for PR body and state file:
+
+```javascript
+// Run npm test and capture output
+const testOutput = await execCommand("npm test -- --coverage");
+// Parse coverage from Jest output: look for "All files" line in coverage summary table
+// Example line: "All files      |   87.5 |    82.3 |   91.2 |   87.5 |"
+const coverageMatch = testOutput.match(/All files\s*\|\s*([\d.]+)/);
+const coverage = coverageMatch
+  ? Math.round(parseFloat(coverageMatch[1]))
+  : null;
+// If coverage cannot be parsed, log warning and use "N/A" in PR body
 ```
 
 ### 2.3 Commit & PR
@@ -204,7 +231,17 @@ git fetch origin main
 git merge origin/main    # Merge, never rebase (preserves history, no force push)
 ```
 
-- If merge succeeds: re-run tests, push
+- If merge succeeds: re-run tests (`npm test`):
+  - **Tests pass:** push updated branch
+  - **Tests fail after merge:** The merge introduced a regression. Present error recovery options:
+    ```
+    ❌ Tests failed after merging main into Story X.Y branch
+    Options:
+    a) Auto-fix: Analyze failures and attempt fix (max 2 attempts)
+    b) Revert merge: git merge --abort, keep story in "review" status, pause for manual resolution
+    c) Skip story: Mark as blocked, continue to next
+    d) Debug: Show full test output
+    ```
 - If merge conflicts: attempt auto-resolve for simple cases (imports, non-overlapping changes). Escalate complex conflicts to human.
 
 **Step 2: Update PR description** — add review summary (rounds, findings fixed, review doc links)
@@ -218,28 +255,38 @@ git merge origin/main    # Merge, never rebase (preserves history, no force push
 **Ask:** `Continue to Story X.Z? (y/n/pause/skip)`
 
 - **y** → Continue to next story
-- **n** → Stop execution, save progress
-- **pause** → Save state, resume later with `--resume`
+- **n** → Stop execution, save progress (current story stays `done`, epic marked `paused`)
+- **pause** → `updateStoryStatus(currentStory, "paused")` if in-progress, save state, resume later with `--resume`
 - **skip** → Skip next story (with dependency validation):
-  - If skipped story has NO dependents → safe to skip
-  - If skipped story HAS dependents → show impact, ask: (a) skip entire sub-tree, (b) go back, (c) remove dependents from scope
+  - `updateStoryStatus(nextStory, "skipped")`
+  - If skipped story has NO dependents → safe to skip, continue to story after
+  - If skipped story HAS dependents → show impact, ask:
+    - **(a) skip entire sub-tree** → `updateStoryStatus(depStory, "skipped")` for each dependent in sub-tree, continue to next non-skipped story
+    - **(b) go back** → revert skip status, re-prompt the "Continue?" question
+    - **(c) remove dependents from scope** → `updateStoryStatus(depStory, "skipped")` for each dependent, remove them from the in-memory execution list, continue to next non-skipped story
 
 ### 2.7 Integration Checkpoint
 
 **Read `integration-checkpoint.md` in this skill directory for validation details.**
 
-**When:** After completing a story where `story.hasDependents === true`
+**When:** After completing a story where `story.hasDependents === true`. Runs AFTER Phase 2.6 sync-with-main and BEFORE the user "Continue?" prompt. (The 2.6 human checkpoint prompt is deferred until after integration checkpoint results are available, so the user sees the full picture before deciding.)
+
+**Branch guarantee:** Before running integration checks, ensure the completed story's branch is checked out:
+
+```bash
+git checkout ${branchName}  # Ensure correct branch context after merge operations
+```
 
 **Checks:**
 
 1. Shared file changes — `git diff --name-only` cross-referenced with dependent stories' `touches` field
-2. Interface/type changes — TypeScript export analysis vs dependent imports
+2. Interface/type changes — TypeScript export diff analysis (see integration-checkpoint.md)
 3. Acceptance criteria — re-run tests for completed story
 
 **Result classification and user interaction** (see integration-checkpoint.md for details):
 
-- **Green (all clear):** Show results, auto-continue to next story (still display checkpoint summary)
-- **Yellow (warnings):** Show warnings, prompt user to confirm before continuing
+- **Green (all clear):** Show results, fold into the Phase 2.6 "Continue?" prompt (no separate prompt)
+- **Yellow (warnings):** Show warnings alongside the Phase 2.6 "Continue?" prompt for user to consider
 - **Red (failures):** Escalate to user, do NOT continue automatically
 
 **User options (when prompted):** y / n / pause / review-X.Y
@@ -260,7 +307,7 @@ After all stories complete (or user stops):
 
 2. **Update epic file** — mark completed stories, add timestamps, link PRs
 
-3. **Update state file** — set `status: done` (or `paused` if user stopped early)
+3. **Update state file** — set epic-level `status: done` (or `paused` if user stopped early). Note: `paused` is a valid story and epic status (see state-file.md)
 
 4. **Notify user** — show completion summary, list all PRs for review, highlight blockers
 
