@@ -61,11 +61,12 @@ The workflow enforces these invariants to prevent destructive actions:
 1. **Never auto-merge PRs** — All PRs remain open for human review; workflow NEVER merges
 2. **Never bypass hooks** — All commits go through pre-commit hooks (architecture-guard, import-guard, TDD-guard, etc.)
 3. **Never force push** — All pushes use standard `git push` (no `--force` or `--force-with-lease`)
-4. **Never skip tests** — All stories must pass tests before marking complete
-5. **Never silently ignore failures** — Failures trigger auto-recovery (max 3 attempts with exponential backoff), then require human decision (fix/skip/pause)
-6. **Idempotent operations** — All GitHub operations (issue/branch/PR creation) reuse existing resources if found
-7. **State persistence** — Progress saved continuously; `--resume` picks up exactly where workflow left off
-8. **Human checkpoints** — Scope confirmation (Phase 1), integration checkpoints (Phase 2), and completion review (Phase 3) require human approval
+4. **Never push to base branch** — All story work happens on feature branches; base branch (main/master) remains protected
+5. **Never skip tests** — All stories must pass tests before marking complete
+6. **Never silently ignore failures** — Failures trigger auto-recovery (max 3 attempts with exponential backoff), then require human decision (fix/skip/pause)
+7. **Idempotent operations** — All GitHub operations (issue/branch/PR creation) reuse existing resources if found
+8. **State persistence** — Progress saved continuously with atomic writes (write temp file + rename) to prevent corruption on crash; `--resume` picks up exactly where workflow left off
+9. **Human checkpoints** — Scope confirmation (Phase 1), integration checkpoints (Phase 2), and completion review (Phase 3) require human approval
 
 ---
 
@@ -157,6 +158,7 @@ risk: low
 - For each story ID from epic file, read the **story file** at the path specified
 - Parse YAML frontmatter from each story file
 - Extract: `id`, `title`, `depends_on`, `touches`, `risk`
+- **Normalize:** Store `depends_on` as `story.dependencies` for consistent access throughout workflow
 
 #### 1.3 Dependency Analysis (NEW)
 
@@ -559,6 +561,11 @@ When resuming from state file, the workflow reconciles state file (primary) with
 
 Resume always favors state file status for control flow; secondary sources (GitHub) inform recovery strategy.
 
+**Risk Warning (Rule #2):** A story marked "done" with an unmerged PR means code never reached base branch. Dependent stories will proceed anyway, potentially causing broken epic. Mitigation options:
+
+- **Default mode** (current): State file wins; user responsible for merge verification
+- **Strict mode** (optional `--require-merged`): Story only satisfies dependency if PR merged OR commit exists on base branch
+
 ### Phase 2: Story Implementation Loop
 
 For each story in scope:
@@ -679,13 +686,39 @@ Part of Epic ${epic.id}: ${epic.title}
 If PR creation fails (API error, network issue, etc.):
 
 ```javascript
+// Compute all PR args before try/catch (for reuse in fallback)
+const branch = await getOrCreateBranch(story);
+const base = await runner.getDefaultBaseBranch();
+const title = `Implement Story ${story.id}: ${story.title}`;
+const body = `
+## Summary
+
+Implements Story ${story.id}: ${story.title}
+
+Closes #${issue.issueNumber}
+Part of Epic ${epic.id}: ${epic.title}
+
+## Testing
+
+- ✅ All tests pass
+- ✅ Coverage: ${coverage}%
+`.trim();
+
 try {
-  const pr = await runner.createPR(story, issue);
+  const pr = await runner.createPR({
+    story,
+    issue,
+    base,
+    head: branch.branchName,
+    title,
+    body,
+  });
 } catch (error) {
-  const base = await runner.getDefaultBaseBranch(); // Don't hardcode "main"
   console.error(`❌ PR creation failed: ${error.message}`);
   console.log(`📝 Manual PR creation required:`);
-  console.log(`   gh pr create --base ${base} --head ${branch.branchName}`);
+  console.log(
+    `   gh pr create --base ${base} --head ${branch.branchName} --title "${title}"`
+  );
 
   // Mark story as blocked
   await runner.updateStatus(story, "blocked");
@@ -841,16 +874,28 @@ Continue to Story 1.2? (y/n/pause/review-1.3)
 
 **Validation Checks:**
 
+**Helper Function:**
+
+```javascript
+// Deterministic branch name computation (used throughout workflow)
+function branchNameFor(story) {
+  return `story-${story.id.replace(".", "-")}-${slugify(story.title)}`;
+}
+```
+
 1. **Shared File Changes (uses git diff, not `touches` field):**
 
 ```javascript
 // Get base branch dynamically (don't hardcode "main")
 const baseBranch = await runner.getDefaultBaseBranch(); // "main" or "master"
 
+// Compute branch name deterministically
+const story11BranchName = branchNameFor(story11); // e.g., "story-1-1-user-registration"
+
 // Get ACTUAL files modified in Story 1.1 (source of truth: git diff)
 // Use triple-dot for PR-style diff (merge base to HEAD)
 const actualChangedFiles = await execCommand(
-  `git diff --name-only origin/${baseBranch}...${story11.branch}`
+  `git diff --name-only origin/${baseBranch}...${story11BranchName}`
 );
 
 // Check if any dependent stories expected to touch those files
@@ -884,7 +929,7 @@ for (const depStory of story11.dependents) {
 
 ```javascript
 // Parse TypeScript types exported by Story 1.1
-const story11Types = await getExportedTypes(story11.branch);
+const story11Types = await getExportedTypes(story11BranchName);
 
 // Check if dependent stories import those types
 for (const depStory of story11.dependents) {
@@ -1205,7 +1250,7 @@ cat docs/progress/epic-N-auto-run.md
 
 ### Required
 
-- Git repository with `main` branch
+- Git repository with default branch (main/master/trunk - auto-detected via `getDefaultBaseBranch()`)
 - **StoryRunner adapter** (GitHub, Jira, or DryRun)
   - For GitHub: `gh` CLI installed and authenticated
   - For Jira: Jira API credentials configured
@@ -1249,17 +1294,34 @@ gh auth status
 - `createIssue(story, epic)` → `gh issue create --title "Story X.Y: Title" --body "..."`
 - `createBranch(story, branchName)` → `git checkout -b ${branchName}`
 - `createPR({ story, issue, base, head, title, body })` → `gh pr create --base ${base} --head ${head} --title "${title}" --body "${body}"`
-- `findIssueByStoryId(storyId)` → `gh issue list --search "Story X.Y" --json number,url`
-- `findPRByBranch(branchName)` → `gh pr list --head ${branchName} --json number,url`
-- `branchExists(branchName)` → Pure check (no side effects). Checks local (`refs/heads/${branchName}`) OR remote (`refs/remotes/origin/${branchName}`):
+- `findIssueByStoryId(storyId)` → Searches for unique tag to avoid collisions:
 
   ```bash
-  # Runner must ensure remote refs are fresh (via git fetch or ls-remote)
-  git fetch origin $branchName --quiet 2>/dev/null || true
+  # Hardened: search for unique tag (prevents "Story 1.2" matching "Story 11.2")
+  gh issue list --search "bmad:story=${storyId} bmad:epic=${epicId}" --json number,url
 
-  # Check local OR remote
-  git show-ref --verify --quiet refs/heads/$branchName \
-    || git show-ref --verify --quiet refs/remotes/origin/$branchName
+  # Fallback: search title (less reliable, may collide across epics)
+  # gh issue list --search "Story ${storyId}" --json number,url
+  ```
+
+  Issue body/title must include tag: `bmad:story=1.2 bmad:epic=Epic-1`
+
+- `findPRByBranch(branchName)` → `gh pr list --head ${branchName} --json number,url`
+- `branchExists(branchName)` → Pure check (no side effects). Checks local (`refs/heads/${branchName}`) OR remote:
+
+  ```bash
+  # Check local first (fast)
+  if git show-ref --verify --quiet refs/heads/$branchName; then
+    exit 0
+  fi
+
+  # Check remote (deterministic, no fetch needed)
+  # Preferred: git ls-remote (no local state changes, handles auth cleanly)
+  git ls-remote --exit-code --heads origin "$branchName" >/dev/null 2>&1
+
+  # Alternative (if ls-remote unavailable): fetch + show-ref
+  # git fetch origin $branchName --quiet 2>/dev/null || true
+  # git show-ref --verify --quiet refs/remotes/origin/$branchName
   ```
 
 - `ensureBranchCheckedOut(branchName)` → Checks out branch locally if it exists only on remote:
