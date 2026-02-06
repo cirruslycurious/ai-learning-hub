@@ -97,9 +97,15 @@ function slugify(text) {
 }
 
 function branchNameFor(story) {
-  return `story-${story.id.replace(".", "-")}-${slugify(story.title)}`;
+  const slug = slugify(story.title);
+  // Fallback: if slugify returns empty string (e.g., title is "(TBD)" or "---"), use ID only
+  if (!slug) {
+    return `story-${story.id.replace(".", "-")}`;
+  }
+  return `story-${story.id.replace(".", "-")}-${slug}`;
 }
 // Example: story.id="1.2", story.title="Save Project" → "story-1-2-save-project"
+// Example: story.id="1.1", story.title="(TBD)" → "story-1-1"
 ```
 
 ## Idempotent Operations
@@ -181,7 +187,7 @@ Part of Epic {epic.id}: {epic.title}
 - [x] Tests written and passing
 - [x] Code follows architecture patterns
 - [x] Shared libraries used
-- [x] Documentation updated (if needed)
+- [ ] Documentation updated (if needed)
 ```
 
 ## Retry Logic
@@ -279,8 +285,8 @@ gh pr view ${branchName} --json state --jq '.state'
 Sync story status to GitHub issue labels (secondary source):
 
 ```bash
-# Add status label to issue
-gh issue edit ${issueNumber} --add-label "status:${status}" --remove-label "status:pending,status:in-progress,status:review,status:done,status:blocked,status:paused,status:skipped"
+# Add status label to issue (use separate --remove-label flags for each label)
+gh issue edit ${issueNumber} --add-label "status:${status}" --remove-label "status:pending" --remove-label "status:in-progress" --remove-label "status:review" --remove-label "status:done" --remove-label "status:blocked" --remove-label "status:paused" --remove-label "status:skipped"
 ```
 
 If the issue doesn't exist yet (story still `pending`), this is a no-op.
@@ -300,16 +306,20 @@ class DryRunStoryRunner {
   issueCounter = 0;
   prCounter = 0;
   log = [];
+  createdIssues = new Map(); // storyId → IssueResult (for idempotency simulation)
+  createdPRs = new Map(); // branchName → PRResult (for idempotency simulation)
 
   async createIssue(story, epic) {
     this.issueCounter++;
-    this.log.push(
-      `[DRY-RUN] Would create issue: Story ${story.id}: ${story.title}`
-    );
-    return {
+    const result = {
       issueNumber: this.issueCounter,
       issueUrl: `https://github.com/mock/issues/${this.issueCounter}`,
     };
+    this.createdIssues.set(story.id, result);
+    this.log.push(
+      `[DRY-RUN] Would create issue: Story ${story.id}: ${story.title}`
+    );
+    return result;
   }
 
   async createBranch(story, branchName) {
@@ -319,18 +329,20 @@ class DryRunStoryRunner {
 
   async createPR(args) {
     this.prCounter++;
-    this.log.push(`[DRY-RUN] Would create PR: ${args.title}`);
-    return {
+    const result = {
       prNumber: this.prCounter,
       prUrl: `https://github.com/mock/pull/${this.prCounter}`,
     };
+    this.createdPRs.set(args.head, result);
+    this.log.push(`[DRY-RUN] Would create PR: ${args.title}`);
+    return result;
   }
 
-  async findIssueByStoryId() {
-    return null;
+  async findIssueByStoryId(storyId) {
+    return this.createdIssues.get(storyId) || null;
   }
-  async findPRByBranch() {
-    return null;
+  async findPRByBranch(branchName) {
+    return this.createdPRs.get(branchName) || null;
   }
   async branchExists() {
     return false;

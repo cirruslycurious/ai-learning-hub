@@ -18,7 +18,7 @@ These are **non-negotiable**. The orchestrator enforces ALL of these at all time
 3. **Never force push** — All pushes use standard `git push` (no `--force` or `--force-with-lease`)
 4. **Never push to base branch** — All story work happens on feature branches; base branch (main/master) remains protected
 5. **Never skip tests** — All stories must pass tests before marking complete
-6. **Never silently ignore failures** — Failures trigger auto-recovery (max 2 attempts), then require human decision (fix/skip/pause)
+6. **Never silently ignore failures** — Failures trigger auto-fix (max 2 attempts), then require human decision (fix/skip/pause)
 7. **Idempotent operations** — All GitHub operations (issue/branch/PR creation) reuse existing resources if found
 8. **State persistence** — Progress saved continuously with atomic writes; `--resume` picks up exactly where workflow left off
 9. **Human checkpoints** — Scope confirmation (Phase 1), per-story approval (Phase 2), integration checkpoints (Phase 2), and completion review (Phase 3) require human approval
@@ -113,7 +113,7 @@ For each story in scope (topological order):
 
 - **Fetch latest remote state** before checking: `git fetch origin ${baseBranch}` (ensures local remote-tracking ref is current for merge-base checks)
 - For each dependency, verify status is "done" in state file
-- For stories WITH dependents (default `--require-merged`): verify code reached base branch via `git merge-base --is-ancestor` (see state-file.md dependency completion policy)
+- For each dependency D of the current story: if D has dependents (`D.hasDependents === true`), verify D's code reached base branch via `git merge-base --is-ancestor ${D.commit} origin/${baseBranch}` (see state-file.md dependency completion policy). If D is a leaf story (no dependents), state file "done" status is sufficient.
 - If dependency not met → show actionable error and prompt user:
 
   ```
@@ -139,7 +139,7 @@ All operations go through StoryRunner interface (see story-runner.md). No direct
 
 ### 2.2 Implementation (Protected by Hooks)
 
-**Dry-run gate:** If `--dry-run` mode is active, skip the entire implementation phase. Log `[DRY-RUN] Would invoke /bmad-bmm-dev-story for Story ${story.id}` and proceed directly to Phase 2.3 (commit & PR will also be handled by DryRunStoryRunner). Set `coverage = null` since no tests are actually run.
+**Dry-run gate:** If `--dry-run` mode is active, skip the entire implementation phase. Log `[DRY-RUN] Would invoke /bmad-bmm-dev-story for Story ${story.id}` and proceed directly to Phase 2.5 (commit & PR will also be handled by DryRunStoryRunner). Set `coverage = null` since no tests are actually run.
 
 **Invoke `/bmad-bmm-dev-story`** for the current story using the Skill tool: `Skill(skill: "bmad-bmm-dev-story", args: "${storyFilePath}")`. The orchestrator waits for the skill invocation to complete before proceeding. The skill runs inline in the current agent context (not as a subagent) and has access to the checked-out branch.
 
@@ -157,20 +157,19 @@ All operations go through StoryRunner interface (see story-runner.md). No direct
 - `type-check.sh` (PostToolUse) — validates TypeScript
 - Stop hook (agent) — blocks completion if tests fail
 
-**Final quality gate** (run AFTER PostToolUse hooks complete, before commit):
+**Final quality gate** (run AFTER PostToolUse hooks complete, before review):
 
 ```bash
 npm run lint      # Verify format/style
 npm run build     # Verify TypeScript compiles
-npm test          # Verify all tests still pass after formatting
+npm test -- --coverage   # Verify all tests pass AND capture coverage in a single run
 ```
 
-**Capture coverage** from the `npm test` output. Parse the coverage summary line (e.g., `All files | 87.5 | ...`) to extract the overall percentage. Store as `coverage` for PR body and state file:
+**Capture coverage** from the `npm test -- --coverage` output (the single test run above). Parse the coverage summary line to extract the overall percentage. Store as `coverage` for PR body and state file:
 
 ```javascript
-// Run npm test and capture output
-const testOutput = await execCommand("npm test -- --coverage");
-// Parse coverage from Jest output: look for "All files" line in coverage summary table
+// Parse coverage from the quality gate test output (already captured above)
+// Look for "All files" line in Jest coverage summary table
 // Example line: "All files      |   87.5 |    82.3 |   91.2 |   87.5 |"
 const coverageMatch = testOutput.match(/All files\s*\|\s*([\d.]+)/);
 const coverage = coverageMatch
@@ -179,13 +178,42 @@ const coverage = coverageMatch
 // If coverage cannot be parsed, log warning and use "N/A" in PR body
 ```
 
-### 2.3 Commit & PR
+### 2.3 Mark for Review
+
+Update status: `updateStoryStatus(story, "review")`
+
+### 2.4 Code Review Loop
+
+**Read `review-loop.md` in this skill directory for the full protocol.**
+
+The review loop operates on uncommitted local changes (the reviewer diffs the working tree against the base branch). No push occurs until the review loop exits cleanly.
+
+Summary of the loop:
+
+1. **Spawn `epic-reviewer` subagent** (Task tool, `subagent_type: "epic-reviewer"`) — fresh context, writes findings doc
+2. **Read findings doc**, count MUST-FIX items (Critical + Important)
+3. **If clean (0 MUST-FIX):** Exit loop, proceed to 2.5
+4. **If not clean AND round < 3:** Spawn `epic-fixer` subagent (Task tool, `subagent_type: "epic-fixer"`) — reads findings, fixes issues, commits locally
+5. **If not clean AND round == 3:** Escalate to human (manual review / accept / override limit)
+6. Loop back to step 1 with fresh reviewer
+
+**In `--dry-run` mode:** Skip subagent spawning, log dry-run messages, proceed directly to 2.5 (Commit & PR).
+
+### 2.5 Commit & PR
+
+**Stage all changes** (implementation files + any fixer commits):
+
+```bash
+git add -A
+```
 
 **Commit with issue reference:**
 
 ```bash
 git commit -m "feat: implement story ${story.id} - ${story.title} #${issue.issueNumber}"
 ```
+
+**Note:** If the review loop's fixer already made commits during fix cycles, this final commit captures any remaining unstaged changes. The branch will contain the implementation commit(s) plus any fixer commits from the review loop.
 
 **Record commit SHA** in state file (needed for dependency merge-check):
 
@@ -203,46 +231,33 @@ pr = getOrCreatePR(story, epic, issue, coverage)
 
 **If PR creation fails:** Show manual fallback command, mark story as `blocked`, ask user to continue or pause.
 
-### 2.4 Mark for Review
-
-Update status: `updateStoryStatus(story, "review")`
-
-### 2.5 Code Review Loop
-
-**Read `review-loop.md` in this skill directory for the full protocol.**
-
-Summary of the loop:
-
-1. **Spawn `epic-reviewer` subagent** (Task tool, `subagent_type: "epic-reviewer"`) — fresh context, writes findings doc
-2. **Read findings doc**, count MUST-FIX items (Critical + Important)
-3. **If clean (0 MUST-FIX):** Exit loop, proceed to 2.6
-4. **If not clean AND round < 3:** Spawn `epic-fixer` subagent (Task tool, `subagent_type: "epic-fixer"`) — reads findings, fixes issues, commits
-5. **If not clean AND round == 3:** Escalate to human (manual review / accept / override limit)
-6. Loop back to step 1 with fresh reviewer
-
-**In `--dry-run` mode:** Skip subagent spawning, log dry-run messages, proceed directly to 2.6.
-
 ### 2.6 Finalize Story [HUMAN CHECKPOINT]
 
 **Step 1: Sync with main**
 
 ```bash
-git fetch origin main
-git merge origin/main    # Merge, never rebase (preserves history, no force push)
+git fetch origin ${baseBranch}
+git merge origin/${baseBranch}    # Merge, never rebase (preserves history, no force push)
 ```
 
 - If merge succeeds: re-run tests (`npm test`):
   - **Tests pass:** push updated branch
   - **Tests fail after merge:** The merge introduced a regression. Present error recovery options:
+
     ```
     ❌ Tests failed after merging main into Story X.Y branch
     Options:
     a) Auto-fix: Analyze failures and attempt fix (max 2 attempts)
-    b) Revert merge: git merge --abort, keep story in "review" status, pause for manual resolution
+    b) Revert merge: git reset --merge ORIG_HEAD, keep story in "review" status, pause for manual resolution
     c) Skip story: Mark as blocked, continue to next
     d) Debug: Show full test output
     ```
-- If merge conflicts: attempt auto-resolve for simple cases (imports, non-overlapping changes). Escalate complex conflicts to human.
+
+    **Note on revert command:** Use `git reset --merge ORIG_HEAD` (not `git merge --abort`) because the merge already completed successfully — `git merge --abort` only works during an in-progress merge with unresolved conflicts. `git reset --merge ORIG_HEAD` undoes a completed merge by resetting to the pre-merge state.
+
+- If merge conflicts (merge did NOT complete): use `git merge --abort` to cancel the in-progress merge, then attempt auto-resolve for simple cases (imports, non-overlapping changes). Escalate complex conflicts to human.
+
+**Important:** Steps 2 and 3 below are only reached if Step 1 (sync with base branch) succeeds. If Step 1 fails (merge conflict or test failure), follow the error recovery paths above — do NOT proceed to Steps 2 or 3.
 
 **Step 2: Update PR description** — add review summary (rounds, findings fixed, review doc links)
 
@@ -252,12 +267,22 @@ git merge origin/main    # Merge, never rebase (preserves history, no force push
 - Record final commit SHA
 - Show combined summary: PR#, tests, coverage, review rounds, findings fixed, progress (N/M)
 
-**Ask:** `Continue to Story X.Z? (y/n/pause/skip)`
+**User prompt (merged with integration checkpoint if applicable):**
+
+For stories **WITHOUT dependents:** prompt here at Step 3:
+`Continue to Story X.Z? (y/n/pause/skip)`
+
+For stories **WITH dependents:** defer this prompt until AFTER Phase 2.7 integration checkpoint completes. Show integration checkpoint results alongside the prompt with a merged option set:
+`Continue to Story X.Z? (y/n/pause/skip/review-X.Y)`
+
+The `review-X.Y` option is only available when integration checkpoint ran and shows detailed diff for a dependent story (see integration-checkpoint.md).
+
+**Options:**
 
 - **y** → Continue to next story
 - **n** → Stop execution, save progress (current story stays `done`, epic marked `paused`)
-- **pause** → `updateStoryStatus(currentStory, "paused")` if in-progress, save state, resume later with `--resume`
-- **skip** → Skip next story (with dependency validation):
+- **pause** → Current story stays `done`. Set epic-level status to `paused` in state file frontmatter (`status: paused`), save state, resume later with `--resume`. Do NOT call `updateStoryStatus` on the completed story — pause applies to the epic workflow, not to the finished story.
+- **skip** → Skip the NEXT story in execution order (current story remains `done`). With dependency validation:
   - `updateStoryStatus(nextStory, "skipped")`
   - If skipped story has NO dependents → safe to skip, continue to story after
   - If skipped story HAS dependents → show impact, ask:
@@ -297,13 +322,40 @@ git checkout ${branchName}  # Ensure correct branch context after merge operatio
 
 After all stories complete (or user stops):
 
-1. **Generate epic report** at `docs/progress/epic-{id}-completion-report.md`:
-   - Status (Complete/Paused/Partial)
-   - Duration, stories completed count
-   - Per-story table: status, PR#, review rounds, findings fixed, duration
-   - Metrics: average story time, test pass rate, review convergence, common issue categories
-   - Blockers list with details
-   - Next steps (merge PRs, investigate blockers, run integration tests)
+1. **Generate epic report** at `docs/progress/epic-{id}-completion-report.md` using this template:
+
+   ```markdown
+   # Epic {id} Completion Report
+
+   **Status:** {Complete | Paused | Partial}
+   **Duration:** {total duration}
+   **Stories Completed:** {done_count}/{total_count}
+   **Date:** {completion date}
+
+   ## Story Summary
+
+   | Story | Title   | Status   | PR    | Coverage    | Review Rounds | Findings Fixed | Duration   |
+   | ----- | ------- | -------- | ----- | ----------- | ------------- | -------------- | ---------- |
+   | {id}  | {title} | {status} | #{pr} | {coverage}% | {rounds}      | {fixed_count}  | {duration} |
+
+   ## Metrics
+
+   - **Average story time:** {avg_duration}
+   - **Test pass rate:** {pass_rate}%
+   - **Review convergence:** {avg_rounds} rounds average
+   - **Common issue categories:** {categories}
+
+   ## Blockers
+
+   {list of blocked stories with details, or "None"}
+
+   ## Next Steps
+
+   - [ ] Review and merge open PRs: {list of PR numbers}
+   - [ ] Investigate blocked stories: {list or "None"}
+   - [ ] Run full integration test suite
+   - [ ] Update sprint status
+   ```
 
 2. **Update epic file** — mark completed stories, add timestamps, link PRs
 

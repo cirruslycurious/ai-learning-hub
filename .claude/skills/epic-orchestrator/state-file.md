@@ -14,6 +14,7 @@ Supporting reference for the epic orchestrator. Read this file when entering Pha
 ---
 epic_id: Epic-1
 status: in-progress
+scope: all
 started: 2026-02-06T14:30:00Z
 last_updated: 2026-02-06T15:15:00Z
 stories:
@@ -61,6 +62,8 @@ stories:
 
 **Key design:** The YAML frontmatter is the machine-readable source of truth. The markdown table is regenerated from frontmatter on each update. Never parse the markdown table — always parse YAML frontmatter.
 
+**Scope tracking:** The `scope` field records the original `--stories` selection (e.g., `scope: [1.1, 1.2]` or `scope: all`). On `--resume`, restore this scope — only process stories listed in the state file's scope, not all stories in the epic. This prevents scope drift where resume unexpectedly expands to implement stories the user didn't originally select.
+
 ## Status Source of Truth
 
 **Primary:** State file (orchestration decisions)
@@ -93,6 +96,20 @@ function getStoryStatus(storyId) {
 
 Used by `validateStorySelection` (dependency-analysis.md) to check if an out-of-scope dependency is already complete.
 
+### `getStory(storyId)`
+
+Look up a story object by ID from the in-memory story list (parsed during Phase 1.2):
+
+```javascript
+function getStory(storyId) {
+  const story = stories.find((s) => s.id === storyId);
+  if (!story) return null; // story not found in parsed story list
+  return story; // returns full Story object with id, title, dependencies, dependents, touches, hasDependents, etc.
+}
+```
+
+Used by `integration-checkpoint.md` to retrieve dependent story objects (including their `touches` field) for overlap detection.
+
 **Decision flow:** The workflow reads the state file to make all control-flow decisions (e.g., "Can I start Story 1.4?" → check that 1.2 and 1.3 are "done" in state file). Secondary sources inform recovery, not decisions.
 
 **Conflict resolution:** If secondary sources diverge from state file, **state file wins** for orchestration. Emit warning: `⚠️ sprint-status.yaml shows Story 1.2 = 'in-progress', but state file shows 'done'. Using state file.`
@@ -101,19 +118,21 @@ Used by `validateStorySelection` (dependency-analysis.md) to check if an out-of-
 
 When resuming from an existing state file, reconcile state file (primary) with GitHub reality (secondary):
 
-| State File Status | GitHub Reality     | Action                                                                         |
-| ----------------- | ------------------ | ------------------------------------------------------------------------------ |
-| `done`            | PR merged          | Skip story (already complete)                                                  |
-| `done`            | PR closed/unmerged | Keep "done" (state file wins; human closed PR intentionally)                   |
-| `in-progress`     | PR exists          | Resume from post-commit (skip to review/finalization)                          |
-| `in-progress`     | Branch deleted     | Mark "blocked", require human decision                                         |
-| `in-progress`     | No PR/branch       | Reset to `pending`, restart story from beginning (no recoverable state exists) |
-| `pending`         | PR exists          | Treat as "review" (someone manually created PR)                                |
-| `pending`         | Branch exists      | Check out branch, resume from implementation phase                             |
-| `paused`          | PR exists          | Resume from post-commit (skip to review/finalization)                          |
-| `paused`          | Branch exists      | Check out branch, resume from implementation phase                             |
-| `paused`          | No PR/branch       | Reset to `pending`, restart from beginning                                     |
-| `skipped`         | any                | Skip story (respect previous skip decision)                                    |
+| State File Status | GitHub Reality     | Action                                                                                                 |
+| ----------------- | ------------------ | ------------------------------------------------------------------------------------------------------ |
+| `done`            | PR merged          | Skip story (already complete)                                                                          |
+| `done`            | PR closed/unmerged | Keep "done" (state file wins; human closed PR intentionally)                                           |
+| `in-progress`     | PR exists          | Resume from post-commit (skip to review/finalization)                                                  |
+| `in-progress`     | Branch deleted     | Mark "blocked", require human decision                                                                 |
+| `in-progress`     | No PR/branch       | Reset to `pending`, restart story from beginning (no recoverable state exists)                         |
+| `pending`         | PR exists          | Treat as "review" (someone manually created PR)                                                        |
+| `pending`         | Branch exists      | Check out branch, resume from implementation phase                                                     |
+| `paused`          | PR exists          | Resume from post-commit (skip to review/finalization)                                                  |
+| `paused`          | Branch exists      | Check out branch, resume from implementation phase                                                     |
+| `paused`          | No PR/branch       | Reset to `pending`, restart from beginning                                                             |
+| `blocked`         | PR exists          | Prompt user: (a) retry story (reset to `pending`), (b) skip story, (c) keep blocked and pause workflow |
+| `blocked`         | No PR/branch       | Prompt user: (a) retry story (reset to `pending`), (b) skip story, (c) keep blocked and pause workflow |
+| `skipped`         | any                | Skip story (respect previous skip decision)                                                            |
 
 **Resume always favors state file status for control flow.** Secondary sources (GitHub) inform recovery strategy.
 

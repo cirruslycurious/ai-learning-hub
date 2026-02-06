@@ -48,7 +48,7 @@ Read and execute the orchestrator skill:
 ## Related Commands
 
 - `/bmad-bmm-dev-story` — Manual story implementation (invoked by orchestrator)
-- `/bmad-bmm-code-review` — Code review workflow (preloaded by reviewer subagent)
+- `/bmad-bmm-code-review` — Code review workflow (for interactive use; reviewer subagent uses its own inline methodology)
 - `/bmad-bmm-sprint-status` — View sprint status
 - `/project-start-story` — Manual story start (branch + issue)
 - `/project-run-tests` — Run test suite manually
