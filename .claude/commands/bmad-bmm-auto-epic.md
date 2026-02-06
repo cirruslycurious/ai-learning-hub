@@ -43,15 +43,52 @@
 
 #### 1.2 Dependency Analysis (NEW)
 
-**Scan for Dependencies:**
+**Parse Story Metadata (YAML Frontmatter):**
 
-For each story, scan acceptance criteria and tech specs for dependency keywords:
+Stories should declare dependencies in machine-readable YAML frontmatter at the top of the story file:
+
+```yaml
+---
+id: 1.4
+title: List user projects
+depends_on: [1.2, 1.3]
+touches: [backend/api/projects, shared/types]
+risk: medium
+---
+```
+
+**Required fields:**
+
+- `id` - Story ID (e.g., "1.4")
+- `title` - Story title
+- `depends_on` - Array of story IDs this story depends on (empty array if none)
+
+**Optional fields:**
+
+- `touches` - Files/directories this story is expected to modify
+- `risk` - Risk level (low/medium/high)
+
+**Fallback to Regex (with Warning):**
+
+If YAML frontmatter is missing, scan acceptance criteria and tech specs for dependency keywords:
 
 - `requires Story X.Y`
 - `depends on Story X.Y`
 - `builds on Story X.Y`
 - `after Story X.Y is complete`
 - `prerequisites: Story X.Y`
+
+If dependencies are detected via regex, **emit warning:**
+
+```
+⚠️ Story 1.4: Dependencies inferred from prose (found: 1.2, 1.3)
+   Please add YAML frontmatter to make dependencies explicit:
+
+   ---
+   id: 1.4
+   depends_on: [1.2, 1.3]
+   ---
+```
 
 **Build Dependency Graph:**
 
@@ -139,10 +176,21 @@ The workflow no longer directly calls `gh issue create` or `gh pr create`. Inste
 
 ```typescript
 interface StoryRunner {
+  // Create operations
   createIssue(story: Story, epic: Epic): Promise<IssueResult>;
   createBranch(story: Story): Promise<BranchResult>;
   createPR(story: Story, issue: IssueResult): Promise<PRResult>;
+
+  // Find operations (for idempotency)
+  findIssueByStoryId(storyId: string): Promise<IssueResult | null>;
+  findPRByBranch(branchName: string): Promise<PRResult | null>;
+  branchExists(branchName: string): Promise<boolean>;
+
+  // Status management
   updateStatus(story: Story, status: StoryStatus): Promise<void>;
+
+  // Repository info
+  getDefaultBaseBranch(): Promise<string>; // Returns "main" or "master"
 }
 
 interface IssueResult {
@@ -201,7 +249,7 @@ async function createIssueWithRetry(story, epic, maxRetries = 3) {
 
 **Idempotency:**
 
-Before creating issue/PR, check if one already exists:
+Before creating issue/PR/branch, check if one already exists:
 
 ```javascript
 async function getOrCreateIssue(story, epic) {
@@ -214,6 +262,34 @@ async function getOrCreateIssue(story, epic) {
 
   // Create new issue
   return await createIssueWithRetry(story, epic);
+}
+
+async function getOrCreateBranch(story) {
+  const branchName = `story-${story.id.replace(".", "-")}-${slugify(story.title)}`;
+
+  // Check if branch already exists
+  const exists = await runner.branchExists(branchName);
+  if (exists) {
+    console.log(`✅ Branch already exists: ${branchName}`);
+    return { branchName };
+  }
+
+  // Create new branch
+  return await runner.createBranch(story);
+}
+
+async function getOrCreatePR(story, issue) {
+  const branch = await getOrCreateBranch(story);
+
+  // Check if PR already exists for this branch
+  const existingPR = await runner.findPRByBranch(branch.branchName);
+  if (existingPR) {
+    console.log(`✅ PR already exists: #${existingPR.prNumber}`);
+    return existingPR;
+  }
+
+  // Create new PR
+  return await runner.createPR(story, issue);
 }
 ```
 
@@ -381,7 +457,84 @@ try {
   - `y` or `yes` → Continue to next story
   - `n` or `no` → Stop execution, save progress
   - `pause` → Save state, can resume later with `--resume`
-  - `skip` → Skip Story 1.2, move to Story 1.3
+  - `skip` → Skip current story (with dependency validation, see below)
+
+**Skip Validation (Prevents Dependency Integrity Violations):**
+
+When user chooses `skip`, check if skipped story has dependents:
+
+```javascript
+async function handleSkip(currentStory, remainingStories) {
+  // Find stories that depend on the current story
+  const dependents = remainingStories.filter((s) =>
+    s.dependencies.includes(currentStory.id)
+  );
+
+  if (dependents.length === 0) {
+    // Safe to skip - no downstream impact
+    console.log(`✅ Skipping Story ${currentStory.id} (no dependents)`);
+    return { action: "skip", blockedStories: [] };
+  }
+
+  // Show downstream impact
+  console.warn(`⚠️ Skipping Story ${currentStory.id} will block:`);
+  for (const dep of dependents) {
+    console.warn(`   - Story ${dep.id}: ${dep.title}`);
+  }
+
+  // Require explicit choice
+  const choice = await askUser(
+    "Options:\n" +
+      "  a) Skip entire sub-tree (skip current story + all dependents)\n" +
+      "  b) Go back (do not skip, continue with current story)\n" +
+      "  c) Remove dependents from scope (skip current story, manually handle dependents later)\n" +
+      "Your choice:"
+  );
+
+  if (choice === "a") {
+    // Mark all dependents as blocked
+    return {
+      action: "skip_with_dependents",
+      blockedStories: [currentStory.id, ...dependents.map((d) => d.id)],
+    };
+  } else if (choice === "b") {
+    // Cancel skip, return to story
+    return { action: "cancel_skip", blockedStories: [] };
+  } else if (choice === "c") {
+    // Skip only current story, remove dependents from scope
+    console.warn(
+      `⚠️ Dependents removed from scope: ${dependents.map((d) => d.id).join(", ")}`
+    );
+    return {
+      action: "skip_and_remove_dependents",
+      blockedStories: [currentStory.id],
+      removedStories: dependents.map((d) => d.id),
+    };
+  }
+}
+```
+
+**Example Output:**
+
+```
+✅ Story 1.2 Complete
+Continue to Story 1.3? (y/n/pause/skip)
+> skip
+
+⚠️ Skipping Story 1.3 will block:
+   - Story 1.4: List user projects
+
+Options:
+  a) Skip entire sub-tree (skip 1.3 + block 1.4)
+  b) Go back (do not skip, continue with 1.3)
+  c) Remove dependents from scope (skip 1.3, handle 1.4 manually later)
+Your choice: a
+
+✅ Skipped Story 1.3
+✅ Blocked Story 1.4 (dependency 1.3 not met)
+
+Next: Story 1.5 - Project search
+```
 
 #### 2.5 Integration Checkpoint (NEW - Runs After Stories with Dependents)
 
@@ -806,11 +959,14 @@ gh auth status
 
 **Operations:**
 
-- `createIssue()` → `gh issue create`
+- `createIssue()` → `gh issue create --title "Story X.Y: Title" --body "..."`
 - `createBranch()` → `git checkout -b story-X-Y-name`
-- `createPR()` → `gh pr create`
-- `updateStatus()` → Updates `sprint-status.yaml` file
-- `findIssueByStoryId()` → `gh issue list --search "Story X.Y"`
+- `createPR()` → `gh pr create --title "..." --body "..."`
+- `findIssueByStoryId()` → `gh issue list --search "Story X.Y" --json number,url`
+- `findPRByBranch()` → `gh pr list --head story-X-Y-name --json number,url`
+- `branchExists()` → `git rev-parse --verify story-X-Y-name`
+- `getDefaultBaseBranch()` → `gh repo view --json defaultBranchRef`
+- `updateStatus()` → Updates `sprint-status.yaml` file (YAML manipulation)
 
 ### DryRunStoryRunner (Testing)
 
@@ -866,9 +1022,34 @@ Integration with Linear for modern project management.
 
 ### How to Define Dependencies in Story Files
 
-Stories can declare dependencies in their **acceptance criteria** or **tech specs** using these keywords:
+**Primary Method: YAML Frontmatter (Recommended)**
 
-**Keywords:**
+Stories should declare dependencies in machine-readable YAML frontmatter at the top of the file:
+
+```yaml
+---
+id: 1.4
+title: List user projects
+depends_on: [1.2, 1.3]
+touches: [backend/api/projects, shared/types]
+risk: medium
+---
+```
+
+**Required Fields:**
+
+- `id` - Story ID (e.g., "1.4")
+- `title` - Story title
+- `depends_on` - Array of story IDs (empty array `[]` if no dependencies)
+
+**Optional Fields:**
+
+- `touches` - Files/directories expected to be modified
+- `risk` - Risk level: `low`, `medium`, `high`
+
+**Fallback Method: Prose Keywords (Legacy)**
+
+If YAML frontmatter is missing, the workflow scans prose for these keywords:
 
 - `requires Story X.Y`
 - `depends on Story X.Y`
@@ -877,14 +1058,22 @@ Stories can declare dependencies in their **acceptance criteria** or **tech spec
 - `prerequisites: Story X.Y`
 - `blocked by Story X.Y`
 
+⚠️ **Warning:** Regex-based detection is fragile and emits warnings. Always prefer YAML frontmatter.
+
 **Examples:**
 
-#### Example 1: Simple Dependency
+#### Example 1: Simple Dependency (YAML Frontmatter)
 
 ```markdown
-## Story 1.2: Save Project to DynamoDB
+---
+id: 1.2
+title: Save Project to DynamoDB
+depends_on: [1.1]
+touches: [backend/api/projects, backend/db/projects.ts]
+risk: low
+---
 
-**Prerequisites:** Requires Story 1.1 (User registration)
+## Story 1.2: Save Project to DynamoDB
 
 **Acceptance Criteria:**
 
@@ -892,32 +1081,69 @@ Stories can declare dependencies in their **acceptance criteria** or **tech spec
 - ...
 ```
 
-#### Example 2: Multiple Dependencies
+#### Example 2: Multiple Dependencies (YAML Frontmatter)
 
 ```markdown
+---
+id: 1.4
+title: List User Projects
+depends_on: [1.2, 1.3]
+touches: [backend/api/projects, frontend/pages/ProjectList.tsx]
+risk: medium
+---
+
 ## Story 1.4: List User Projects
-
-**Dependencies:**
-
-- Depends on Story 1.2 (Save project CRUD)
-- Depends on Story 1.3 (Project validation logic)
 
 **Acceptance Criteria:**
 
 - List projects endpoint returns validated projects only
+- Uses validation logic from Story 1.3
 - ...
 ```
 
-#### Example 3: Inline Dependency
+#### Example 3: No Dependencies (YAML Frontmatter)
+
+```markdown
+---
+id: 1.5
+title: Project Search
+depends_on: []
+touches: [backend/api/search, shared/search-utils]
+risk: low
+---
+
+## Story 1.5: Project Search
+
+**Acceptance Criteria:**
+
+- Search projects by name or description
+- ...
+```
+
+#### Example 4: Legacy Prose Format (Fallback)
 
 ```markdown
 ## Story 2.5: Advanced Search
+
+**Prerequisites:** Requires Story 2.3 (Indexing strategy), Story 2.4 (Basic search)
 
 **Acceptance Criteria:**
 
 - Search uses indexing strategy from Story 2.3
 - After Story 2.4 (Basic search) is complete, add advanced filters
 - ...
+```
+
+⚠️ **This will trigger a warning:**
+
+```
+⚠️ Story 2.5: Dependencies inferred from prose (found: 2.3, 2.4)
+   Please add YAML frontmatter to make dependencies explicit:
+
+   ---
+   id: 2.5
+   depends_on: [2.3, 2.4]
+   ---
 ```
 
 ### Automatic Detection
@@ -948,11 +1174,13 @@ function extractDependencies(storyContent) {
 
 ### Best Practices
 
-1. **Declare dependencies explicitly** — Don't assume the reader knows
-2. **Put dependencies near the top** — In prerequisites section or first AC
-3. **Use story IDs, not titles** — "Story 1.2" not "Save project story"
-4. **Avoid circular dependencies** — Workflow will error if detected
-5. **Keep dependency chains short** — Long chains (>3 levels) are fragile
+1. **Always use YAML frontmatter** — Machine-readable format prevents silent failures
+2. **Include empty `depends_on: []`** — Even if no dependencies, be explicit
+3. **Add `touches` field** — Helps integration checkpoint detect conflicts
+4. **Use story IDs only** — "1.2" not "Story 1.2" or "Save project story"
+5. **Avoid circular dependencies** — Workflow will error if detected (1.2 → 1.3 → 1.2)
+6. **Keep dependency chains short** — Long chains (>3 levels) are fragile and hard to parallelize
+7. **Update frontmatter when refactoring** — If dependencies change, update YAML immediately
 
 ---
 
