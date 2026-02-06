@@ -31,6 +31,44 @@
 
 ---
 
+## Command Spec
+
+### Inputs
+
+| Parameter     | Type   | Required | Default       | Description                                                  |
+| ------------- | ------ | -------- | ------------- | ------------------------------------------------------------ |
+| `epic_id`     | string | Yes      | -             | Epic identifier (e.g., "Epic-1", "epic-1")                   |
+| `--stories`   | string | No       | all           | Comma-separated story IDs to implement (e.g., "1.1,1.2,1.5") |
+| `--resume`    | flag   | No       | false         | Resume from previous run using state file                    |
+| `--dry-run`   | flag   | No       | false         | Simulate workflow without creating branches/PRs/commits      |
+| `--epic-path` | string | No       | auto-detected | Override path to epic file                                   |
+
+### Outputs
+
+| Output            | Location                              | Description                                                  |
+| ----------------- | ------------------------------------- | ------------------------------------------------------------ |
+| State file        | `docs/progress/epic-{id}-auto-run.md` | Execution state, progress tracking, activity log             |
+| GitHub Issues     | GitHub repo                           | One issue per story (idempotent: reuses if exists)           |
+| GitHub PRs        | GitHub repo                           | One PR per story (idempotent: reuses if exists)              |
+| Git branches      | Local + remote                        | One branch per story (`story-{id}-{slug}`)                   |
+| Implementation    | Codebase                              | Code, tests, and documentation per story acceptance criteria |
+| Completion report | Console + state file                  | Final summary with PR links, metrics, and next steps         |
+
+### Invariants (Safety Guarantees)
+
+The workflow enforces these invariants to prevent destructive actions:
+
+1. **Never auto-merge PRs** — All PRs remain open for human review; workflow NEVER merges
+2. **Never bypass hooks** — All commits go through pre-commit hooks (architecture-guard, import-guard, TDD-guard, etc.)
+3. **Never force push** — All pushes use standard `git push` (no `--force` or `--force-with-lease`)
+4. **Never skip tests** — All stories must pass tests before marking complete
+5. **Never ignore failures** — Hook failures, test failures, or build errors halt execution and require human resolution
+6. **Idempotent operations** — All GitHub operations (issue/branch/PR creation) reuse existing resources if found
+7. **State persistence** — Progress saved continuously; `--resume` picks up exactly where workflow left off
+8. **Human checkpoints** — Scope confirmation (Phase 1), integration checkpoints (Phase 2), and completion review (Phase 3) require human approval
+
+---
+
 ## File Structure
 
 Before diving into the workflow, understand where dependencies and story metadata live:
@@ -425,7 +463,74 @@ Part of Epic ${epic.id}: ${epic.title}
 }
 ```
 
-#### 1.5 Create State Tracking File
+#### 1.5 Status Source of Truth (NEW)
+
+The workflow maintains status across multiple systems. Understanding which source is authoritative for orchestration decisions is critical:
+
+**Primary Source (Orchestration):**
+
+- **State file:** `docs/progress/epic-{id}-auto-run.md`
+  - **Purpose:** Real-time workflow orchestration and progress tracking
+  - **Contains:** Current story status, dependencies resolved/blocked, integration checkpoint results, activity log
+  - **Used by:** This workflow to make decisions (e.g., "Can I start Story 1.4?" depends on state file showing "Story 1.2 = done AND Story 1.3 = done")
+  - **Authority:** **PRIMARY** for all workflow control flow decisions
+  - **Persistence:** Survives `--resume`, tracks exact execution state
+
+**Secondary Sources (Synced Views):**
+
+- **sprint-status.yaml:** `_bmad-output/implementation-artifacts/sprint-status.yaml`
+  - **Purpose:** High-level sprint dashboard for humans and other workflows
+  - **Contains:** Aggregate counts (backlog/in-progress/review/done), epic status, current story status
+  - **Updated by:** `runner.updateStatus(story, status)` after key milestones (story started, PR opened, story completed)
+  - **Used by:** `/bmad-bmm-sprint-status` workflow to recommend next action
+  - **Authority:** **SECONDARY** (read by other workflows, written by this workflow)
+
+- **GitHub Issues/PRs:**
+  - **Purpose:** External tracking, team visibility, code review
+  - **Contains:** Issue titles, PR status (open/merged/closed), comments, review approvals
+  - **Updated by:** Idempotent operations (getOrCreateIssue, getOrCreatePR)
+  - **Used by:** Humans for review, CI/CD for status checks
+  - **Authority:** **SECONDARY** (reflects decisions made via state file)
+
+**Decision Flow:**
+
+```
+Workflow needs to decide: "Can I start Story 1.4?"
+
+1. Read state file (PRIMARY)
+   - Story 1.2 status = "done" ✅
+   - Story 1.3 status = "done" ✅
+   - Decision: Yes, start Story 1.4
+
+2. Update state file
+   - Set Story 1.4 status = "in-progress"
+
+3. Sync secondary sources
+   - runner.updateStatus(story1.4, "in-progress")
+     → Updates sprint-status.yaml
+   - getOrCreateIssue(story1.4)
+     → Creates GitHub issue
+   - getOrCreateBranch(story1.4)
+     → Creates git branch
+```
+
+**Why State File is Primary:**
+
+- **Granular:** Tracks substeps (dependencies checked, tests passed, integration validated) beyond simple status
+- **Fast:** Local file read/write, no network latency
+- **Reliable:** No API rate limits, no network failures
+- **Resumable:** `--resume` flag picks up from exact point of failure
+- **Activity log:** Captures full execution history (commits, test results, errors)
+
+**Conflict Resolution:**
+
+If secondary sources diverge from state file:
+
+- **State file wins** for orchestration decisions
+- Workflow may warn: "⚠️ sprint-status.yaml shows Story 1.2 = 'in-progress', but state file shows 'done'. Using state file."
+- Manual sync command (future): `/bmad-bmm-auto-epic --sync-status` to reconcile
+
+#### 1.6 Create State Tracking File
 
 - Location: `docs/progress/epic-N-auto-run.md`
 - Initialize with: epic ID, stories list (with dependencies), start timestamp
