@@ -109,14 +109,15 @@ describe("CI/CD Workflow", () => {
 
     expect(workflow.env.COVERAGE_THRESHOLD).toBe(80);
 
-    // Check that unit-tests job has coverage threshold check
+    // Verify coverage is collected (vitest.config.ts has thresholds)
     const unitTestsJob = workflow.jobs["unit-tests"];
     expect(unitTestsJob.steps).toBeDefined();
 
-    const hasCoverageCheck = unitTestsJob.steps.some(
-      (step) => step.name === "Check coverage threshold"
+    const runTestsStep = unitTestsJob.steps.find(
+      (step) => step.name === "Run tests with coverage"
     );
-    expect(hasCoverageCheck).toBe(true);
+    expect(runTestsStep).toBeDefined();
+    expect(runTestsStep.run).toContain("--coverage");
   });
 
   it("should include security scanning job", () => {
@@ -175,7 +176,9 @@ describe("CI/CD Workflow", () => {
     workflow = parse(content);
 
     const cdkJob = workflow.jobs["cdk-synth"];
-    const synthStep = cdkJob.steps.find((s) => s.name === "CDK Synth");
+    const synthStep = cdkJob.steps.find(
+      (s) => s.name === "CDK Synth with CDK Nag"
+    );
 
     expect(synthStep).toBeDefined();
     expect(synthStep["working-directory"]).toBe("./infra");

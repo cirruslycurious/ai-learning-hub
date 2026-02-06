@@ -102,24 +102,34 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build Infrastructure
+        working-directory: ./infra
+        run: npm run build
+
       - name: CDK Synth with CDK Nag
         working-directory: ./infra
         run: |
           # CDK Nag runs during synth via Aspects in app.ts
-          # Error-level findings will fail the synth automatically
+          # Error-level findings will fail synth automatically (exit code)
           npx cdk synth 2>&1 | tee synth-output.log
+          CDK_EXIT_CODE=${PIPESTATUS[0]}
 
           # Verify CDK Nag ran by checking for its output
           if grep -q "AwsSolutions" synth-output.log || grep -q "cdk-nag" synth-output.log; then
             echo "✅ CDK Nag checks executed successfully"
           else
-            echo "⚠️ CDK Nag may not have run - check configuration"
+            # If no stacks are defined yet, this is expected
+            if ! grep -q "This app contains no stacks" synth-output.log; then
+              echo "❌ CDK Nag did not run but stacks exist - check configuration"
+              exit 1
+            fi
+            echo "ℹ️ No stacks defined yet - CDK Nag will run when stacks are added"
           fi
 
-          # Check for any error-level findings that might have been suppressed
-          if grep -i "error" synth-output.log | grep -i "nag"; then
-            echo "❌ CDK Nag found critical/high findings"
-            exit 1
+          # Check CDK synth exit code (CDK Nag errors will fail synth)
+          if [ $CDK_EXIT_CODE -ne 0 ]; then
+            echo "❌ CDK synth failed (possibly due to CDK Nag findings)"
+            exit $CDK_EXIT_CODE
           fi
 
   # Stage 5: Integration Tests
@@ -190,9 +200,8 @@ jobs:
 
       - name: Dependency Vulnerability Scan (npm audit)
         run: |
-          # Fail on high/critical vulnerabilities
-          # Use --production to ignore devDependencies for unavoidable transitive deps
-          npm audit --audit-level=high --production
+          # Fail on high/critical vulnerabilities in production dependencies
+          npm audit --audit-level=high --omit=dev
           echo "✅ No high or critical vulnerabilities found in production dependencies"
 
       - name: Secrets Detection
