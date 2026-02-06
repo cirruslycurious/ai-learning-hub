@@ -114,16 +114,18 @@ jobs:
           npx cdk synth 2>&1 | tee synth-output.log
           CDK_EXIT_CODE=${PIPESTATUS[0]}
 
+          # Check if no stacks defined (exit code 1 is expected in this case)
+          if grep -q "This app contains no stacks" synth-output.log; then
+            echo "ℹ️ No stacks defined yet - CDK Nag will run when stacks are added"
+            exit 0
+          fi
+
           # Verify CDK Nag ran by checking for its output
           if grep -q "AwsSolutions" synth-output.log || grep -q "cdk-nag" synth-output.log; then
             echo "✅ CDK Nag checks executed successfully"
           else
-            # If no stacks are defined yet, this is expected
-            if ! grep -q "This app contains no stacks" synth-output.log; then
-              echo "❌ CDK Nag did not run but stacks exist - check configuration"
-              exit 1
-            fi
-            echo "ℹ️ No stacks defined yet - CDK Nag will run when stacks are added"
+            echo "❌ CDK Nag did not run but stacks exist - check configuration"
+            exit 1
           fi
 
           # Check CDK synth exit code (CDK Nag errors will fail synth)

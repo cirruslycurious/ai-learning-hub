@@ -2,7 +2,6 @@
   "name": "@ai-learning-hub/infra",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "bin": {
     "cdk": "bin/app.js"
   },
