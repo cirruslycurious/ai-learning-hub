@@ -17,7 +17,7 @@ export default {
     },
     messages: {
       forbiddenImport:
-        "Lambda handlers must use '@ai-learning-hub/{{library}}' instead of '{{forbidden}}' per ADR-005",
+        "Lambda handlers must use '@ai-learning-hub/{{library}}' instead of '{{forbidden}}' (shared library requirement)",
       missingSharedImport:
         "Lambda handlers should import from @ai-learning-hub/* for {{feature}}",
     },

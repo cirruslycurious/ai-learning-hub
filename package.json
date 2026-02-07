@@ -16,7 +16,7 @@
     "backend/shared/middleware"
   ],
   "scripts": {
-    "test": "npm run test --workspaces --if-present",
+    "test": "vitest run && npm run test --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",

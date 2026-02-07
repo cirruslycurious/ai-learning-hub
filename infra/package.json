@@ -8,7 +8,7 @@
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",
-    "test": "vitest run",
+    "test": "vitest run --coverage",
     "cdk": "cdk",
     "deploy": "./deploy.sh deploy",
     "deploy:dev": "STAGE=dev ./deploy.sh deploy --all",
