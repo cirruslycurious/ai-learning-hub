@@ -47,6 +47,7 @@ The orchestrator passes you:
 - **Do NOT skip tests** — every fix must be validated
 - **Do NOT modify the findings document** — it is a read-only input
 - **Commit after each logical group** — not one giant commit
+- **Validate no secrets introduced** — before each commit, verify no AWS account IDs, resource IDs (vpc-\*, subnet-\*, sg-\*, etc.), API keys (AKIA\*, sk_live\_\*, pk_live\_\*), private key material, or connection strings in changed files. If found, fix immediately before committing.
 
 ## Completion Report
 

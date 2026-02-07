@@ -68,4 +68,5 @@ The orchestrator passes you:
 - **DO NOT modify any source code.** This is a read-only review.
 - **DO NOT run tests yourself.** Focus on code analysis.
 - **Write the findings document** to the exact path specified by the orchestrator
+- **Check for hardcoded secrets (CRITICAL):** Scan ALL changed files for: AWS account IDs (12-digit numbers in string context), AWS access keys (AKIA...), AWS resource IDs (vpc-\*, subnet-\*, sg-\*, nat-\*, igw-\*, rtb-\*, eni-\*, ami-\*, snap-\*), API keys (sk_live\_\*, pk_live\_\*, Stripe rk_live\_\*, SendGrid SG.\*, GitHub ghp\_\*), private key material (-----BEGIN \* PRIVATE KEY-----), connection strings (mongodb://, postgres://, redis://), ARNs with embedded account IDs. Flag ANY match as a Critical finding.
 - **Check for:** Security vulnerabilities, ADR violations, missing tests, performance issues, incomplete implementation, shared library usage, error handling gaps

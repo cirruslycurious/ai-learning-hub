@@ -206,12 +206,10 @@ tags = ["database", "connection-string"]
 paths = [
   '''.gitleaks.toml''',
   '''infra/test/secrets-scan.test.ts''',
-  '''docs/progress/security-audit-report.md''',
-  '''docs/progress/security-audit-review.md''',
-  '''docs/progress/security-fix-prompt.md''',
   '''.claude/docs/secrets-and-config.md''',
   '''.claude/commands/project-check-secrets-config.md''',
   '''.claude/agents/epic-reviewer.md''',
   '''.claude/agents/epic-fixer.md''',
   '''.claude/skills/epic-orchestrator/SKILL.md''',
+  '''infra/test/config/aws-env.test.ts''',
 ]

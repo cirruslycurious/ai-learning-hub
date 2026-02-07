@@ -178,6 +178,26 @@ const coverage = coverageMatch
 // If coverage cannot be parsed, log warning and use "N/A" in PR body
 ```
 
+**Secrets scan gate** (run AFTER quality gate, BEFORE marking for review):
+
+Run a secrets pattern scan on all changed files:
+
+```bash
+git diff --name-only origin/${baseBranch}...HEAD
+```
+
+For each changed file, verify:
+
+- No AWS account IDs (12-digit numbers in string literals)
+- No AWS access keys (AKIA pattern)
+- No AWS resource IDs (vpc-\*, subnet-\*, sg-\*, nat-\*, igw-\*, rtb-\*, eni-\*, ami-\*, snap-\*)
+- No private key material (-----BEGIN \* PRIVATE KEY-----)
+- No third-party API keys (sk_live\_\*, pk_live\_\*, Clerk/Stripe/SendGrid patterns)
+- No connection strings (mongodb://, postgres://, redis://)
+- No ARNs with embedded account IDs
+
+If ANY findings: **STOP implementation**. Show findings to user. Do NOT proceed to review or commit.
+
 ### 2.3 Mark for Review
 
 Update status: `updateStoryStatus(story, "review")`
@@ -200,6 +220,16 @@ Summary of the loop:
 **In `--dry-run` mode:** Skip subagent spawning, log dry-run messages, proceed directly to 2.5 (Commit & PR).
 
 ### 2.5 Commit & PR
+
+**Pre-stage validation** (run BEFORE staging):
+
+Check for sensitive file extensions that should never be committed:
+
+```bash
+# List files that would be staged, check for sensitive extensions
+git status --porcelain | grep -E '\.(env|pem|key|crt|p12|pfx)$'
+# If any match found: STOP. Show files to user. Do NOT stage or commit.
+```
 
 **Stage all changes** (implementation files + any fixer commits):
 
