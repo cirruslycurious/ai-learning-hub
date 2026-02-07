@@ -206,13 +206,13 @@ jobs:
           npm audit --audit-level=high --omit=dev
           echo "✅ No high or critical vulnerabilities found in production dependencies"
 
-      - name: Secrets Detection
+      - name: Secrets Detection (TruffleHog)
         uses: trufflesecurity/trufflehog@main
         with:
           path: ./
           base: ${{ github.event.repository.default_branch }}
           head: HEAD
-          extra_args: --only-verified
+          extra_args: --results=verified,unverified
 
       - name: SAST with ESLint Security Plugin
         run: |
@@ -261,7 +261,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1
+          aws-region: us-east-2
 
       - name: Deploy Infrastructure
         working-directory: ./infra
@@ -339,7 +339,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN_PROD }}
-          aws-region: us-east-1
+          aws-region: us-east-2
 
       - name: Deploy to Production
         working-directory: ./infra
