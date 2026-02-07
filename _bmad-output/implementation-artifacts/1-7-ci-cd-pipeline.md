@@ -1,6 +1,6 @@
 # Story 1.7: CI/CD Pipeline with Quality Gates and Agent Security Scanning
 
-Status: review
+Status: done
 
 ## Story
 
