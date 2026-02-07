@@ -71,14 +71,17 @@ process.stdin.on("end", () => {
             permissionDecision: result.decision,
             permissionDecisionReason: result.reason,
           },
-        }),
+        })
       );
     }
 
     process.exit(0);
   } catch (err) {
-    // On parse error, allow (fail open)
-    process.exit(0);
+    // Fail CLOSED on parse error — do not allow unvalidated operations
+    console.error(
+      `🔒 file-guard: Failed to parse input (${err.message}). Blocking operation for safety.`
+    );
+    process.exit(2);
   }
 });
 
