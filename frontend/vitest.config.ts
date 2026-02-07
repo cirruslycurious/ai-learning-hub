@@ -22,6 +22,8 @@ export default defineConfig({
         "**/*.config.{js,ts}",
         "**/*.d.ts",
         "test/**",
+        // App entry points - integration tested, not unit tested
+        "src/main.tsx",
       ],
     },
   },
