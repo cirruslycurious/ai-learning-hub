@@ -22,7 +22,8 @@
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,json,md}\"",
     "type-check": "tsc --build",
-    "validate-templates": "node scripts/validate-templates.mjs"
+    "validate-templates": "node scripts/validate-templates.mjs",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

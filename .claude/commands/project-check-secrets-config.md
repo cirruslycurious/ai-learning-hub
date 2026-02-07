@@ -27,8 +27,14 @@ You are a senior developer on AI Learning Hub. Your task is to verify that the r
    - AWS account ID (e.g. 12-digit number in infra or config).
    - Hardcoded real DynamoDB table names, S3 bucket names, or API Gateway REST API IDs (application code should use `process.env.TABLE_*`, `process.env.BUCKET_*`, etc.).
    - Credentials or long-lived secrets (API keys, Clerk secrets, etc.) in code or committed config.
+   - AWS resource IDs: vpc-\*, subnet-\*, sg-\*, nat-\*, igw-\*, rtb-\*, eni-\*, ami-\*, snap-\*, eipalloc-\*.
+   - Third-party API keys: Clerk (sk*live*\*, pk*live*\*, sk*test*\*, pk*test*\*), Stripe (sk*live*\*, rk*live*\*), SendGrid (SG.\*), GitHub PATs (ghp*\*, github_pat*\*).
+   - Private key material: -----BEGIN (RSA|EC|OPENSSH|PGP) PRIVATE KEY-----.
+   - Connection strings: mongodb://, postgres://, redis://, mysql://.
+   - ARNs with embedded account IDs: arn:aws:\*:\*:\<12-digit\>:\*.
+   - JWT tokens: eyJ\*.eyJ\* patterns.
 3. **Report:** Either “No issues found” or list each finding with file and line (or snippet) and a short fix (e.g. “Use `process.env.TABLE_SAVES`” or “Move to Parameter Store”).
-4. **Remind:** Before push, ensure `.env` and `cdk.context.json` are not staged; consider running a secrets scanner (Gitleaks/Trufflehog) when CI is set up (Story 1.7).
+4. **Remind:** Before push, ensure `.env` and `cdk.context.json` are not staged. Run gitleaks locally: `gitleaks protect --staged --no-banner`.
 
 # 5. Output
 

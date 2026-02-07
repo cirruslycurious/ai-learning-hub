@@ -1,0 +1,216 @@
+title = "AI Learning Hub - Gitleaks Configuration"
+
+# Extend the default gitleaks rules
+[extend]
+
+# AWS Resource IDs
+[[rules]]
+id = "aws-vpc-id"
+description = "AWS VPC ID"
+regex = '''vpc-[0-9a-f]{8,17}'''
+tags = ["aws", "resource-id"]
+
+[[rules]]
+id = "aws-subnet-id"
+description = "AWS Subnet ID"
+regex = '''subnet-[0-9a-f]{8,17}'''
+tags = ["aws", "resource-id"]
+
+[[rules]]
+id = "aws-security-group-id"
+description = "AWS Security Group ID"
+regex = '''sg-[0-9a-f]{8,17}'''
+tags = ["aws", "resource-id"]
+
+[[rules]]
+id = "aws-nat-gateway-id"
+description = "AWS NAT Gateway ID"
+regex = '''nat-[0-9a-f]{8,17}'''
+tags = ["aws", "resource-id"]
+
+[[rules]]
+id = "aws-internet-gateway-id"
+description = "AWS Internet Gateway ID"
+regex = '''igw-[0-9a-f]{8,17}'''
+tags = ["aws", "resource-id"]
+
+[[rules]]
+id = "aws-route-table-id"
+description = "AWS Route Table ID"
+regex = '''rtb-[0-9a-f]{8,17}'''
+tags = ["aws", "resource-id"]
+
+[[rules]]
+id = "aws-eni-id"
+description = "AWS ENI ID"
+regex = '''eni-[0-9a-f]{8,17}'''
+tags = ["aws", "resource-id"]
+
+[[rules]]
+id = "aws-ami-id"
+description = "AWS AMI ID"
+regex = '''ami-[0-9a-f]{8,17}'''
+tags = ["aws", "resource-id"]
+
+[[rules]]
+id = "aws-snapshot-id"
+description = "AWS Snapshot ID"
+regex = '''snap-[0-9a-f]{8,17}'''
+tags = ["aws", "resource-id"]
+
+[[rules]]
+id = "aws-eip-allocation-id"
+description = "AWS EIP Allocation ID"
+regex = '''eipalloc-[0-9a-f]{8,17}'''
+tags = ["aws", "resource-id"]
+
+# AWS Account ID in ARNs
+[[rules]]
+id = "aws-arn-with-account"
+description = "AWS ARN with embedded account ID"
+regex = '''arn:aws:[a-z0-9-]+:[a-z0-9-]*:\d{12}:'''
+tags = ["aws", "account-id"]
+
+# AWS Account ID (standalone, in quotes)
+[[rules]]
+id = "aws-account-id-standalone"
+description = "AWS Account ID (12-digit number in string literal)"
+regex = '''['"`]\d{12}['"`]'''
+tags = ["aws", "account-id"]
+
+# AWS Session Token
+[[rules]]
+id = "aws-session-token"
+description = "AWS Session Token reference"
+regex = '''(?i)aws_session_token\s*[=:]\s*['"][A-Za-z0-9/+=]+['"]'''
+tags = ["aws", "credential"]
+
+# Clerk API Keys
+[[rules]]
+id = "clerk-secret-key"
+description = "Clerk Secret Key"
+regex = '''sk_(live|test)_[A-Za-z0-9]{20,}'''
+tags = ["clerk", "api-key"]
+
+[[rules]]
+id = "clerk-publishable-key"
+description = "Clerk Publishable Key"
+regex = '''pk_(live|test)_[A-Za-z0-9]{20,}'''
+tags = ["clerk", "api-key"]
+
+# Stripe Keys
+[[rules]]
+id = "stripe-secret-key"
+description = "Stripe Secret Key"
+regex = '''sk_live_[A-Za-z0-9]{20,}'''
+tags = ["stripe", "api-key"]
+
+[[rules]]
+id = "stripe-restricted-key"
+description = "Stripe Restricted Key"
+regex = '''rk_live_[A-Za-z0-9]{20,}'''
+tags = ["stripe", "api-key"]
+
+# SendGrid
+[[rules]]
+id = "sendgrid-api-key"
+description = "SendGrid API Key"
+regex = '''SG\.[A-Za-z0-9_-]{20,}'''
+tags = ["sendgrid", "api-key"]
+
+# Twilio
+[[rules]]
+id = "twilio-api-key"
+description = "Twilio API Key"
+regex = '''SK[0-9a-f]{32}'''
+tags = ["twilio", "api-key"]
+
+# GitHub PAT
+[[rules]]
+id = "github-pat"
+description = "GitHub Personal Access Token"
+regex = '''ghp_[A-Za-z0-9]{36}'''
+tags = ["github", "token"]
+
+[[rules]]
+id = "github-pat-fine-grained"
+description = "GitHub Fine-Grained PAT"
+regex = '''github_pat_[A-Za-z0-9_]{20,}'''
+tags = ["github", "token"]
+
+# JWT Tokens
+[[rules]]
+id = "jwt-token"
+description = "JWT Token"
+regex = '''eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}'''
+tags = ["jwt", "token"]
+
+# Private Keys
+[[rules]]
+id = "rsa-private-key"
+description = "RSA Private Key"
+regex = '''-----BEGIN RSA PRIVATE KEY-----'''
+tags = ["key", "private"]
+
+[[rules]]
+id = "ec-private-key"
+description = "EC Private Key"
+regex = '''-----BEGIN EC PRIVATE KEY-----'''
+tags = ["key", "private"]
+
+[[rules]]
+id = "generic-private-key"
+description = "Generic Private Key"
+regex = '''-----BEGIN PRIVATE KEY-----'''
+tags = ["key", "private"]
+
+[[rules]]
+id = "pgp-private-key"
+description = "PGP Private Key Block"
+regex = '''-----BEGIN PGP PRIVATE KEY BLOCK-----'''
+tags = ["key", "private"]
+
+[[rules]]
+id = "openssh-private-key"
+description = "OpenSSH Private Key"
+regex = '''-----BEGIN OPENSSH PRIVATE KEY-----'''
+tags = ["key", "private"]
+
+# Connection Strings
+[[rules]]
+id = "mongodb-connection-string"
+description = "MongoDB Connection String"
+regex = '''mongodb(\+srv)?://[^\s'"]+'''
+tags = ["database", "connection-string"]
+
+[[rules]]
+id = "postgres-connection-string"
+description = "PostgreSQL Connection String"
+regex = '''postgres(ql)?://[^\s'"]+'''
+tags = ["database", "connection-string"]
+
+[[rules]]
+id = "redis-connection-string"
+description = "Redis Connection String"
+regex = '''redis://[^\s'"]+'''
+tags = ["database", "connection-string"]
+
+[[rules]]
+id = "mysql-connection-string"
+description = "MySQL Connection String"
+regex = '''mysql://[^\s'"]+'''
+tags = ["database", "connection-string"]
+
+# Allowlists — files and patterns that are intentionally excluded
+[allowlist]
+paths = [
+  '''.gitleaks.toml''',
+  '''infra/test/secrets-scan.test.ts''',
+  '''.claude/docs/secrets-and-config.md''',
+  '''.claude/commands/project-check-secrets-config.md''',
+  '''.claude/agents/epic-reviewer.md''',
+  '''.claude/agents/epic-fixer.md''',
+  '''.claude/skills/epic-orchestrator/SKILL.md''',
+  '''infra/test/config/aws-env.test.ts''',
+  '''docs/progress/aws-setup-complete.md''',
+]

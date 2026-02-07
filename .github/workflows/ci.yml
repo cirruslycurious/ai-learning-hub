@@ -261,7 +261,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1
+          aws-region: us-east-2
 
       - name: Deploy Infrastructure
         working-directory: ./infra
@@ -339,7 +339,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN_PROD }}
-          aws-region: us-east-1
+          aws-region: us-east-2
 
       - name: Deploy to Production
         working-directory: ./infra

@@ -1,0 +1,17 @@
+# Secrets scanning with gitleaks (FAILS CLOSED if not installed)
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks protect --staged --no-banner
+else
+  echo ""
+  echo "ERROR: gitleaks is not installed. Commit BLOCKED."
+  echo ""
+  echo "This repository requires gitleaks for pre-commit secrets scanning."
+  echo "Install it now:"
+  echo "  macOS:  brew install gitleaks"
+  echo "  Linux:  https://github.com/gitleaks/gitleaks#installing"
+  echo ""
+  echo "To bypass in an emergency (NOT recommended):"
+  echo "  git commit --no-verify"
+  echo ""
+  exit 1
+fi
