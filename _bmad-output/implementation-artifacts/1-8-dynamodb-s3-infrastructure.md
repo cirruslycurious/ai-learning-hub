@@ -213,13 +213,13 @@ Deploy output: `/tmp/cdk-deploy-output.log`
 
 **Deployment Verification:**
 
-- Bootstrapped CDK environment (us-east-2)
+- Bootstrapped CDK environment
 - Deployed AiLearningHubTables stack (7 tables created)
 - Deployed AiLearningHubBuckets stack (2 buckets created)
 - Verified all 7 tables exist in AWS DynamoDB
-- Stack ARNs (account ID redacted):
-  - Tables: `arn:aws:cloudformation:us-east-2:XXXXXXXXXXXX:stack/AiLearningHubTables/6334bfe0-0467-11f1-bbfb-06a2f46222b7`
-  - Buckets: `arn:aws:cloudformation:us-east-2:XXXXXXXXXXXX:stack/AiLearningHubBuckets/85537da0-0467-11f1-8ec4-020a1d2a884b`
+- Stack ARNs (account ID and region redacted):
+  - Tables: `arn:aws:cloudformation:REGION:XXXXXXXXXXXX:stack/AiLearningHubTables/STACK-ID`
+  - Buckets: `arn:aws:cloudformation:REGION:XXXXXXXXXXXX:stack/AiLearningHubBuckets/STACK-ID`
 
 ### File List
 
@@ -235,8 +235,8 @@ Deploy output: `/tmp/cdk-deploy-output.log`
 - `infra/bin/app.ts` - Instantiated TablesStack and BucketsStack with awsEnv
 - `infra/test/bin/app-structure.test.ts` - Updated test expectations for new stack structure
 
-**Deployed Resources (AWS us-east-2):**
+**Deployed Resources (AWS):**
 
 - DynamoDB tables: `ai-learning-hub-{users|saves|projects|links|content|search-index|invite-codes}`
-- S3 buckets: `ailearninghubbuckets-projectnotesbucket37771204-wh362rbdkkgu` (auto-generated name)
-- S3 access logs bucket: `ailearninghubbuckets-accesslogsbucket83982689-*` (auto-generated name)
+- S3 buckets: Auto-generated unique names with encryption and versioning enabled
+- S3 access logs bucket: Auto-generated unique name with lifecycle policies
