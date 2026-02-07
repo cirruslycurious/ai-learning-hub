@@ -212,4 +212,5 @@ paths = [
   '''.claude/agents/epic-fixer.md''',
   '''.claude/skills/epic-orchestrator/SKILL.md''',
   '''infra/test/config/aws-env.test.ts''',
+  '''docs/progress/aws-setup-complete.md''',
 ]

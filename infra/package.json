@@ -9,7 +9,12 @@
     "build": "tsc",
     "watch": "tsc -w",
     "test": "vitest run",
-    "cdk": "cdk"
+    "cdk": "cdk",
+    "deploy": "./deploy.sh deploy",
+    "deploy:dev": "STAGE=dev ./deploy.sh deploy --all",
+    "synth": "./deploy.sh synth",
+    "diff": "./deploy.sh diff",
+    "destroy": "./deploy.sh destroy"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
