@@ -21,7 +21,7 @@ The pipeline runs stages in strict order with dependency gates:
 
 #### Stage 1: Lint & Format
 
-- Runs `npm run format -- --check` to verify code formatting
+- Runs `npm run format:check` to verify code formatting
 - Runs `npm run lint` across all workspaces
 - **Fails if**: Format violations or lint errors exist
 
@@ -76,7 +76,7 @@ Runs in parallel with integration/contract tests. Per FR79 (PRD), AI-assisted co
 - **Triggers**: Only on `push` to `main` branch
 - Deploys all CDK stacks to dev environment
 - Uses AWS OIDC for secure authentication (no long-lived keys)
-- **Skips**: If AWS_ROLE_ARN secret not configured
+- **Fails if**: AWS_ROLE_ARN secret not configured (with clear error and setup link)
 - **Depends on**: Contract Tests + Security Scan
 - **Fails if**: Deployment fails
 
@@ -163,7 +163,7 @@ Pipeline uses Node.js **20** (from `.nvmrc`). All jobs use the same version for 
 
 ### Coverage Threshold
 
-Minimum **80% code coverage** enforced. Configurable via `COVERAGE_THRESHOLD` env var in workflow.
+Minimum **80% code coverage** enforced per workspace. Thresholds are configured in each workspace's `vitest.config.ts` file.
 
 ### Agent Security (FR79)
 

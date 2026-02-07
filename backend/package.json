@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "test": "vitest run",
+    "test": "vitest run --coverage",
     "lint": "eslint ."
   },
   "devDependencies": {

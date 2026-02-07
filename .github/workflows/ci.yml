@@ -9,7 +9,6 @@ on:
 
 env:
   NODE_VERSION: "20"
-  COVERAGE_THRESHOLD: 80
 
 jobs:
   # Stage 1: Lint & Format
@@ -216,6 +215,9 @@ jobs:
 
       - name: SAST with ESLint Security Plugin
         run: |
+          # Note: Lint runs here again for SAST context (security rules + custom import guards)
+          # First run (lint-and-format job) validates code style/quality
+          # This run provides security-focused context for audit trail
           npm run lint
           echo "✅ SAST checks completed via ESLint"
 

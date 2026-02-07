@@ -107,9 +107,8 @@ describe("CI/CD Workflow", () => {
     const content = readFileSync(workflowPath, "utf-8");
     workflow = parse(content);
 
-    expect(workflow.env.COVERAGE_THRESHOLD).toBe(80);
-
-    // Verify coverage is collected (vitest.config.ts has thresholds)
+    // Coverage thresholds are in vitest.config.ts files, not workflow env
+    // Verify that coverage is collected via npm test
     const unitTestsJob = workflow.jobs["unit-tests"];
     expect(unitTestsJob.steps).toBeDefined();
 
@@ -117,7 +116,8 @@ describe("CI/CD Workflow", () => {
       (step) => step.name === "Run tests with coverage"
     );
     expect(runTestsStep).toBeDefined();
-    expect(runTestsStep.run).toContain("--coverage");
+    // Root package.json runs "vitest run" (with coverage config) + workspace tests
+    expect(runTestsStep.run).toContain("npm test");
   });
 
   it("should include security scanning job", () => {
