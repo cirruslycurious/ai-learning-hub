@@ -23,8 +23,8 @@
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.131",
-    "@vitest/coverage-v8": "^1.6.1",
+    "@vitest/coverage-v8": "^3.2.4",
     "typescript": "~5.3.0",
-    "vitest": "^1.6.1"
+    "vitest": "^3.2.4"
   }
 }
