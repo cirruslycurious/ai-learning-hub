@@ -27,12 +27,6 @@ interface CfnResource {
   };
 }
 
-interface _CfnOutput {
-  Export: {
-    Name: string;
-  };
-}
-
 describe("TablesStack", () => {
   const app = new App();
   const awsEnv = getAwsEnv();
@@ -74,7 +68,7 @@ describe("TablesStack", () => {
         (t) =>
           (t as CfnResource).Properties.TableName === "ai-learning-hub-saves"
       ) as CfnResource;
-      const attrNames = savesTable.Properties.AttributeDefinitions.map(
+      const attrNames = savesTable.Properties.AttributeDefinitions!.map(
         (attr) => attr.AttributeName
       );
       expect(attrNames).toContain("PK");
