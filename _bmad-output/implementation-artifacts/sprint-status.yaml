@@ -50,7 +50,7 @@ development_status:
   1-6-github-templates: done
   1-7-ci-cd-pipeline: done
   1-8-dynamodb-s3-infrastructure: done
-  1-9-observability-foundation: backlog
+  1-9-observability-foundation: review
   1-10-tool-risk-classification: backlog
   1-11-prompt-evaluation-tests: backlog
   1-12-model-selection-guide: backlog

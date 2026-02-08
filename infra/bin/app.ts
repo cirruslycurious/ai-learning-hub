@@ -5,6 +5,7 @@ import { Aspects } from "aws-cdk-lib";
 import { getAwsEnv } from "../config/aws-env";
 import { TablesStack } from "../lib/stacks/core/tables.stack";
 import { BucketsStack } from "../lib/stacks/core/buckets.stack";
+import { ObservabilityStack } from "../lib/stacks/observability/observability.stack";
 
 const app = new cdk.App();
 
@@ -24,8 +25,19 @@ const bucketsStack = new BucketsStack(app, "AiLearningHubBuckets", {
   description: "S3 buckets for ai-learning-hub (project notes storage)",
 });
 
+// Observability Stack - X-Ray tracing, dashboards, alarms (ADR-006: after Core stacks)
+const observabilityStack = new ObservabilityStack(
+  app,
+  "AiLearningHubObservability",
+  {
+    env: awsEnv,
+    description:
+      "Observability foundation for ai-learning-hub (X-Ray, dashboards, alarms)",
+  }
+);
+
 // Export stack instances for future cross-stack references (avoids unused variable lint errors)
-export { tablesStack, bucketsStack };
+export { tablesStack, bucketsStack, observabilityStack };
 
 cdk.Tags.of(app).add("Project", "ai-learning-hub");
 cdk.Tags.of(app).add("ManagedBy", "CDK");
