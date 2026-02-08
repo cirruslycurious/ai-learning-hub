@@ -50,12 +50,12 @@ development_status:
   1-6-github-templates: done
   1-7-ci-cd-pipeline: done
   1-8-dynamodb-s3-infrastructure: done
-  1-9-observability-foundation: review
-  1-10-tool-risk-classification: backlog
-  1-11-prompt-evaluation-tests: backlog
-  1-12-model-selection-guide: backlog
-  1-13-subagent-library: backlog
-  1-14-context-management-guide: backlog
+  1-9-observability-foundation: done
+  1-10-tool-risk-classification: done  # Refactored to comprehensive safety architecture docs (4 files)
+  1-11-prompt-evaluation-tests: dropped  # Premature optimization, defer to Epic 12 (agentic workflow maturity)
+  1-12-model-selection-guide: dropped  # Defaults work fine, added note to CLAUDE.md
+  1-13-subagent-library: backlog  # Will evolve to agent system documentation
+  1-14-context-management-guide: dropped  # Orchestrator handles it, added note to README
   epic-1-retrospective: optional
 
   # Epic 2: User Authentication & API Keys (stories TBD)
