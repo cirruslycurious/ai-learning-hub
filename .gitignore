@@ -41,6 +41,7 @@ cdk.context.json
 # Misc
 .cache/
 *.tgz
+.pipeline-reads.json
 
 # Large research PDFs (keep text extracts only)
 _bmad-output/planning-artifacts/research/*.pdf
