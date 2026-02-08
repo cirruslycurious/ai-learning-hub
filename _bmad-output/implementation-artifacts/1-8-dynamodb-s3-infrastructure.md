@@ -1,6 +1,6 @@
 # Story 1.8: DynamoDB Tables and S3 Buckets (Core Infrastructure)
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
