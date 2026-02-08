@@ -1,194 +1,221 @@
-# GitHub Workflows
+<!--
+Optional: add a banner image once you have one.
+Example:
+<p align="center">
+  <img src="docs/assets/banner.png" alt="AI Learning Hub banner" />
+</p>
+-->
 
-This directory contains CI/CD pipelines and GitHub configuration for ai-learning-hub.
+# AI Learning Hub
 
-## CI/CD Pipeline (`workflows/ci.yml`)
+> A save-to-build learning workbench for AI builders — **built in the open with AI agents** using the BMAD methodology.
 
-Comprehensive quality gates and deployment automation for all code changes.
+[![CI](https://github.com/cirruslycurious/ai-learning-hub/actions/workflows/ci.yml/badge.svg)](https://github.com/cirruslycurious/ai-learning-hub/actions/workflows/ci.yml)
+![Node](https://img.shields.io/badge/node-%E2%89%A520-339933?logo=node.js&logoColor=white)
+![Coverage gate](https://img.shields.io/badge/coverage-gate%20%E2%89%A580%25-brightgreen)
+![License](https://img.shields.io/badge/license-source--visible-lightgrey)
 
-### Pipeline Stages
+AI Learning Hub connects what you’re learning (links, tutorials, conversations) to what you’re building (projects). It’s designed for **self-directed AI builders**—especially no-code/low-code and “non-traditional” builders—who are drowning in scattered resources and a tutorial graveyard.
 
-The pipeline runs stages in strict order with dependency gates:
+This repo is also a **production-oriented case study in agentic software development**: a monorepo with CI gates, architecture decision records, and a workflow where AI subagents write tests, implement stories, and review code.
 
-```
-1. Lint & Format → 2. Type Check → 3. Unit Tests (80% coverage) →
-4. CDK Synth → 5. Integration Tests → 6. Contract Tests →
-7. Security Scan (parallel with 5-6) →
-8. Deploy Dev (main only) → 9. E2E Tests → 10. Deploy Prod (manual approval)
-```
+**System overview diagram:** [System overview](_bmad-output/planning-artifacts/diagrams/01-system-overview.md)
 
-### Quality Gates
+> Screenshot/demo: not yet available. (When UI work starts, add a screenshot/GIF here.)
 
-#### Stage 1: Lint & Format
+**Fast paths (by audience):**
 
-- Runs `npm run format:check` to verify code formatting
-- Runs `npm run lint` across all workspaces
-- **Fails if**: Format violations or lint errors exist
+- **PMs**: jump to [📚 Documentation](#-documentation) → “For Product Managers”
+- **Engineers**: jump to [Quick Start](#quick-start) and [Architecture highlights](#architecture-highlights-grounded-in-adrs)
+- **AI/agent builders**: jump to [AI-Native Development Methodology](#ai-native-development-methodology-the-differentiator)
+- **Contributors**: jump to [Contributing](#contributing)
 
-#### Stage 2: Type Check
+## Table of contents
 
-- Runs `npm run type-check` (TypeScript compilation)
-- **Depends on**: Lint & Format
-- **Fails if**: TypeScript errors exist
+- [Why This Exists (Problem → Solution)](#why-this-exists-problem--solution)
+- [Key Features (V1 product scope — specified in the PRD)](#key-features-v1-product-scope--specified-in-the-prd)
+- [Tech Showcase (for PMs, recruiters, and technical readers)](#tech-showcase-for-pms-recruiters-and-technical-readers)
+- [AI-Native Development Methodology (the differentiator)](#ai-native-development-methodology-the-differentiator)
+- [Project Status & Roadmap](#project-status--roadmap)
+- [📚 Documentation](#-documentation)
+- [Quick Start](#quick-start)
+- [Contributing](#contributing)
+- [Credits & License](#credits--license)
 
-#### Stage 3: Unit Tests with 80% Coverage Gate
+---
 
-- Runs `npm test -- --coverage` across all workspaces
-- Enforces minimum 80% code coverage threshold
-- Uploads coverage reports to Codecov (optional)
-- **Depends on**: Type Check
-- **Fails if**: Tests fail OR coverage < 80%
+## Why This Exists (Problem → Solution)
 
-#### Stage 4: CDK Synth & CDK Nag
+**The problem:** AI learning content is everywhere (podcasts, YouTube, blogs, repos, newsletters), but the workflow is fragmented across 3–5 tools. Even worse, the “thinking” that turns content into a build often lives in **LLM chats** that get lost over weeks.
 
-- Synthesizes CloudFormation templates from CDK code
-- Runs CDK Nag security/best-practice checks
-- **Depends on**: Unit Tests
-- **Fails if**: CDK synth fails or critical CDK Nag findings
+**The solution:** AI Learning Hub is a **project-centric** system where:
 
-#### Stage 5: Integration Tests
+- saves are **fuel** (captured fast, from anywhere)
+- projects are **living notebooks** (links + notes + pasted AI chat history)
+- linking creates a personal “learning graph” that compounds over time
 
-- Placeholder for integration test suite
-- Will test cross-component interactions
-- **Depends on**: CDK Synth
-- **Fails if**: Integration tests fail
+**What makes it different:** it assumes the end goal is **building**, not “read later” or generic PKM. And it treats **AI agents as first-class users** via an API-first design (so an agent can save, link, and query on your behalf).
 
-#### Stage 6: Contract Tests (OpenAPI)
+---
 
-- Placeholder for API contract validation
-- Will validate REST APIs against OpenAPI spec
-- **Depends on**: Integration Tests
-- **Fails if**: Contract violations detected
+## Key Features (V1 product scope — specified in the PRD)
 
-#### Stage 7: Security Scanning (Agent-Enhanced)
+These are **intended product capabilities** (not all implemented yet). Each bullet links to the source spec.
 
-Runs in parallel with integration/contract tests. Per FR79 (PRD), AI-assisted code has 3x vulnerability rate, so extra scrutiny is applied.
+- **⚡ 3-second capture (mobile-first)**: save a URL via iOS Shortcut / share sheet and move on. See [User flows](_bmad-output/planning-artifacts/diagrams/02-user-flows.md) and [PRD](_bmad-output/planning-artifacts/prd.md) (FR44–FR47).
+- **🧰 One unified library (3 views)**: Resource Library + Tutorial Tracker + My Projects are views into the same “save” entity. See [PRD](_bmad-output/planning-artifacts/prd.md) (FR18).
+- **🗂️ Projects as living notebooks**: store links + Markdown notes + pasted AI chat history (“how I figured it out”). See [PRD](_bmad-output/planning-artifacts/prd.md) (FR26–FR27, FR49).
+- **🔗 Save-to-build linking**: connect fuel to outcomes (save ↔ project), including bulk linking on desktop. See [PRD](_bmad-output/planning-artifacts/prd.md) (FR33–FR38).
+- **✅ Tutorial progress tracking**: mark a save as a tutorial and track status to completion. See [PRD](_bmad-output/planning-artifacts/prd.md) (FR39–FR43).
+- **🔎 Fast search across saves/projects/notes**: V1 search via a processed index (DynamoDB) with a clean upgrade path. See [Architecture summary](.claude/docs/architecture.md) (ADR-002, ADR-010) and [PRD](_bmad-output/planning-artifacts/prd.md) (FR52–FR55).
+- **🧪 Operable from day one**: structured logging, tracing, and CI gates (including an 80% coverage gate) are V1 requirements. See [PRD](_bmad-output/planning-artifacts/prd.md) (Technical Success) and [CI workflow](.github/workflows/ci.yml).
 
-- **Dependency Scan**: `npm audit` for vulnerable dependencies
-- **Secrets Detection**: TruffleHog for leaked credentials
-- **SAST**: ESLint security plugin for static analysis
-- **Agent Code Notice**: Reminder that agent-generated code needs review
-- **Depends on**: Unit Tests
-- **Fails if**: Critical/high security findings
+---
 
-#### Stage 8: Deploy to Dev (Conditional)
+## Tech Showcase (for PMs, recruiters, and technical readers)
 
-- **Triggers**: Only on `push` to `main` branch
-- Deploys all CDK stacks to dev environment
-- Uses AWS OIDC for secure authentication (no long-lived keys)
-- **Fails if**: AWS_ROLE_ARN secret not configured (with clear error and setup link)
-- **Depends on**: Contract Tests + Security Scan
-- **Fails if**: Deployment fails
+### Built in the open with AI agents
 
-#### Stage 9: E2E Tests (6 Persona Paths)
+This project “dogfoods” agentic development:
 
-- **Triggers**: Only after successful dev deployment
-- Placeholder for 6 golden-path persona tests:
-  1. New User Onboarding
-  2. Mobile Quick Save
-  3. Resource Discovery
-  4. Project Builder
-  5. Tutorial Learner
-  6. Power User (API)
-- **Depends on**: Deploy Dev
-- **Fails if**: E2E tests fail
+- **BMAD methodology + autonomous epic workflow**: [bmad-bmm-auto-epic](.claude/commands/bmad-bmm-auto-epic.md)
+- **Agentic workflow diagram**: [Agentic development workflow](_bmad-output/planning-artifacts/diagrams/07-agentic-development-workflow.md)
+- **Deterministic guardrails (hooks)**: [Hooks README](.claude/hooks/README.md) and [Enforcement strategy diagram](_bmad-output/planning-artifacts/diagrams/06-hooks-enforcement-strategy.md)
+- **Agent-friendly GitHub artifacts**: [.github issue templates](.github/ISSUE_TEMPLATE/) and [PR template](.github/PULL_REQUEST_TEMPLATE.md)
 
-#### Stage 10: Deploy to Production (Manual Approval)
+### Architecture highlights (grounded in ADRs)
 
-- **Triggers**: Only on `push` to `main`, after E2E passes
-- Requires manual approval via GitHub environment protection
-- Uses separate AWS_ROLE_ARN_PROD secret
-- **Depends on**: E2E Tests
-- **Fails if**: Deployment fails
+- **API-first**: the API is the product; UIs are clients. See `.claude/docs/architecture.md` (ADR-014).
+- **No Lambda-to-Lambda calls**: all cross-service communication via API Gateway or events. See `.claude/docs/architecture.md` (ADR-005).
+- **Multi-table DynamoDB**: 7 tables + 10 GSIs, with strong per-user isolation and a global content layer. See `.claude/docs/database-schema.md` and `_bmad-output/planning-artifacts/architecture.md` (ADR-001).
+- **Async pipelines**: EventBridge + Step Functions for enrichment / notes processing / search sync. See `_bmad-output/planning-artifacts/diagrams/03-data-pipeline-flow.md` and `.claude/docs/architecture.md` (ADR-003).
+- **Production gates in CI**: lint/format → type-check → tests with **80% coverage gate** → CDK synth + CDK Nag. See `.github/workflows/ci.yml` and `_bmad-output/planning-artifacts/architecture.md` (ADR-007).
 
-### Shared Library Enforcement (AC10)
+### Tech stack (as committed in `package.json`)
 
-The pipeline enforces use of `@ai-learning-hub/*` shared libraries in Lambda code:
+| Layer             | Technology                                                                              |
+| ----------------- | --------------------------------------------------------------------------------------- |
+| **Runtime**       | Node.js **>= 20**                                                                       |
+| **Frontend**      | React **18.2**, Vite **5**, Tailwind CSS **3.4** (`frontend/package.json`)              |
+| **Backend**       | AWS Lambda (TypeScript), Vitest **3.2** (`backend/package.json`)                        |
+| **Infra**         | AWS CDK **2.170**, `cdk-nag` **2.37** (`infra/package.json`)                            |
+| **Data**          | DynamoDB (7 tables, 10 GSIs), S3 for Markdown notes (`.claude/docs/database-schema.md`) |
+| **Observability** | CloudWatch + X-Ray (per ADRs / PRD)                                                     |
 
-- **ESLint Rule**: `local-rules/enforce-shared-imports`
-- **Scope**: `backend/functions/**/*.{ts,js}`
-- **Enforces**:
-  - ✅ Use `@ai-learning-hub/logging` (not `console.*` or `winston`)
-  - ✅ Use `@ai-learning-hub/db` (not raw `@aws-sdk/client-dynamodb`)
-  - ✅ Use `@ai-learning-hub/validation` (not raw `zod`)
-  - ✅ Use `@ai-learning-hub/middleware` for Lambda wrappers
-  - ✅ Use `@ai-learning-hub/types` for shared TypeScript types
+---
 
-This rule runs during the lint stage and fails the build if violated.
+## AI-Native Development Methodology (the differentiator)
 
-### Local Development
+**The short version:** stories are designed to be implemented by AI agents safely.
 
-Run the same quality gates locally before pushing:
+- **Progressive disclosure**: keep `CLAUDE.md` short and load topic docs from `.claude/docs/` as needed. See `.claude/docs/README.md`.
+- **Guardrails over vibes**: hooks block risky commands and protected files; CI enforces formatting, type-checks, and test gates. See `.claude/settings.json` and `.github/workflows/ci.yml`.
+- **Subagents for specialization**: test-writing, code review, debugging, and production validation are split into dedicated roles. See `_bmad-output/planning-artifacts/diagrams/07-agentic-development-workflow.md`.
+
+Meta: **this README was updated by Claude** as part of the same “built-in-the-open” workflow.
+
+---
+
+## Project Status & Roadmap
+
+### Current phase
+
+Planning is complete (PRD + Architecture + Epics). Implementation is underway.
+
+Specs in numbers (from the planning artifacts):
+
+- **PRD**: 69 product functional requirements + 28 non-functional requirements ([PRD](_bmad-output/planning-artifacts/prd.md))
+- **Agentic dev requirements**: 22 additional requirements for AI-assisted delivery (FR70–FR91 in the PRD)
+- **Architecture**: 16 ADRs ([Architecture](_bmad-output/planning-artifacts/architecture.md))
+
+Live implementation status: [sprint-status.yaml](_bmad-output/implementation-artifacts/sprint-status.yaml)
+
+As of `2026-02-04`:
+
+- **Epic 1 (Foundation) is in progress**
+  - done: stories 1.1–1.8
+  - next up: **1.9 Observability Foundation** (`ready-for-dev`)
+- Epics 2–11 (product features) are **backlog**
+
+### Roadmap
+
+- **Epics & story breakdown**: [Epics](_bmad-output/planning-artifacts/epics.md)
+- Tracking issue: [GitHub Issue #39](https://github.com/cirruslycurious/ai-learning-hub/issues/39)
+
+---
+
+## 📚 Documentation
+
+This README is intentionally a map, not a dump.
+
+### Getting started
+
+- **Quick Start (commands)**: see [Quick Start](#quick-start)
+- **Development guide & conventions**: [CLAUDE.md](CLAUDE.md)
+- **Architecture overview (condensed)**: [.claude/docs/architecture.md](.claude/docs/architecture.md)
+- **Database schema (7 tables, 10 GSIs)**: [.claude/docs/database-schema.md](.claude/docs/database-schema.md)
+
+### For Product Managers (vision → scope → roadmap)
+
+- **Product brief (vision, personas, UX principles)**: [Product brief](_bmad-output/planning-artifacts/product-brief-ai-learning-hub-2026-01-31.md)
+- **PRD (requirements + success criteria)**: [PRD](_bmad-output/planning-artifacts/prd.md)
+- **User flows**: [User flows](_bmad-output/planning-artifacts/diagrams/02-user-flows.md)
+- **Epics**: [Epics](_bmad-output/planning-artifacts/epics.md)
+
+### For developers (how it’s built)
+
+- **API conventions / error shapes**: [.claude/docs/api-patterns.md](.claude/docs/api-patterns.md)
+- **Full ADRs & architecture spec**: [Architecture](_bmad-output/planning-artifacts/architecture.md)
+- **CI pipeline**: [.github/workflows/ci.yml](.github/workflows/ci.yml)
+- **Issue / PR templates**: [.github/ISSUE_TEMPLATE/](.github/ISSUE_TEMPLATE/) and [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md)
+
+### For AI enthusiasts (how agents build production software)
+
+- **Autonomous epic workflow**: [bmad-bmm-auto-epic](.claude/commands/bmad-bmm-auto-epic.md)
+- **Agentic workflow diagram**: [Agentic development workflow](_bmad-output/planning-artifacts/diagrams/07-agentic-development-workflow.md)
+- **Hooks & enforcement strategy**: [Hooks enforcement strategy](_bmad-output/planning-artifacts/diagrams/06-hooks-enforcement-strategy.md)
+- **Agentic development research (source)**: [AI coding agent best practices](_bmad-output/planning-artifacts/research/technical-ai-coding-agent-best-practices-2026-02.md)
+- **Auto-epic validation notes**: [auto-epic validation findings](docs/research/auto-epic-validation-findings.md)
+
+---
+
+## Quick Start
 
 ```bash
-# Full gate sequence
-npm run format
-npm run lint
-npm run type-check
-npm test -- --coverage
-
-# CDK synth (from infra/)
-cd infra && npx cdk synth
-
-# Security checks
-npm audit
+git clone https://github.com/cirruslycurious/ai-learning-hub.git
+cd ai-learning-hub
+npm install
+npm test
+npm run build
 ```
 
-### AWS Deployment Setup
+Optional (deploy infrastructure; requires AWS credentials/config):
 
-To enable automated deployments:
+```bash
+cd infra && npx cdk deploy
+```
 
-1. **Dev Environment**:
-   - Configure GitHub OIDC provider in AWS
-   - Create IAM role with CDK deployment permissions
-   - Add `AWS_ROLE_ARN` secret to GitHub (dev environment)
+Config/secrets guidance: [.claude/docs/secrets-and-config.md](.claude/docs/secrets-and-config.md)
 
-2. **Prod Environment**:
-   - Create separate IAM role for production
-   - Add `AWS_ROLE_ARN_PROD` secret to GitHub (production environment)
-   - Enable environment protection rules (require approval)
+---
 
-See: https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services
+## Contributing
 
-### Triggers
+Contributions are welcome, especially on docs, tests, and implementation stories.
 
-- **Push**: All branches → Runs quality gates (stages 1-7)
-- **Pull Request**: To `main` → Runs quality gates (stages 1-7)
-- **Main Branch Push**: → Full pipeline including deployment (stages 1-10)
-- **Workflow Dispatch**: Manual trigger → Full pipeline
+- **Start with an issue**: use the templates in `.github/ISSUE_TEMPLATE/` (they’re designed for both humans and AI agents).
+- **PR expectations**: follow `.github/PULL_REQUEST_TEMPLATE.md` (includes the “Agent / Code Review” checklist).
+- **AI agents are first-class contributors**: if you use an agent, link the issue, keep scope tight, and make CI gates the source of truth.
 
-### Node.js Version
+> Note: there’s no `CONTRIBUTING.md` yet; see “Suggested follow-ups” below.
 
-Pipeline uses Node.js **20** (from `.nvmrc`). All jobs use the same version for consistency.
+---
 
-### Coverage Threshold
+## Credits & License
 
-Minimum **80% code coverage** enforced per workspace. Thresholds are configured in each workspace's `vitest.config.ts` file.
+- **Methodology**: <a href="https://github.com/bmadcode/BMAD-METHOD" target="_blank" rel="noopener noreferrer">BMAD</a>
+- **Infra**: <a href="https://aws.amazon.com/cdk/" target="_blank" rel="noopener noreferrer">AWS CDK</a>, Lambda, DynamoDB, EventBridge, Step Functions
+- **Frontend**: React + Vite
+- **Auth**: Clerk (per ADR-013)
 
-### Agent Security (FR79)
-
-Per PRD requirement FR79, AI-assisted code has elevated vulnerability risk:
-
-- Security scan findings are reviewed with extra scrutiny
-- All findings documented and tracked
-- Human review required for security-related changes
-
-## Issue Templates
-
-See `.github/ISSUE_TEMPLATE/` for standardized issue templates (configured in Story 1.6).
-
-## Pull Request Template
-
-See `.github/pull_request_template.md` for PR checklist (configured in Story 1.6).
-
-## File Guard
-
-⚠️ **IMPORTANT**: This directory (`.github/`) is protected by `file-guard.sh` hook.
-
-Any modifications to `.github/` files will trigger **ESCALATE** mode, requiring:
-
-- Human review and approval
-- Explanation of changes
-- Verification that changes don't bypass quality gates
-
-This protection ensures CI/CD integrity and prevents accidental workflow modifications.
+License: **source-visible, all rights reserved**. See `LICENSE`.
