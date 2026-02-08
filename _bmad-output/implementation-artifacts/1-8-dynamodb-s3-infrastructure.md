@@ -1,6 +1,6 @@
 # Story 1.8: DynamoDB Tables and S3 Buckets (Core Infrastructure)
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -16,8 +16,8 @@ so that **all user data, content, and project notes have durable, encrypted stor
 
 1. **AC1: Seven DynamoDB tables exist per ADR-001**
    - GIVEN the architecture (ADR-001)
-   WHEN the core infrastructure is deployed
-   THEN the following tables exist with correct partition/sort keys:
+     WHEN the core infrastructure is deployed
+     THEN the following tables exist with correct partition/sort keys:
    - `users` — PK: `USER#<clerkId>`, SK: `PROFILE` or `APIKEY#<keyId>`
    - `saves` — PK: `USER#<userId>`, SK: `SAVE#<saveId>`
    - `projects` — PK: `USER#<userId>`, SK: `PROJECT#<projectId>` or `FOLDER#<folderId>`
@@ -25,78 +25,78 @@ so that **all user data, content, and project notes have durable, encrypted stor
    - `content` — PK: `CONTENT#<urlHash>`, SK: `META`
    - `search-index` — PK: `USER#<userId>`, SK: `INDEX#<sourceType>#<sourceId>`
    - `invite-codes` — PK: `CODE#<code>`, SK: `META`
-   AND table names are passed to consuming stacks via exports (no hardcoding)
+     AND table names are passed to consuming stacks via exports (no hardcoding)
 
 2. **AC2: Ten GSIs defined per database-schema**
    - GIVEN the tables in AC1
-   WHEN the stacks are synthesized
-   THEN the following GSIs exist:
+     WHEN the stacks are synthesized
+     THEN the following GSIs exist:
    - users: `apiKeyHash-index` (keyHash)
    - saves: `userId-contentType-index`, `userId-tutorialStatus-index`, `urlHash-index`
    - projects: `userId-status-index`, `userId-folderId-index`
    - links: `userId-projectId-index`, `userId-saveId-index`
    - search-index: `userId-sourceType-index`
    - invite-codes: `generatedBy-index`
-   AND GSI names/ARNs are exported for Lambda and workflow stacks
+     AND GSI names/ARNs are exported for Lambda and workflow stacks
 
 3. **AC3: S3 bucket(s) for project notes**
    - GIVEN the architecture (notes in S3 per ADR-010, pipeline 2)
-   WHEN the core stack is deployed
-   THEN at least one S3 bucket exists for project notes (large Markdown content)
-   AND bucket has encryption at rest (SSE-S3 or SSE-KMS per NFR-S1)
-   AND bucket name is exported for API/workflow stacks
-   AND lifecycle/versioning policy is defined (e.g. versioning for durability)
+     WHEN the core stack is deployed
+     THEN at least one S3 bucket exists for project notes (large Markdown content)
+     AND bucket has encryption at rest (SSE-S3 or SSE-KMS per NFR-S1)
+     AND bucket name is exported for API/workflow stacks
+     AND lifecycle/versioning policy is defined (e.g. versioning for durability)
 
 4. **AC4: Encryption and durability (NFR-S1, NFR-R3)**
    - GIVEN DynamoDB tables and S3 bucket(s)
-   WHEN resources are created
-   THEN DynamoDB uses server-side encryption (default or explicit SSE)
-   AND Point-in-Time Recovery (PITR) is enabled for DynamoDB tables where required by NFR-R3
-   AND S3 bucket has encryption at rest
-   AND no plaintext storage of user data
+     WHEN resources are created
+     THEN DynamoDB uses server-side encryption (default or explicit SSE)
+     AND Point-in-Time Recovery (PITR) is enabled for DynamoDB tables where required by NFR-R3
+     AND S3 bucket has encryption at rest
+     AND no plaintext storage of user data
 
 5. **AC5: Core stacks integrated into CDK app**
    - GIVEN `infra/bin/app.ts` and ADR-006 stack structure
-   WHEN `cdk synth` runs
-   THEN a core stack (or split tables.stack + buckets.stack) is instantiated
-   AND stack(s) use `awsEnv` (getAwsEnv()) for account/region — no hardcoded IDs
-   AND stack outputs export table names/bucket names (or ARNs) for other stacks
-   AND deployment order is Core → Auth → API → Workflows → Observability
+     WHEN `cdk synth` runs
+     THEN a core stack (or split tables.stack + buckets.stack) is instantiated
+     AND stack(s) use `awsEnv` (getAwsEnv()) for account/region — no hardcoded IDs
+     AND stack outputs export table names/bucket names (or ARNs) for other stacks
+     AND deployment order is Core → Auth → API → Workflows → Observability
 
 6. **AC6: CDK Nag and tests**
    - GIVEN the new stacks
-   WHEN `cdk synth` runs
-   THEN CDK Nag (AwsSolutionsChecks) runs and critical findings are resolved or suppressed with justification
-   AND unit tests exist for stack structure (table count, key attributes, GSI presence, S3 encryption)
-   AND tests do not require live AWS (use assertions on synthesized template)
+     WHEN `cdk synth` runs
+     THEN CDK Nag (AwsSolutionsChecks) runs and critical findings are resolved or suppressed with justification
+     AND unit tests exist for stack structure (table count, key attributes, GSI presence, S3 encryption)
+     AND tests do not require live AWS (use assertions on synthesized template)
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Create DynamoDB tables stack** (AC: 1, 2, 4, 5)
+- [x] **Task 1: Create DynamoDB tables stack** (AC: 1, 2, 4, 5)
   - Add `infra/lib/stacks/core/tables.stack.ts` (or single core.stack.ts with tables)
   - Define 7 tables with exact PK/SK from .claude/docs/database-schema.md
   - Add 10 GSIs with correct partition/sort key projections
-  - Enable encryption at rest; enable PITR for user/content tables per NFR-R3
+  - Enable encryption at rest; enable PITR for all tables per NFR-R3 and CDK Nag
   - Export table names (or ARNs) via CfnOutput or cross-stack references
   - Use `awsEnv` from config; no hardcoded account/region
 
-- [ ] **Task 2: Create S3 buckets stack** (AC: 3, 4, 5)
+- [x] **Task 2: Create S3 buckets stack** (AC: 3, 4, 5)
   - Add `infra/lib/stacks/core/buckets.stack.ts` or include in core stack
   - Create project-notes bucket with encryption (SSE-S3 or SSE-KMS)
   - Configure versioning and/or lifecycle as per architecture
   - Export bucket name for API/workflow stacks
 
-- [ ] **Task 3: Wire core stacks into app** (AC: 5)
+- [x] **Task 3: Wire core stacks into app** (AC: 5)
   - In `infra/bin/app.ts`, instantiate core stack(s) with `awsEnv`
   - Ensure stack IDs follow convention (e.g. `AiLearningHubCore`, `AiLearningHubTables`)
   - Verify deployment order: core first, then auth/api/workflows/observability when added
 
-- [ ] **Task 4: CDK Nag and unit tests** (AC: 6)
+- [x] **Task 4: CDK Nag and unit tests** (AC: 6)
   - Run `cdk synth` and fix or document any AwsSolutionsChecks findings for new resources
   - Add tests in `infra/test/` that assert: 7 tables, correct key schemas, 10 GSIs, S3 bucket with encryption
   - Use `Template.fromStack()` or similar to assert on synthesized template; no live AWS calls
 
-- [ ] **Task 5: Deploy to AWS and validate** (AC: 1–6)
+- [x] **Task 5: Deploy to AWS and validate** (AC: 1–6)
   - Deploy the core stack(s) to AWS (e.g. `cdk deploy --all` from infra/ or `npm run deploy:dev`). The infrastructure must exist in the target AWS account when this story is complete.
   - Document table/bucket names and exports in infra README or .claude/docs
   - Run `npm run build` and `cdk synth` from infra; run `npm test` including new stack tests
@@ -176,16 +176,67 @@ so that **all user data, content, and project notes have durable, encrypted stor
 
 ### Agent Model Used
 
-(To be filled by dev agent)
+Claude Sonnet 4.5 (claude-sonnet-4-5-20250929)
 
 ### Debug Log References
 
-(To be filled by dev agent)
+Deploy output: `/tmp/cdk-deploy-output.log`
 
 ### Completion Notes List
 
-(To be filled by dev agent)
+**Implementation Summary:**
+
+- ✅ Created 7 DynamoDB tables (users, saves, projects, links, content, search-index, invite-codes) with exact PK/SK patterns per database-schema.md
+- ✅ Added 10 GSIs across all tables for optimized query patterns
+- ✅ Enabled encryption at rest (AWS_MANAGED SSE) for all tables
+- ✅ Enabled Point-in-Time Recovery for all tables (initially users/content only, expanded to all per CDK Nag AwsSolutions-DDB3)
+- ✅ Created S3 bucket for project notes with SSE-S3 encryption, versioning enabled
+- ✅ Added access logs bucket with lifecycle policy (90-day expiration)
+- ✅ Enforced SSL/TLS for all S3 requests (CDK Nag AwsSolutions-S10 compliance)
+- ✅ Configured lifecycle rules: archive old versions to IA (30d) and Glacier (90d), expire after 1 year
+- ✅ Exported all table names and bucket ARN via CloudFormation outputs
+- ✅ All tests passing (202/202) including 25 new tests for core stacks
+- ✅ CDK Nag validation passing with no errors
+- ✅ **Deployed to AWS successfully** - all infrastructure exists and is operational
+
+**CDK Nag Compliance:**
+
+- AwsSolutions-DDB3: Resolved by adding PITR to all tables
+- AwsSolutions-S1: Resolved by adding server access logs bucket
+- AwsSolutions-S10: Resolved by enforcing SSL/TLS (enforceSSL: true)
+
+**Test Coverage:**
+
+- TablesStack: 19 tests validating table count, keys, GSIs, encryption, PITR, outputs
+- BucketsStack: 6 tests validating encryption, versioning, public access blocking, lifecycle, outputs
+- All tests use Template assertions (no live AWS calls)
+
+**Deployment Verification:**
+
+- Bootstrapped CDK environment
+- Deployed AiLearningHubTables stack (7 tables created)
+- Deployed AiLearningHubBuckets stack (2 buckets created)
+- Verified all 7 tables exist in AWS DynamoDB
+- Stack ARNs (account ID and region redacted):
+  - Tables: `arn:aws:cloudformation:REGION:XXXXXXXXXXXX:stack/AiLearningHubTables/STACK-ID`
+  - Buckets: `arn:aws:cloudformation:REGION:XXXXXXXXXXXX:stack/AiLearningHubBuckets/STACK-ID`
 
 ### File List
 
-(To be filled after implementation: core stack file(s), app.ts changes, test files, any README updates)
+**New Files:**
+
+- `infra/lib/stacks/core/tables.stack.ts` - DynamoDB tables stack (7 tables, 10 GSIs)
+- `infra/lib/stacks/core/buckets.stack.ts` - S3 buckets stack (project notes + access logs)
+- `infra/test/stacks/core/tables.stack.test.ts` - Unit tests for tables stack (19 tests)
+- `infra/test/stacks/core/buckets.stack.test.ts` - Unit tests for buckets stack (6 tests)
+
+**Modified Files:**
+
+- `infra/bin/app.ts` - Instantiated TablesStack and BucketsStack with awsEnv
+- `infra/test/bin/app-structure.test.ts` - Updated test expectations for new stack structure
+
+**Deployed Resources (AWS):**
+
+- DynamoDB tables: `ai-learning-hub-{users|saves|projects|links|content|search-index|invite-codes}`
+- S3 buckets: Auto-generated unique names with encryption and versioning enabled
+- S3 access logs bucket: Auto-generated unique name with lifecycle policies

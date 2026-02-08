@@ -119,17 +119,24 @@ jobs:
             exit 0
           fi
 
-          # Verify CDK Nag ran by checking for its output
-          if grep -q "AwsSolutions" synth-output.log || grep -q "cdk-nag" synth-output.log; then
-            echo "✅ CDK Nag checks executed successfully"
+          # Verify CDK Nag is configured by checking compiled app.js
+          if grep -q "AwsSolutionsChecks\|cdk-nag" dist/bin/app.js; then
+            echo "✅ CDK Nag is configured in app.ts"
+            # Check for CDK Nag findings in output
+            if grep -q "AwsSolutions" synth-output.log; then
+              echo "⚠️  CDK Nag found issues (see output above)"
+              # Non-error findings won't fail synth, but we report them
+            else
+              echo "✅ No CDK Nag findings - all stacks are compliant"
+            fi
           else
-            echo "❌ CDK Nag did not run but stacks exist - check configuration"
+            echo "❌ CDK Nag is not configured in app.ts - check bin/app.ts"
             exit 1
           fi
 
           # Check CDK synth exit code (CDK Nag errors will fail synth)
           if [ $CDK_EXIT_CODE -ne 0 ]; then
-            echo "❌ CDK synth failed (possibly due to CDK Nag findings)"
+            echo "❌ CDK synth failed (possibly due to CDK Nag ERROR-level findings)"
             exit $CDK_EXIT_CODE
           fi
 

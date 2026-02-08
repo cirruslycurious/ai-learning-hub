@@ -91,7 +91,7 @@ describe("CDK App Structure", () => {
     });
 
     it("should have comments explaining configuration", () => {
-      expect(appSource).toContain("// Stack placeholders");
+      expect(appSource).toContain("// Core Infrastructure Stacks");
       expect(appSource).toContain("// Environment configuration");
     });
   });
