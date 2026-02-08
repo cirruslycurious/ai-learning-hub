@@ -1,0 +1,21 @@
+# Gitleaks ignore file for false positives
+
+# Documentation files with example connection strings (not real secrets)
+.claude/docs/orchestrator-safety.md:redis-connection-string:364
+.claude/docs/orchestrator-safety.md:mongodb-connection-string:364
+.claude/docs/orchestrator-safety.md:postgres-connection-string:364
+
+# Research docs with example connection strings
+docs/research/story-1-10-analysis.md:mongodb-connection-string:120
+docs/research/story-1-10-analysis.md:postgres-connection-string:120
+docs/research/story-1-10-analysis.md:redis-connection-string:120
+
+# CDK generated files with AWS account ID (expected in infra code)
+infra/cdk.out/AiLearningHubBuckets.template.json:aws-account-id-standalone:101
+infra/cdk.out/tree.json:aws-account-id-standalone:1
+
+# Test files with example AWS account IDs
+infra/dist/test/config/aws-env.test.js:aws-account-id-standalone:18
+
+# BMAD knowledge base with example connection strings
+_bmad/tea/testarch/knowledge/playwright-config.md:postgres-connection-string:136
