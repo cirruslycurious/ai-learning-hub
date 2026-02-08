@@ -1,127 +1,221 @@
+<!--
+Optional: add a banner image once you have one.
+Example:
+<p align="center">
+  <img src="docs/assets/banner.png" alt="AI Learning Hub banner" />
+</p>
+-->
+
 # AI Learning Hub
 
-A project-centric learning platform for people who build with AI. Capture resources, track tutorials, manage projects — and connect them all together.
+> A save-to-build learning workbench for AI builders — **built in the open with AI agents** using the BMAD methodology.
 
-## What This Is
+[![CI](https://github.com/cirruslycurious/ai-learning-hub/actions/workflows/ci.yml/badge.svg)](https://github.com/cirruslycurious/ai-learning-hub/actions/workflows/ci.yml)
+![Node](https://img.shields.io/badge/node-%E2%89%A520-339933?logo=node.js&logoColor=white)
+![Coverage gate](https://img.shields.io/badge/coverage-gate%20%E2%89%A580%25-brightgreen)
+![License](https://img.shields.io/badge/license-source--visible-lightgrey)
 
-Builders learn by doing — discovering ideas, practicing through tutorials, and building projects. That cycle is fast and non-linear, but the tooling hasn't kept up. Learning resources are scattered across a dozen platforms. Tutorials are discovered and forgotten. Project ideas fragment across LLM conversations over weeks.
+AI Learning Hub connects what you’re learning (links, tutorials, conversations) to what you’re building (projects). It’s designed for **self-directed AI builders**—especially no-code/low-code and “non-traditional” builders—who are drowning in scattered resources and a tutorial graveyard.
 
-AI Learning Hub is a single place to capture, organize, and connect everything. Projects are the center of gravity. Resources and tutorials are the fuel. Cross-linking ties them together. The platform is designed for the self-directed AI builder — especially non-developers and no-code/low-code builders who are learning to build with AI tools.
+This repo is also a **production-oriented case study in agentic software development**: a monorepo with CI gates, architecture decision records, and a workflow where AI subagents write tests, implement stories, and review code.
 
-## Core Capabilities
+**System overview diagram:** [System overview](_bmad-output/planning-artifacts/diagrams/01-system-overview.md)
 
-- **Resource Library** — Track podcasts, YouTube channels, blogs, Substacks, subreddits, GitHub repos, LinkedIn people, newsletters, tools, and more. 10+ source types with type-appropriate metadata.
-- **Tutorial Tracker** — Save tutorials and walkthroughs with status tracking (saved / started / in-progress / completed).
-- **Project Tracker** — Projects as living notebooks: status, linked resources, linked tutorials, notes, and LLM conversation outputs (the actual thinking from Claude/ChatGPT/Gemini sessions).
-- **Cross-linking** — Resources and tutorials link to projects. A single save can be both a resource and a tutorial. Everything connects.
-- **Mobile Capture** — PWA with home screen shortcut. iOS Shortcut for 2-tap save from any app's share sheet. Android share target API. Fire-and-forget — save and move on.
+> Screenshot/demo: not yet available. (When UI work starts, add a screenshot/GIF here.)
 
-## Architecture
+**Fast paths (by audience):**
 
-**API-first. Serverless. Multi-user.**
+- **PMs**: jump to [📚 Documentation](#-documentation) → “For Product Managers”
+- **Engineers**: jump to [Quick Start](#quick-start) and [Architecture highlights](#architecture-highlights-grounded-in-adrs)
+- **AI/agent builders**: jump to [AI-Native Development Methodology](#ai-native-development-methodology-the-differentiator)
+- **Contributors**: jump to [Contributing](#contributing)
 
-The API is the product — web and mobile UIs are "skins" over API calls. All operations (internal and external) flow through API Gateway. No Lambda-to-Lambda calls.
+## Table of contents
 
-| Layer          | Technology                      |
-| -------------- | ------------------------------- |
-| Frontend       | React + Vite (PWA)              |
-| Auth           | Clerk (JWT + API keys)          |
-| Backend        | AWS Lambda (Node.js/TypeScript) |
-| Database       | DynamoDB (7 tables, 10 GSIs)    |
-| Storage        | S3 (notes, static assets)       |
-| Infrastructure | AWS CDK (TypeScript)            |
-| Hosting        | S3 + CloudFront                 |
-| Observability  | CloudWatch, X-Ray, EMF metrics  |
-| Mobile (V1)    | PWA + iOS Shortcut              |
-| Mobile (V2.5)  | Native iOS app                  |
-| Mobile (V3.5)  | Native Android app              |
+- [Why This Exists (Problem → Solution)](#why-this-exists-problem--solution)
+- [Key Features (V1 product scope — specified in the PRD)](#key-features-v1-product-scope--specified-in-the-prd)
+- [Tech Showcase (for PMs, recruiters, and technical readers)](#tech-showcase-for-pms-recruiters-and-technical-readers)
+- [AI-Native Development Methodology (the differentiator)](#ai-native-development-methodology-the-differentiator)
+- [Project Status & Roadmap](#project-status--roadmap)
+- [📚 Documentation](#-documentation)
+- [Quick Start](#quick-start)
+- [Contributing](#contributing)
+- [Credits & License](#credits--license)
 
-### Key Design Decisions (13 ADRs)
+---
 
-- **ADR-001: Multi-table DynamoDB** — 7 tables with user-partitioned keys for security isolation
-- **ADR-002: DynamoDB for search (V1)** — Search index table with `contains()` filter, OpenSearch for V2
-- **ADR-003: EventBridge + Step Functions** — Async processing pipelines with visual debugging
-- **ADR-004: Lambda per concern** — Single responsibility, least-privilege IAM
-- **ADR-005: No Lambda-to-Lambda** — All traffic through API Gateway (including internal)
-- **ADR-006: Multi-stack CDK** — 15+ stacks by concern, parallel deployment
-- **ADR-007: CI/CD with gates** — 80% coverage enforced, CDK Nag, contract tests
-- **ADR-013: Clerk for auth** — JWT for web, API keys for iOS Shortcut/agents
+## Why This Exists (Problem → Solution)
 
-### Data Model
+**The problem:** AI learning content is everywhere (podcasts, YouTube, blogs, repos, newsletters), but the workflow is fragmented across 3–5 tools. Even worse, the “thinking” that turns content into a build often lives in **LLM chats** that get lost over weeks.
 
-| Table        | Purpose              | Partition Key       |
-| ------------ | -------------------- | ------------------- |
-| users        | Profiles + API keys  | `USER#<clerkId>`    |
-| saves        | User's saved URLs    | `USER#<userId>`     |
-| projects     | Projects + folders   | `USER#<userId>`     |
-| links        | Project ↔ Save (M:N) | `USER#<userId>`     |
-| content      | Global URL metadata  | `CONTENT#<urlHash>` |
-| search-index | Search substrate     | `USER#<userId>`     |
-| invite-codes | Invite system        | `CODE#<code>`       |
+**The solution:** AI Learning Hub is a **project-centric** system where:
 
-### API Surface
+- saves are **fuel** (captured fast, from anywhere)
+- projects are **living notebooks** (links + notes + pasted AI chat history)
+- linking creates a personal “learning graph” that compounds over time
 
-- **Core APIs**: `/saves`, `/projects`, `/folders`, `/search`, `/users`
-- **Internal APIs**: `/content`, `/search-index` (AWS IAM auth for pipelines)
-- **Admin APIs**: `/admin/*` (Stephen only)
-- **Analytics APIs**: `/analytics/*` (Stephen + analysts)
+**What makes it different:** it assumes the end goal is **building**, not “read later” or generic PKM. And it treats **AI agents as first-class users** via an API-first design (so an agent can save, link, and query on your behalf).
 
-## Version Roadmap
+---
 
-| Version  | Focus                                                                                          | Status          |
-| -------- | ---------------------------------------------------------------------------------------------- | --------------- |
-| **V1**   | Foundation — API, capture, UI, data model, observability, security                             | Pre-development |
-| **V2**   | Intelligence — LLM-powered connections, collective learning graph, semantic search, MCP server | Planned         |
-| **V2.5** | Native iOS app                                                                                 | Planned         |
-| **V3**   | Community — published learning trails, portfolio for builders                                  | Planned         |
-| **V3.5** | Native Android app                                                                             | Planned         |
-| **V4**   | Business model (if ever)                                                                       | Out of scope    |
+## Key Features (V1 product scope — specified in the PRD)
 
-## Current Status
+These are **intended product capabilities** (not all implemented yet). Each bullet links to the source spec.
 
-**Pre-development.** Building out specs using the [BMAD methodology](https://github.com/bmadcode/BMAD-METHOD).
+- **⚡ 3-second capture (mobile-first)**: save a URL via iOS Shortcut / share sheet and move on. See [User flows](_bmad-output/planning-artifacts/diagrams/02-user-flows.md) and [PRD](_bmad-output/planning-artifacts/prd.md) (FR44–FR47).
+- **🧰 One unified library (3 views)**: Resource Library + Tutorial Tracker + My Projects are views into the same “save” entity. See [PRD](_bmad-output/planning-artifacts/prd.md) (FR18).
+- **🗂️ Projects as living notebooks**: store links + Markdown notes + pasted AI chat history (“how I figured it out”). See [PRD](_bmad-output/planning-artifacts/prd.md) (FR26–FR27, FR49).
+- **🔗 Save-to-build linking**: connect fuel to outcomes (save ↔ project), including bulk linking on desktop. See [PRD](_bmad-output/planning-artifacts/prd.md) (FR33–FR38).
+- **✅ Tutorial progress tracking**: mark a save as a tutorial and track status to completion. See [PRD](_bmad-output/planning-artifacts/prd.md) (FR39–FR43).
+- **🔎 Fast search across saves/projects/notes**: V1 search via a processed index (DynamoDB) with a clean upgrade path. See [Architecture summary](.claude/docs/architecture.md) (ADR-002, ADR-010) and [PRD](_bmad-output/planning-artifacts/prd.md) (FR52–FR55).
+- **🧪 Operable from day one**: structured logging, tracing, and CI gates (including an 80% coverage gate) are V1 requirements. See [PRD](_bmad-output/planning-artifacts/prd.md) (Technical Success) and [CI workflow](.github/workflows/ci.yml).
 
-| Artifact        | Status                                                  |
-| --------------- | ------------------------------------------------------- |
-| Product Brief   | ✅ Complete                                             |
-| Domain Research | ✅ Complete                                             |
-| PRD             | ✅ Complete (69 FRs, 28 NFRs)                           |
-| Architecture    | ✅ Complete (13 ADRs, 7 tables, 10 GSIs, full API spec) |
-| Epics & Stories | Not started                                             |
-| UX Design       | Not started                                             |
+---
 
-Track progress: [GitHub Issue #39](https://github.com/cirruslycurious/ai-learning-hub/issues/39)
+## Tech Showcase (for PMs, recruiters, and technical readers)
 
-## Documentation
+### Built in the open with AI agents
 
-| Document                                                                                                              | Description                                                                   |
-| --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| [Product Brief](_bmad-output/planning-artifacts/product-brief-ai-learning-hub-2026-01-31.md)                          | Comprehensive product vision, personas, entity model, security, observability |
-| [Domain Research](_bmad-output/planning-artifacts/research/domain-ai-genai-learning-workflows-research-2026-02-02.md) | AI/GenAI learning landscape research                                          |
-| [PRD](_bmad-output/planning-artifacts/prd.md)                                                                         | Product requirements document (69 FRs, 28 NFRs, API-first architecture)       |
-| [Architecture](_bmad-output/planning-artifacts/architecture.md)                                                       | 13 ADRs, DynamoDB schemas, API specs, auth flows, analytics                   |
-| [CLAUDE.md](CLAUDE.md)                                                                                                | AI assistant context file                                                     |
+This project “dogfoods” agentic development:
 
-### Legacy Docs (to be migrated)
+- **BMAD methodology + autonomous epic workflow**: [bmad-bmm-auto-epic](.claude/commands/bmad-bmm-auto-epic.md)
+- **Agentic workflow diagram**: [Agentic development workflow](_bmad-output/planning-artifacts/diagrams/07-agentic-development-workflow.md)
+- **Deterministic guardrails (hooks)**: [Hooks README](.claude/hooks/README.md) and [Enforcement strategy diagram](_bmad-output/planning-artifacts/diagrams/06-hooks-enforcement-strategy.md)
+- **Agent-friendly GitHub artifacts**: [.github issue templates](.github/ISSUE_TEMPLATE/) and [PR template](.github/PULL_REQUEST_TEMPLATE.md)
 
-| Document                                                                     | Description                                                 |
-| ---------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| [docs/PRD.md](docs/PRD.md)                                                   | Original PRD outline (superseded by `_bmad-output` version) |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                                 | Placeholder (superseded by `_bmad-output` version)          |
-| [docs/epics/000-project-foundation.md](docs/epics/000-project-foundation.md) | Epic 0 placeholder                                          |
+### Architecture highlights (grounded in ADRs)
 
-## Repository Structure
+- **API-first**: the API is the product; UIs are clients. See `.claude/docs/architecture.md` (ADR-014).
+- **No Lambda-to-Lambda calls**: all cross-service communication via API Gateway or events. See `.claude/docs/architecture.md` (ADR-005).
+- **Multi-table DynamoDB**: 7 tables + 10 GSIs, with strong per-user isolation and a global content layer. See `.claude/docs/database-schema.md` and `_bmad-output/planning-artifacts/architecture.md` (ADR-001).
+- **Async pipelines**: EventBridge + Step Functions for enrichment / notes processing / search sync. See `_bmad-output/planning-artifacts/diagrams/03-data-pipeline-flow.md` and `.claude/docs/architecture.md` (ADR-003).
+- **Production gates in CI**: lint/format → type-check → tests with **80% coverage gate** → CDK synth + CDK Nag. See `.github/workflows/ci.yml` and `_bmad-output/planning-artifacts/architecture.md` (ADR-007).
 
+### Tech stack (as committed in `package.json`)
+
+| Layer             | Technology                                                                              |
+| ----------------- | --------------------------------------------------------------------------------------- |
+| **Runtime**       | Node.js **>= 20**                                                                       |
+| **Frontend**      | React **18.2**, Vite **5**, Tailwind CSS **3.4** (`frontend/package.json`)              |
+| **Backend**       | AWS Lambda (TypeScript), Vitest **3.2** (`backend/package.json`)                        |
+| **Infra**         | AWS CDK **2.170**, `cdk-nag` **2.37** (`infra/package.json`)                            |
+| **Data**          | DynamoDB (7 tables, 10 GSIs), S3 for Markdown notes (`.claude/docs/database-schema.md`) |
+| **Observability** | CloudWatch + X-Ray (per ADRs / PRD)                                                     |
+
+---
+
+## AI-Native Development Methodology (the differentiator)
+
+**The short version:** stories are designed to be implemented by AI agents safely.
+
+- **Progressive disclosure**: keep `CLAUDE.md` short and load topic docs from `.claude/docs/` as needed. See `.claude/docs/README.md`.
+- **Guardrails over vibes**: hooks block risky commands and protected files; CI enforces formatting, type-checks, and test gates. See `.claude/settings.json` and `.github/workflows/ci.yml`.
+- **Subagents for specialization**: test-writing, code review, debugging, and production validation are split into dedicated roles. See `_bmad-output/planning-artifacts/diagrams/07-agentic-development-workflow.md`.
+
+Meta: **this README was updated by Claude** as part of the same “built-in-the-open” workflow.
+
+---
+
+## Project Status & Roadmap
+
+### Current phase
+
+Planning is complete (PRD + Architecture + Epics). Implementation is underway.
+
+Specs in numbers (from the planning artifacts):
+
+- **PRD**: 69 product functional requirements + 28 non-functional requirements ([PRD](_bmad-output/planning-artifacts/prd.md))
+- **Agentic dev requirements**: 22 additional requirements for AI-assisted delivery (FR70–FR91 in the PRD)
+- **Architecture**: 16 ADRs ([Architecture](_bmad-output/planning-artifacts/architecture.md))
+
+Live implementation status: [sprint-status.yaml](_bmad-output/implementation-artifacts/sprint-status.yaml)
+
+As of `2026-02-04`:
+
+- **Epic 1 (Foundation) is in progress**
+  - done: stories 1.1–1.8
+  - next up: **1.9 Observability Foundation** (`ready-for-dev`)
+- Epics 2–11 (product features) are **backlog**
+
+### Roadmap
+
+- **Epics & story breakdown**: [Epics](_bmad-output/planning-artifacts/epics.md)
+- Tracking issue: [GitHub Issue #39](https://github.com/cirruslycurious/ai-learning-hub/issues/39)
+
+---
+
+## 📚 Documentation
+
+This README is intentionally a map, not a dump.
+
+### Getting started
+
+- **Quick Start (commands)**: see [Quick Start](#quick-start)
+- **Development guide & conventions**: [CLAUDE.md](CLAUDE.md)
+- **Architecture overview (condensed)**: [.claude/docs/architecture.md](.claude/docs/architecture.md)
+- **Database schema (7 tables, 10 GSIs)**: [.claude/docs/database-schema.md](.claude/docs/database-schema.md)
+
+### For Product Managers (vision → scope → roadmap)
+
+- **Product brief (vision, personas, UX principles)**: [Product brief](_bmad-output/planning-artifacts/product-brief-ai-learning-hub-2026-01-31.md)
+- **PRD (requirements + success criteria)**: [PRD](_bmad-output/planning-artifacts/prd.md)
+- **User flows**: [User flows](_bmad-output/planning-artifacts/diagrams/02-user-flows.md)
+- **Epics**: [Epics](_bmad-output/planning-artifacts/epics.md)
+
+### For developers (how it’s built)
+
+- **API conventions / error shapes**: [.claude/docs/api-patterns.md](.claude/docs/api-patterns.md)
+- **Full ADRs & architecture spec**: [Architecture](_bmad-output/planning-artifacts/architecture.md)
+- **CI pipeline**: [.github/workflows/ci.yml](.github/workflows/ci.yml)
+- **Issue / PR templates**: [.github/ISSUE_TEMPLATE/](.github/ISSUE_TEMPLATE/) and [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md)
+
+### For AI enthusiasts (how agents build production software)
+
+- **Autonomous epic workflow**: [bmad-bmm-auto-epic](.claude/commands/bmad-bmm-auto-epic.md)
+- **Agentic workflow diagram**: [Agentic development workflow](_bmad-output/planning-artifacts/diagrams/07-agentic-development-workflow.md)
+- **Hooks & enforcement strategy**: [Hooks enforcement strategy](_bmad-output/planning-artifacts/diagrams/06-hooks-enforcement-strategy.md)
+- **Agentic development research (source)**: [AI coding agent best practices](_bmad-output/planning-artifacts/research/technical-ai-coding-agent-best-practices-2026-02.md)
+- **Auto-epic validation notes**: [auto-epic validation findings](docs/research/auto-epic-validation-findings.md)
+
+---
+
+## Quick Start
+
+```bash
+git clone https://github.com/cirruslycurious/ai-learning-hub.git
+cd ai-learning-hub
+npm install
+npm test
+npm run build
 ```
-_bmad/                  # BMAD methodology agents, workflows, templates
-_bmad-output/           # Planning artifacts (product brief, PRD, research)
-docs/                   # Project documentation (to be updated)
-frontend/               # React + Vite application (not yet started)
-backend/                # Lambda function handlers (not yet started)
-infra/                  # AWS CDK infrastructure code (not yet started)
-.github/                # Issue templates, PR templates, workflows
+
+Optional (deploy infrastructure; requires AWS credentials/config):
+
+```bash
+cd infra && npx cdk deploy
 ```
 
-## License
+Config/secrets guidance: [.claude/docs/secrets-and-config.md](.claude/docs/secrets-and-config.md)
 
-This project is **source-visible, all rights reserved**. You may view the code for reference and learning purposes. You may **not** copy, modify, distribute, or use this code (in whole or in part) for commercial purposes without explicit written permission from the author. See [LICENSE](LICENSE) for details.
+---
+
+## Contributing
+
+Contributions are welcome, especially on docs, tests, and implementation stories.
+
+- **Start with an issue**: use the templates in `.github/ISSUE_TEMPLATE/` (they’re designed for both humans and AI agents).
+- **PR expectations**: follow `.github/PULL_REQUEST_TEMPLATE.md` (includes the “Agent / Code Review” checklist).
+- **AI agents are first-class contributors**: if you use an agent, link the issue, keep scope tight, and make CI gates the source of truth.
+
+> Note: there’s no `CONTRIBUTING.md` yet; see “Suggested follow-ups” below.
+
+---
+
+## Credits & License
+
+- **Methodology**: <a href="https://github.com/bmadcode/BMAD-METHOD" target="_blank" rel="noopener noreferrer">BMAD</a>
+- **Infra**: <a href="https://aws.amazon.com/cdk/" target="_blank" rel="noopener noreferrer">AWS CDK</a>, Lambda, DynamoDB, EventBridge, Step Functions
+- **Frontend**: React + Vite
+- **Auth**: Clerk (per ADR-013)
+
+License: **source-visible, all rights reserved**. See `LICENSE`.

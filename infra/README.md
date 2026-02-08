@@ -102,6 +102,29 @@ The `deploy.sh` wrapper script:
 /project-check-secrets-config
 ```
 
+## Stacks
+
+Per ADR-006 deployment order:
+
+1. **Core Stacks** (`lib/stacks/core/`)
+   - `TablesStack` - DynamoDB tables (7 tables, 10 GSIs)
+   - `BucketsStack` - S3 buckets (project notes storage)
+
+2. **Auth Stack** (future) - Clerk JWT validation, API key management
+
+3. **API Stack** (future) - API Gateway, Lambda handlers
+
+4. **Workflows Stack** (future) - Step Functions, EventBridge
+
+5. **Observability Stack** (`lib/stacks/observability/`)
+   - `ObservabilityStack` - X-Ray tracing, CloudWatch dashboards/alarms
+
+Deploy command respects stack dependencies:
+
+```bash
+npm run deploy  # Deploys in correct order
+```
+
 ## Directory Structure
 
 ```
@@ -110,6 +133,11 @@ infra/
 │   └── app.ts              # CDK app entry point
 ├── lib/
 │   └── stacks/             # Stack definitions (per ADR-006)
+│       ├── core/           # Core infrastructure (DynamoDB, S3)
+│       ├── auth/           # Authentication (future)
+│       ├── api/            # API Gateway + Lambdas (future)
+│       ├── workflows/      # Step Functions (future)
+│       └── observability/  # X-Ray, dashboards, alarms
 ├── config/
 │   └── environments.ts     # Environment configuration
 ├── test/                   # Infrastructure tests
