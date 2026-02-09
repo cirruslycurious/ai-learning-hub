@@ -1,7 +1,6 @@
 ---
 name: doc-pipeline
 description: "Run the multi-agent tech writing pipeline to produce polished documentation with evidence-based review"
-model: auto
 ---
 
 # 1. Role
