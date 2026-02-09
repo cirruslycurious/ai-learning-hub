@@ -1,0 +1,180 @@
+# Tech Writing Pipeline State File
+# This file tracks the execution state of the multi-agent pipeline.
+# Update after each step completes to maintain continuity across sessions.
+
+# Project identifier (slug format)
+project: "example-project-slug"
+
+# Description of what document is being created
+task: "Write a User Guide for [Feature Name]"
+
+# Overall pipeline status
+# Options: pending | in-progress | completed | blocked
+status: in-progress
+
+# ISO 8601 timestamp when pipeline execution started
+started: 2026-02-08T10:00:00Z
+
+# Current phase (1-7) from the 7-phase pipeline flow
+current_phase: 3
+
+# Current step number being executed
+current_step: 5
+
+# Agent currently working (null if waiting for human or between steps)
+# Options: tech-writer | editor | sme | designer | qa-reader | null
+current_agent: sme
+
+# Step-by-step execution state
+# Each step tracks status, responsible agent, output file, and review gates
+steps:
+  # ============================================================================
+  # PHASE 1: Foundation
+  # ============================================================================
+
+  1-research-outline:
+    status: completed # pending | in-progress | completed | skipped
+    agent: tech-writer
+    output: 02-outline.md
+
+  2-outline-review:
+    status: completed
+    agent: editor
+    output: 03-outline-review.md
+    gate: passed # passed | must-revise | blocked (only for review steps)
+
+  # ============================================================================
+  # PHASE 2: First Draft
+  # ============================================================================
+
+  3-draft-v1:
+    status: completed
+    agent: tech-writer
+    output: 04-draft-v1.md
+
+  4-editorial-review-v1:
+    status: completed
+    agent: editor
+    output: 05-editorial-review-v1.md
+    gate: must-revise
+    revision_round: 1 # Only present if gate = must-revise
+
+  # Optional step - only runs if Step 4 gate = must-revise
+  4b-draft-v1r1:
+    status: completed
+    agent: tech-writer
+    output: 06-draft-v1r1.md
+    revision_round: 1
+
+  # ============================================================================
+  # PHASE 3: Technical Depth
+  # ============================================================================
+
+  5-sme-review:
+    status: in-progress # Currently executing (matches current_step: 5)
+    agent: sme
+    output: null # Not yet produced
+
+  6-draft-v2:
+    status: pending
+    agent: tech-writer
+    output: null
+
+  # ============================================================================
+  # PHASE 4: Visual Design + Technical Validation (PARALLEL)
+  # ============================================================================
+
+  7a-editorial-review-v2:
+    status: pending
+    agent: editor
+    output: null
+
+  # Runs in parallel with 7a
+  7b-diagrams-v1:
+    status: pending
+    agent: designer
+    output: null
+
+  8-sme-review-v2:
+    status: pending
+    agent: sme
+    output: null
+
+  # ============================================================================
+  # PHASE 5: Polish
+  # ============================================================================
+
+  9-draft-v3:
+    status: pending
+    agent: tech-writer
+    output: null
+
+  # These two run in parallel
+  10a-editorial-review-v3:
+    status: pending
+    agent: editor
+    output: null
+
+  10b-diagrams-v2:
+    status: pending
+    agent: designer
+    output: null
+
+  # ============================================================================
+  # PHASE 6: QA Validation
+  # ============================================================================
+
+  11-qa-read-v1:
+    status: pending
+    agent: qa-reader
+    output: null
+
+  # Optional - only if QA finds confusion points
+  11b-draft-v3r1:
+    status: pending
+    agent: tech-writer
+    output: null
+    revision_round: 1
+
+  # Optional - second QA pass if revisions were needed
+  11c-qa-read-v2:
+    status: pending
+    agent: qa-reader
+    output: null
+    revision_round: 2
+
+  # Optional - final revisions if QA still has issues
+  11d-draft-v3r2:
+    status: pending
+    agent: tech-writer
+    output: null
+    revision_round: 2
+
+  # ============================================================================
+  # PHASE 7: Final Assembly
+  # ============================================================================
+
+  12-final-review:
+    status: pending
+    agent: editor
+    output: null # Produces both 19-final-review.md and 20-final.md
+
+  13-assemble-final:
+    status: pending
+    agent: tech-writer
+    output: null # Produces 21-final-with-diagrams.md
+
+  14-present:
+    status: pending
+    agent: null # Human presents to stakeholders
+    output: null
+
+# ============================================================================
+# NOTES
+# ============================================================================
+# - Update this file after each step completes
+# - Set current_step to the next step number when beginning new work
+# - Optional steps (4b, 11b-11d) should remain "pending" until triggered
+# - Parallel steps (7a+7b, 10a+10b) can both be "in-progress" simultaneously
+# - Gate decisions (passed|must-revise|blocked) determine whether optional revision steps execute
+# - Revision rounds track how many iterations have occurred for a given draft version
