@@ -1,0 +1,869 @@
+# Tech Writing Pipeline — Configuration
+# Version 1.0.0
+#
+# This file defines all configurable parameters, constraints, and behavioral rules
+# for the multi-agent documentation pipeline. All values are derived from the
+# pipeline design documents in docs/writing-pipeline/.
+
+# ==============================================================================
+# Section 1: Pipeline Metadata
+# ==============================================================================
+
+pipeline:
+  name: "Tech Writing Pipeline"
+  version: "1.0.0"
+  description: "Multi-agent documentation pipeline with evidence-based review"
+  repository: "https://github.com/user/ai-learning-hub"
+  author: "AI Learning Hub Project"
+  documentation: "docs/writing-pipeline/README.md"
+
+# ==============================================================================
+# Section 2: Pipeline Flow Configuration
+# ==============================================================================
+
+flow:
+  # Draft version limits: v1, v2, v3 (no v4 exists in pipeline)
+  max_draft_versions: 3
+
+  # SME review passes: Steps 5 and 8 only
+  max_sme_passes: 2
+
+  # Total revision rounds allowed across entire pipeline run
+  max_revision_rounds_global: 5
+
+  # Convergence limit: max revisions per single gate before escalation
+  max_revision_rounds_per_gate: 2
+
+  # Pipeline phases define the logical grouping of steps
+  phases:
+    - id: 1
+      name: "Foundation"
+      steps: [1, 2]
+      description: "Research and outline with editorial validation"
+
+    - id: 2
+      name: "First Draft"
+      steps: [3, 4, "4b", "4c"]
+      description: "Initial draft production and editorial review with revision loop"
+
+    - id: 3
+      name: "Technical Depth"
+      steps: [5, "5b", "5c", 6]
+      description: "SME technical review and Draft v2 production"
+
+    - id: 4
+      name: "Visual Design + Technical Validation"
+      steps: ["7a", "7b", 8]
+      description: "Parallel editor review + diagram creation, then SME validation"
+
+    - id: 5
+      name: "Polish"
+      steps: [9, "10a", "10b"]
+      description: "Draft v3 production with parallel editorial + diagram updates"
+
+    - id: 6
+      name: "QA Validation"
+      steps: [11, "11b", "11c", "11d"]
+      description: "Cold-read comprehension testing with revision loops"
+
+    - id: 7
+      name: "Final"
+      steps: [12, 13, 14]
+      description: "Final comprehensive review, assembly, and presentation"
+
+  # Parallel execution blocks where multiple agents run simultaneously
+  # These MUST be spawned in a single message with multiple Task tool calls
+  parallel_blocks:
+    - steps: ["7a", "7b"]
+      description: "Editor reviews Draft v2 + Designer creates diagrams"
+      agents: ["editor", "designer"]
+      dependencies: "Both require Step 6 (Draft v2) to complete first"
+
+    - steps: ["10a", "10b"]
+      description: "Editor reviews Draft v3 + Designer updates diagrams"
+      agents: ["editor", "designer"]
+      dependencies: "Step 10a requires Step 9 (Draft v3); Step 10b requires Step 8 (SME review v2)"
+
+# ==============================================================================
+# Section 3: Skip Rules (Conditional Execution)
+# ==============================================================================
+
+skip_rules:
+  # QA Reader is expensive for short documents; skip if document is brief
+  - step: 11
+    condition: "document_word_count < 500"
+    evaluation_point: "after_step_9"
+    description: "Skip QA Reader if document < 500 words after Step 9 (Draft v3)"
+    action: "proceed_to_step_12"
+
+  # No diagrams suggested = no diagram creation needed
+  - step: "7b"
+    condition: "diagram_suggestions_count == 0"
+    evaluation_point: "after_step_6"
+    description: "Skip Designer (Step 7b) if no diagram suggestions in Draft v2"
+    action: "proceed_to_step_8_after_7a"
+    note: "Step 7a (Editor review) still runs"
+
+  # No diagram feedback from SME = no diagram updates needed
+  - step: "10b"
+    condition: "sme_diagram_items_count == 0"
+    evaluation_point: "after_step_8"
+    description: "Skip Designer (Step 10b) if no diagram items in SME v2 review"
+    action: "proceed_to_step_11_after_10a"
+    note: "Step 10a (Editor review) still runs"
+
+# ==============================================================================
+# Section 4: Gate Configuration
+# ==============================================================================
+
+gates:
+  # Default gate decision behavior across all reviewing agents
+  default_behavior:
+    must_items: "MUST-REVISE" # Any MUST item triggers mandatory revision
+    conditional_pass: "PASS" # CONDITIONAL-PASS defaults to PASS unless Manager overrides
+    empty_review: "BLOCKED" # Empty review output blocks pipeline (treated as error)
+    should_only: "PASS" # SHOULD items alone do not block gate
+    minor_only: "PASS" # MINOR items alone do not block gate
+
+  # QA Reader uses different severity mapping (confusion points, not MUST/SHOULD/MINOR)
+  qa_reader:
+    severity_mapping:
+      "could_not_proceed": "MUST-REVISE" # Blocks gate, triggers revision
+      "recovered_with_effort": "PASS" # Does not block (SHOULD-equivalent)
+      "minor_friction": "PASS" # Does not block (MINOR-equivalent)
+
+    # QA Reader is more lenient: only "could not proceed" blocks
+    blocking_severity: ["could_not_proceed"]
+
+    # Audience plausibility filter: Tech Writer may downgrade QA "could not proceed"
+    # to SHOULD if confusion stems from knowledge the target audience is expected to have
+    allow_downgrade: true
+    downgrade_requires_justification: true
+
+  # Convergence enforcement to prevent infinite loops
+  convergence:
+    max_rounds_per_gate: 2 # After 2 rounds at same gate, escalate to user
+
+    # Second-pass behavior: Editor uses inline edits (Task C) instead of review loop
+    second_pass_behavior:
+      editor: "inline_edits" # Produces corrected draft, not review document
+      tech_writer: "final_revision" # Last chance to address feedback
+      designer: "final_correction" # Last chance to fix diagrams
+
+    # After max rounds, escalate to user with specific details
+    escalation: "user"
+    escalation_format:
+      - "Specific disagreement (original review item)"
+      - "Revision attempts made (what Tech Writer changed)"
+      - "Continued objection (reviewer's response on second pass)"
+      - "Request user decision"
+
+  # SME gate special handling (accuracy is non-negotiable)
+  sme_gate:
+    verification_required: true # Manager verifies MUST items resolved
+
+    # Step 5c: Manager spot-checks SME MUST resolution without re-spawning SME
+    step_5c_behavior: "manager_verification"
+
+    # Step 8: Tech Writer must address SME v2 MUST items in Draft v3
+    step_8_behavior: "tech_writer_addresses_in_next_draft"
+
+    # Manager must list SME MUST items explicitly in Step 9 prompt
+    manager_prompt_injection: true
+
+  # CONDITIONAL-PASS override logic
+  conditional_pass_override:
+    enabled: true
+    criteria:
+      - "SHOULD items collectively indicate pattern (not isolated nitpicks)"
+      - "All SHOULDs relate to same structural problem"
+      - "All SHOULDs relate to audience mismatch"
+    density_thresholds:
+      short_document: # < 2000 words
+        should_count: 3
+      medium_document: # 2000-5000 words
+        should_count: 5
+      long_document: # > 5000 words
+        should_count: "proportional_judgment"
+
+    # Manager has discretion to treat CONDITIONAL-PASS as MUST-REVISE
+    manager_discretion: true
+
+# ==============================================================================
+# Section 5: Document Constraints
+# ==============================================================================
+
+document:
+  # Diagram complexity limits (from diagram-guide.md)
+  diagrams:
+    # Hard limit: max 9 nodes per diagram (approximates Miller's law: 7±2)
+    max_nodes_per_diagram: 9
+
+    # Target range for optimal cognitive load
+    target_nodes_per_diagram: [5, 6, 7]
+
+    # Mandatory decomposition if limit exceeded
+    mandatory_decomposition: true
+    decomposition_strategy:
+      - "Create overview diagram (5-7 high-level nodes)"
+      - "Create detail diagrams per subsystem (≤9 nodes each)"
+      - "Use consistent naming across overview and detail"
+      - "Mark external references in detail diagrams"
+
+    # Per-type complexity limits
+    per_type_limits:
+      flowchart:
+        max_nodes: 9
+        max_decision_diamonds: 3
+        max_process_boxes: 9 # Includes all non-diamond nodes
+
+      sequence:
+        max_participants: 5
+        max_messages: 12 # Arrows between participants
+
+      state:
+        max_states: 9
+        max_nesting_levels: 2
+
+      er:
+        max_entities: 7
+        max_relationships: 12 # No hard limit, but monitor complexity
+
+      block: # Block diagrams and C4 diagrams
+        max_blocks: 9
+        max_nesting_levels: 3
+
+  # Text content constraints (from style-guide.md)
+  text:
+    code_blocks:
+      max_lines: 30
+      preferred_lines: [10, 20]
+      action_if_exceeded: "Split into chunks with prose explaining each chunk or link to full example file"
+
+    overview:
+      max_paragraphs: 2
+      max_words_per_paragraph: 150
+      placement: "First content section after title"
+
+    captions:
+      max_words: 15
+      target_words: [8, 12]
+      format: "Italic text on line immediately before mermaid code block"
+      requirement: "Every diagram MUST have a caption"
+
+    sentences:
+      max_words: 25
+      exception: "Sentences containing inline code/paths/commands may exceed"
+      variance_rule: "Mix short (5-10) and longer (15-25) for readable rhythm"
+
+    paragraphs:
+      max_sentences_conceptual: 4
+      max_sentences_procedural: 2
+      frontloading: "First sentence carries paragraph's main point"
+
+    sections:
+      h2_evaluation_trigger: 40 # Lines; evaluate splitting if exceeded
+      h3_evaluation_trigger: 25 # Lines; evaluate splitting if exceeded
+
+  # Document length thresholds that affect pipeline behavior
+  thresholds:
+    qa_skip_word_count: 500 # Skip Step 11 (QA Reader) if below this
+    long_document_word_count: 2000 # Affects CONDITIONAL-PASS density thresholds
+    short_document_word_count: 300 # Unusually brief; may indicate scope issue
+    decomposition_trigger: 500 # Lines; evaluate splitting document if exceeded
+
+# ==============================================================================
+# Section 6: Review Taxonomy Configuration
+# ==============================================================================
+
+review_taxonomy:
+  # Severity levels define what blocks gates vs what is optional
+  severity_levels:
+    MUST:
+      description: "Factually wrong, misleading, blocks comprehension, violates [MUST] style rules"
+      requires_evidence: true
+      blocks_gate: true
+      requires_justification_if_declined: "Not applicable (MUST items cannot be declined)"
+      examples:
+        - "Factual errors (wrong command syntax, incorrect parameter)"
+        - "Missing critical information (undocumented prerequisite, missing step)"
+        - "Misleading framing (async described as sync, experimental as stable)"
+        - "Comprehension blockers (ambiguity that changes reader's action)"
+        - "Structural violations (missing safety-critical section, broken nesting)"
+        - "Security/safety issues (credential exposure, data loss risk)"
+        - "Diagram inaccuracies (wrong arrow direction, missing node)"
+        - "Scope violations (wrong audience, missing required scope element)"
+
+    SHOULD:
+      description: "Improves clarity significantly, fixes structural issues, addresses ambiguity"
+      requires_evidence: true # Strongly encouraged, not mandatory
+      blocks_gate: false
+      requires_justification_if_declined: true
+      examples:
+        - "Clarity improvements (dense paragraph → list, vague → specific)"
+        - "Structural improvements (prerequisite buried mid-procedure)"
+        - "Consistency fixes (same concept called different names)"
+        - "Missing context (why explanation for non-obvious step)"
+        - "Tone/voice issues (marketing language in technical guide)"
+        - "Concision issues (redundancy, over-explanation)"
+        - "Diagram improvements (missing labels, suboptimal layout)"
+
+    MINOR:
+      description: "Polish, word choice, optional improvements"
+      requires_evidence: false
+      blocks_gate: false
+      requires_justification_if_declined: false
+      examples:
+        - "Preference-level style ('use' vs 'utilize')"
+        - "Word choice alternatives (both correct)"
+        - "Optional examples (illustrative but not needed)"
+        - "Minor formatting (extra whitespace, bullet style)"
+        - "Reordering non-sequential lists"
+
+  # Classification decision defaults when severity is ambiguous
+  severity_defaults:
+    between_must_and_should: "SHOULD" # Default down unless reader harm plausible
+    between_should_and_minor: "SHOULD" # Default up for asymmetric safety
+    rationale: "Cost of addressing SHOULD is low; cost of shipping unclear content is high"
+
+  # Outsider test for classification integrity
+  outsider_test:
+    enabled: true
+    description: "Would someone unfamiliar with the draft agree with this severity based on reader impact?"
+    purpose: "Prevents strategic classification (inflating or deflating severity for negotiation)"
+
+  # SME-specific severity criteria (technical accuracy focus)
+  sme_classification:
+    must_criteria:
+      - "Factual error confirmed by independent research"
+      - "Security issue"
+      - "Instruction that would fail or produce wrong results"
+      - "Diagram depicting incorrect system behavior"
+
+    should_criteria:
+      - "Oversimplification that could mislead advanced reader"
+      - "Missing edge case (common scenarios, not rare corner cases)"
+      - "Outdated information with newer correct version"
+      - "Unsubstantiated claim (presented as fact without evidence)"
+
+    minor_criteria:
+      - "Terminology preference (both terms correct)"
+      - "Additional context only advanced users need"
+      - "Alternative approach worth mentioning but not required"
+
+    # Edge case severity tiering
+    edge_case_severity:
+      default_happy_path_fails: "MUST"
+      common_scenario: "SHOULD" # Most users will encounter
+      rare_corner_case: "MINOR" # Unusual config/environment
+
+# ==============================================================================
+# Section 7: Agent Configuration
+# ==============================================================================
+
+agents:
+  tech_writer:
+    role: "Content Producer"
+    subagent_type: "general-purpose"
+
+    # Guides this agent MUST read before producing output
+    required_guides:
+      - "guides/style-guide.md"
+      - "guides/review-taxonomy.md"
+
+    # Tasks this agent performs
+    tasks:
+      - "research-and-outline" # Step 1
+      - "draft-v1" # Step 3
+      - "draft-v2" # Step 6
+      - "draft-v3" # Step 9
+      - "revision" # Steps 4b, 5b, 11b, 11d
+
+    capabilities:
+      - "research" # Read codebase, docs, gather info
+      - "outline_creation" # Structure document before writing
+      - "draft_production" # Write full drafts from outline
+      - "diagram_suggestions" # Identify where diagrams would help (v2+)
+      - "revision_with_feedback" # Address review items
+
+    # Handling obligations for review feedback
+    handling_rules:
+      MUST: "Required — address every MUST item or apply alternative fix"
+      SHOULD: "Expected — address unless clear reason not to (requires justification)"
+      MINOR: "Optional — address at discretion (no response needed if skipped)"
+
+  editor:
+    role: "Quality Authority"
+    subagent_type: "general-purpose"
+
+    required_guides:
+      - "guides/style-guide.md"
+      - "guides/review-taxonomy.md"
+      - "guides/diagram-guide.md"
+
+    tasks:
+      - "outline-review" # Step 2
+      - "editorial-review-draft" # Steps 4, 7a, 10a
+      - "final-review-and-polish" # Step 12
+
+    capabilities:
+      - "structural_review" # Evaluate organization and flow
+      - "style_enforcement" # Apply style-guide.md rules
+      - "severity_classification" # Categorize findings as MUST/SHOULD/MINOR
+      - "inline_editing" # Task C: make direct edits on second pass
+
+    # Second-pass behavior (convergence mechanism)
+    second_pass_behavior:
+      mode: "Task C — inline edits"
+      description: "On second pass at same gate, Editor makes direct edits instead of review loop"
+      produces: "Corrected draft if no unresolved MUSTs; review doc if MUSTs persist"
+
+  sme:
+    role: "Technical Accuracy Verifier"
+    subagent_type: "general-purpose"
+
+    required_guides:
+      - "guides/review-taxonomy.md"
+
+    # Style guide is loaded for reference only, not enforcement
+    reference_guides:
+      - "guides/style-guide.md"
+
+    tasks:
+      - "sme-review" # Steps 5 and 8
+
+    capabilities:
+      - "independent_research" # Verify claims against source of truth
+      - "evidence_based_validation" # Cite verification evidence for MUST items
+      - "systems_thinking" # Flag oversimplifications and edge cases
+      - "diagram_accuracy_review" # Check diagrams for technical correctness
+
+    # SME loads project planning artifacts for context
+    load_project_context:
+      - "_bmad-output/planning-artifacts/prd.md"
+      - "_bmad-output/planning-artifacts/architecture.md"
+      - "_bmad-output/planning-artifacts/epics.md"
+
+    # Evidence requirements for SME reviews
+    evidence_rules:
+      must_items: "Evidence REQUIRED (file path, command output, doc URL, API response)"
+      should_items: "Evidence STRONGLY ENCOURAGED"
+      unverifiable_claims: "Classify as SHOULD with [UNVERIFIED] label; state what's needed to verify"
+      safety_claims: "Classify as MUST even when unverified (data loss, credentials, destructive ops)"
+
+    # SME does NOT review for style/structure unless it causes technical misunderstanding
+    style_enforcement: false
+
+  designer:
+    role: "Diagram Creator"
+    subagent_type: "general-purpose"
+
+    required_guides:
+      - "guides/diagram-guide.md"
+
+    tasks:
+      - "create-diagrams" # Steps 7b and 10b
+
+    capabilities:
+      - "mermaid_diagram_creation" # Generate mermaid syntax
+      - "complexity_management" # Keep diagrams under 9 nodes
+      - "automatic_decomposition" # Split into overview + detail if > 9 nodes
+
+    handling_rules:
+      MUST: "Required — diagram must be corrected"
+      SHOULD: "Expected — improve or explain why current version is preferred"
+      MINOR: "Optional"
+
+  qa_reader:
+    role: "Cold Reader"
+    subagent_type: "general-purpose"
+
+    # Intentionally empty: QA Reader has no prior context (cold read)
+    required_guides: []
+
+    # QA Reader only sees audience profile from request
+    allowed_context:
+      - "00-request.md" # Audience profile ONLY
+
+    tasks:
+      - "qa-cold-read" # Steps 11 and 11c
+
+    capabilities:
+      - "comprehension_testing" # Read without prior knowledge
+      - "confusion_point_identification" # Document where understanding breaks down
+      - "engagement_assessment" # Evaluate whether content holds attention
+
+    # QA Reader uses confusion points, not MUST/SHOULD/MINOR
+    output_format: "confusion_points"
+    severity_self_assessment:
+      - "Could not proceed"
+      - "Recovered with effort"
+      - "Minor friction"
+
+  manager:
+    role: "Pipeline Orchestrator"
+    type: "instruction_set" # Not a subagent; instructions for main agent
+    definition_file: "agents/manager.md"
+
+    responsibilities:
+      - "state_machine_execution" # Read state.yaml, determine next step
+      - "gate_logic_evaluation" # Parse review summaries, make pass/fail decisions
+      - "subagent_spawning" # Spawn agents via Task tool with correct prompts
+      - "convergence_enforcement" # Track revision rounds, escalate after limits
+      - "parallel_execution_coordination" # Spawn 7a+7b and 10a+10b in single message
+
+    # Manager is the main Claude agent, not a spawned subagent
+    execution_context: "main_agent"
+
+# ==============================================================================
+# Section 8: Artifact Configuration
+# ==============================================================================
+
+artifacts:
+  # Naming pattern for all pipeline outputs
+  naming_pattern: "{step_number}-{artifact_type}-{version}.md"
+
+  # Example: 06-draft-v1r1.md = Step 6, draft artifact, version 1 revision 1
+
+  # Templates for structured artifacts
+  templates:
+    state_file: "templates/state-file.yaml"
+    outline: "templates/outline.md"
+    review_notes: "templates/review-notes.md"
+    draft: "templates/draft.md"
+
+  # Sequential artifact naming (all artifacts in order)
+  sequence:
+    - step: 0
+      artifact: "00-request.md"
+      agent: null
+      description: "Original task/request from user"
+
+    - step: 1
+      artifact: "01-research.md"
+      agent: "tech-writer"
+      description: "Research findings and background"
+
+    - step: 2
+      artifact: "02-outline.md"
+      agent: "tech-writer"
+      description: "Structural plan for document"
+
+    - step: 3
+      artifact: "03-outline-review.md"
+      agent: "editor"
+      description: "Editorial review of outline"
+
+    - step: 4
+      artifact: "04-draft-v1.md"
+      agent: "tech-writer"
+      description: "First complete draft"
+
+    - step: 5
+      artifact: "05-editorial-review-v1.md"
+      agent: "editor"
+      description: "Editorial review of Draft v1"
+
+    - step: "4b"
+      artifact: "06-draft-v1r1.md"
+      agent: "tech-writer"
+      description: "Draft v1 revision 1 (if editor had MUST items)"
+
+    # Note: 06-draft-v1r2.md is possible if Step 5b occurs (SME revision)
+
+    - step: 5
+      artifact: "07-sme-review-v1.md"
+      agent: "sme"
+      description: "SME technical review of Draft v1"
+
+    - step: 6
+      artifact: "08-draft-v2.md"
+      agent: "tech-writer"
+      description: "Second draft with diagram suggestions"
+
+    - step: "7a"
+      artifact: "09-editorial-review-v2.md"
+      agent: "editor"
+      description: "Editorial review of Draft v2 (parallel with 7b)"
+
+    - step: "7b"
+      artifact: "10-diagrams-v1.md"
+      agent: "designer"
+      description: "Mermaid diagrams from suggestions (parallel with 7a)"
+
+    - step: 8
+      artifact: "11-sme-review-v2.md"
+      agent: "sme"
+      description: "SME review of Draft v2 + diagrams"
+
+    - step: 9
+      artifact: "12-draft-v3.md"
+      agent: "tech-writer"
+      description: "Third draft incorporating SME + Editor feedback"
+
+    - step: "10a"
+      artifact: "13-editorial-review-v3.md"
+      agent: "editor"
+      description: "Editorial review of Draft v3 (parallel with 10b)"
+
+    - step: "10b"
+      artifact: "14-diagrams-v2.md"
+      agent: "designer"
+      description: "Updated diagrams from SME feedback (parallel with 10a)"
+
+    - step: 11
+      artifact: "15-qa-read-v1.md"
+      agent: "qa-reader"
+      description: "QA Reader cold-read notes"
+
+    - step: "11b"
+      artifact: "16-draft-v3r1.md"
+      agent: "tech-writer"
+      description: "Draft v3 revision 1 (if QA had confusion points)"
+
+    - step: "11c"
+      artifact: "17-qa-read-v2.md"
+      agent: "qa-reader"
+      description: "QA Reader second pass"
+
+    - step: "11d"
+      artifact: "18-draft-v3r2.md"
+      agent: "tech-writer"
+      description: "Draft v3 revision 2 (if QA v2 still had issues)"
+
+    - step: 12
+      artifact_review: "19-final-review.md"
+      artifact_output: "20-final.md"
+      agent: "editor"
+      description: "Final comprehensive review + polished output"
+
+    - step: 13
+      artifact: "21-final-with-diagrams.md"
+      agent: "manager"
+      description: "Final output with diagrams inserted at placement notes"
+
+    - step: 14
+      artifact: null
+      agent: null
+      description: "Present to user (no artifact written)"
+
+  # Immutability rules: previous artifacts cannot be overwritten
+  immutability_rules:
+    - "Previous artifacts cannot be overwritten"
+    - "Each revision creates new numbered file"
+    - "state.yaml is append-only for step tracking"
+    - "Artifact sequence numbers never reused"
+    - "Pipeline guard enforces via state.yaml step tracking"
+
+# ==============================================================================
+# Section 9: Validation Rules
+# ==============================================================================
+
+validation:
+  # Infrastructure protection: deny writes to pipeline's own files
+  infrastructure_protection:
+    protected_paths:
+      - "guides/"
+      - "agents/"
+      - "tasks/"
+      - "templates/"
+      - "config.yaml"
+      - "README.md"
+    action: "deny_write"
+    enforcement: "Always active, not just during pipeline runs"
+    hook: "pipeline-guard.cjs (PreToolUse)"
+
+  # Guide loading verification: agents must read required guides before output
+  guide_loading_verification:
+    enabled: true
+    mechanism: "breadcrumb_tracking"
+    breadcrumb_file: ".claude/.pipeline-reads.json"
+    breadcrumb_expiry_hours: 2
+    enforcement: "deny_write_if_guides_not_read"
+
+    # Manager sets current_agent in state.yaml; guard checks guide requirements
+    state_file_dependency: "state.yaml → current_agent field"
+
+    # For parallel steps, state.yaml uses current_agents: [editor, designer]
+    parallel_support: true
+
+    hook: "pipeline-guard.cjs (PreToolUse) + pipeline-read-tracker.cjs (PostToolUse)"
+
+  # Artifact naming validation
+  naming_validation:
+    enabled: true
+    action: "warn_on_unexpected_pattern"
+    expected_pattern: "^\\d{2,3}-[a-z-]+-v\\d(r\\d)?\\.md$"
+    examples:
+      - "02-outline.md"
+      - "04-draft-v1.md"
+      - "06-draft-v1r1.md"
+      - "21-final-with-diagrams.md"
+    hook: "pipeline-guard.cjs (PreToolUse)"
+
+  # Artifact immutability: prevent overwriting previous steps
+  artifact_immutability:
+    enabled: true
+    action: "deny_overwrite"
+    source: "state.yaml"
+    mechanism: "Read completed step outputs from state.yaml; deny writes to those files"
+    hook: "pipeline-guard.cjs (PreToolUse)"
+
+# ==============================================================================
+# Section 10: Hook Configuration
+# ==============================================================================
+
+hooks:
+  pre_tool_use:
+    - name: "pipeline-guard"
+      file: ".claude/hooks/pipeline-guard.cjs"
+      triggers: ["Edit", "Write"]
+
+      responsibilities:
+        - "Infrastructure protection — deny writes to guides/, agents/, templates/, config.yaml"
+        - "Artifact immutability — deny overwrites of previous pipeline artifacts"
+        - "Naming validation — warn on unexpected artifact patterns"
+        - "Guide loading verification — deny output if agent hasn't read required guides"
+
+      configuration_dependencies:
+        - "validation.infrastructure_protection"
+        - "validation.guide_loading_verification"
+        - "validation.naming_validation"
+        - "validation.artifact_immutability"
+
+  post_tool_use:
+    - name: "pipeline-read-tracker"
+      file: ".claude/hooks/pipeline-read-tracker.cjs"
+      triggers: ["Read"]
+
+      responsibilities:
+        - "Record guide reads with timestamps in breadcrumb file"
+        - "Maintain .claude/.pipeline-reads.json"
+        - "Support guide loading verification by pipeline-guard"
+
+      breadcrumb_format:
+        file_path: "Absolute path to guide file"
+        timestamp: "ISO 8601 timestamp"
+        agent: "Agent name (from state.yaml current_agent)"
+
+      expiry: "2 hours (breadcrumbs older than this are ignored)"
+
+# ==============================================================================
+# Section 11: Evidence Requirements
+# ==============================================================================
+
+evidence:
+  # Evidence required for MUST items (gates depend on this)
+  required_for:
+    - severity: "MUST"
+      agents: ["tech-writer", "sme", "editor"]
+      format: "File path:line | Command output | Doc URL | API response"
+      example: "File: `backend/auth.ts:47` | Command: `npm test` → Output: `FAIL` | Doc: [AWS Lambda Docs](https://...)"
+      enforcement: "SME reviews require evidence for all MUST items"
+
+  # Evidence strongly encouraged for SHOULD items
+  strongly_encouraged_for:
+    - severity: "SHOULD"
+      agents: ["tech-writer", "sme", "editor"]
+      purpose: "Builds trust and makes feedback actionable"
+      enforcement: "Not mandatory but increases review quality"
+
+  # Evidence optional for MINOR items
+  optional_for:
+    - severity: "MINOR"
+      agents: ["tech-writer", "editor"]
+      purpose: "MINOR items are preference; evidence rarely needed"
+
+  # Citation patterns for different evidence types
+  citation_patterns:
+    code: "File: `{path}:{line}`"
+    command: "Command: `{command}` → Output: `{output}`"
+    document: "Doc: [{title}]({url})"
+    api_response: "API: `{endpoint}` → Response: `{json_snippet}`"
+    unverified: "[UNVERIFIED] {claim} — {what_is_needed_to_verify}"
+
+  # Unverifiable claims handling (SME-specific)
+  unverifiable_claims:
+    default_severity: "SHOULD"
+    label: "[UNVERIFIED]"
+    required_statement: "What would be needed to verify this claim"
+
+    # Exception: safety claims get MUST even when unverified
+    safety_exception:
+      enabled: true
+      applies_to:
+        - "Data loss risk"
+        - "Credential exposure"
+        - "Destructive operations"
+      severity: "MUST"
+      rationale: "Safety claims get benefit of the doubt"
+
+# ==============================================================================
+# Section 12: Convergence & Escalation
+# ==============================================================================
+
+convergence:
+  # Max 2 revision rounds per gate before escalating to user
+  max_revision_rounds_per_gate: 2
+
+  # Second-pass behavior differs by agent to enforce convergence
+  second_pass_behavior:
+    editor:
+      mode: "inline_edits"
+      task: "Task C"
+      produces: "Corrected draft directly (no review loop)"
+      condition: "Only if no unresolved MUST items"
+
+    tech_writer:
+      mode: "final_revision"
+      expectation: "Last chance to address feedback before escalation"
+
+    designer:
+      mode: "final_correction"
+      expectation: "Last chance to fix diagram issues before escalation"
+
+  # Escalation triggered after max rounds at same gate
+  escalation_after_max_rounds:
+    action: "escalate_to_user"
+
+    report_format:
+      - section: "Specific disagreement"
+        content: "Original review item (quoted verbatim)"
+
+      - section: "Revision attempts made"
+        content: "What the Tech Writer changed in response"
+
+      - section: "Continued objection"
+        content: "Reviewer's response on second pass (why still unresolved)"
+
+      - section: "Request user decision"
+        options:
+          - "Accept current version as-is"
+          - "Provide guidance on how to resolve"
+          - "Manually edit the document"
+
+    wait_for_user: true
+    do_not_advance: "Pipeline halts until user responds"
+
+  # Global revision limit across entire pipeline
+  global_revision_limit: 5
+
+  # Action when global limit reached
+  action_on_limit: "complete_with_warning"
+  warning_message: "Pipeline has used 5 revision rounds. Review current state and decide whether to continue or finalize as-is."
+
+  # Cross-agent escalation (foundational problems)
+  cross_agent_escalation:
+    enabled: true
+    trigger: "Two separate agents independently flag same foundational problem"
+    foundational_problems:
+      - "Audience mismatch"
+      - "Scope misalignment"
+    action: "Escalate to user before next phase (request itself may be flawed)"
+    report_content:
+      - "Both agents' findings (quoted)"
+      - "Request user confirm or correct audience/scope in 00-request.md"
+
+# ==============================================================================
+# End of Configuration
+# ==============================================================================
