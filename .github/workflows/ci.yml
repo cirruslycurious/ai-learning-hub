@@ -246,6 +246,9 @@ jobs:
     needs: [contract-tests, security-scan]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment: dev
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -275,6 +278,13 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-2
+
+      - name: Build shared packages
+        run: npm run build
+
+      - name: Build Infrastructure
+        working-directory: ./infra
+        run: npm run build
 
       - name: Deploy Infrastructure
         working-directory: ./infra
@@ -324,6 +334,9 @@ jobs:
     environment:
       name: production
       url: https://ai-learning-hub.example.com
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -353,6 +366,13 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN_PROD }}
           aws-region: us-east-2
+
+      - name: Build shared packages
+        run: npm run build
+
+      - name: Build Infrastructure
+        working-directory: ./infra
+        run: npm run build
 
       - name: Deploy to Production
         working-directory: ./infra
