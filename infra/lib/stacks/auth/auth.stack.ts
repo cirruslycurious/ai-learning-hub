@@ -30,7 +30,7 @@ export class AuthStack extends cdk.Stack {
       this,
       "JwtAuthorizerFunction",
       {
-        runtime: lambda.Runtime.NODEJS_22_X,
+        runtime: lambda.Runtime.NODEJS_LATEST,
         handler: "handler",
         entry: path.join(
           process.cwd(),
@@ -66,6 +66,11 @@ export class AuthStack extends cdk.Stack {
           id: "AwsSolutions-IAM4",
           reason:
             "Lambda basic execution role (CloudWatch Logs, X-Ray) is managed by CDK construct",
+        },
+        {
+          id: "AwsSolutions-L1",
+          reason:
+            "Using NODEJS_LATEST which resolves to the latest stable Node.js runtime supported by CDK",
         },
       ],
       true

@@ -1,6 +1,7 @@
 import { App, Stack } from "aws-cdk-lib";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import { Template, Match } from "aws-cdk-lib/assertions";
+import * as lambda from "aws-cdk-lib/aws-lambda";
 import { describe, it, expect, beforeAll } from "vitest";
 import { AuthStack } from "../../../lib/stacks/auth/auth.stack";
 import { getAwsEnv } from "../../../config/aws-env";
@@ -32,9 +33,9 @@ describe("AuthStack", () => {
       template.resourceCountIs("AWS::Lambda::Function", 1);
     });
 
-    it("uses Node.js 22.x runtime", () => {
+    it("uses the latest Node.js runtime", () => {
       template.hasResourceProperties("AWS::Lambda::Function", {
-        Runtime: "nodejs22.x",
+        Runtime: lambda.Runtime.NODEJS_LATEST.name,
       });
     });
 
