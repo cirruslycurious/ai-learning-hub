@@ -33,8 +33,12 @@ export class AuthStack extends cdk.Stack {
         runtime: lambda.Runtime.NODEJS_20_X,
         handler: "handler",
         entry: path.join(
-          __dirname,
-          "../../../../backend/functions/jwt-authorizer/handler.ts"
+          process.cwd(),
+          "..",
+          "backend",
+          "functions",
+          "jwt-authorizer",
+          "handler.ts"
         ),
         memorySize: 256,
         timeout: cdk.Duration.seconds(10),

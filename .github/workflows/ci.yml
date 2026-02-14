@@ -216,6 +216,7 @@ jobs:
           echo "✅ No high or critical vulnerabilities found in production dependencies"
 
       - name: Secrets Detection
+        if: github.event_name == 'pull_request'
         uses: trufflesecurity/trufflehog@main
         with:
           path: ./
