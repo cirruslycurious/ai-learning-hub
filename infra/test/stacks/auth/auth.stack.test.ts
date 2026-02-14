@@ -32,9 +32,9 @@ describe("AuthStack", () => {
       template.resourceCountIs("AWS::Lambda::Function", 1);
     });
 
-    it("uses Node.js 20.x runtime", () => {
+    it("uses Node.js 22.x runtime", () => {
       template.hasResourceProperties("AWS::Lambda::Function", {
-        Runtime: "nodejs20.x",
+        Runtime: "nodejs22.x",
       });
     });
 

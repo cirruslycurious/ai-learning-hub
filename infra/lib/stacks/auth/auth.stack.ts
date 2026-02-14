@@ -30,7 +30,7 @@ export class AuthStack extends cdk.Stack {
       this,
       "JwtAuthorizerFunction",
       {
-        runtime: lambda.Runtime.NODEJS_20_X,
+        runtime: lambda.Runtime.NODEJS_22_X,
         handler: "handler",
         entry: path.join(
           process.cwd(),
