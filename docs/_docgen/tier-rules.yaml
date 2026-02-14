@@ -1,0 +1,98 @@
+# Tier Classification Rules
+# Glob patterns for classifying repository files into tiers.
+# Adding a new directory convention = adding one line here.
+# Full calibration for this repository in Story 1.7.
+
+# Tier 4: Excluded — never indexed, never included
+tier_4:
+  directories:
+    - node_modules
+    - .git
+    - dist
+    - .build
+    - cdk.out
+    - .next
+    - __pycache__
+    - .venv
+    - .cache
+    - .pytest_cache
+    - coverage
+    - .nyc_output
+  extensions:
+    - .png
+    - .jpg
+    - .jpeg
+    - .gif
+    - .ico
+    - .svg
+    - .bmp
+    - .webp
+    - .woff
+    - .woff2
+    - .ttf
+    - .eot
+    - .otf
+    - .pdf
+    - .zip
+    - .tar
+    - .gz
+    - .tgz
+    - .tmp
+    - .swp
+    - .swo
+    - .pyc
+    - .tsbuildinfo
+  files:
+    - package-lock.json
+    - yarn.lock
+    - pnpm-lock.yaml
+    - .DS_Store
+    - .env
+    - .env.local
+
+# Tier 1: Definitional files — define components, purpose, role, interface
+# Evaluated BEFORE Tier 2. First matching rule wins.
+tier_1:
+  - ".claude/skills/**/*.md"
+  - ".claude/hooks/*"
+  - ".claude/commands/*"
+  - ".claude/agents/*"
+  - "docs/adr/*"
+  - "docs/epics/*"
+  - "docs/stories/*"
+  - "**/README.md"
+  - "**/SKILL.md"
+  - "**/CLAUDE.md"
+
+# Tier 2: Structural files — config, types, module boundaries
+# Evaluated AFTER Tier 1.
+tier_2:
+  - "**/package.json"
+  - "**/tsconfig.json"
+  - "**/tsconfig.*.json"
+  - "jest.config.*"
+  - ".eslintrc.*"
+  - ".claude/settings.json"
+  - "**/*.d.ts"
+  - "**/index.ts"
+  - "**/index.js"
+  - ".github/workflows/*"
+  - ".env.example"
+  - "pyproject.toml"
+
+# Tier 3: Implementation files — source code, tests, scripts
+# Everything not matched by Tiers 1, 2, or 4 defaults here.
+# These patterns are hints; unmatched non-excluded files also get Tier 3.
+tier_3:
+  - "**/*.ts"
+  - "**/*.js"
+  - "**/*.tsx"
+  - "**/*.jsx"
+  - "**/*.test.ts"
+  - "**/*.spec.ts"
+  - "scripts/**"
+  - "**/*.py"
+  - "**/*.md"
+  - "**/*.yaml"
+  - "**/*.yml"
+  - "**/*.json"

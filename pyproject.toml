@@ -1,0 +1,16 @@
+[project]
+name = "docgen"
+version = "0.1.0"
+description = "Documentation generation system for ai-learning-hub"
+requires-python = ">=3.10"
+dependencies = [
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["scripts/tests"]

@@ -38,6 +38,16 @@ yarn-error.log*
 # CDK
 cdk.context.json
 
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Documentation generation (rebuilt on command, not committed)
+docs/_docgen/repo-index.db
+docs/_docgen/rebuild.log
+# NOTE: docs/_docgen/glossary.yaml is intentionally NOT ignored (committed to repo)
+
 # Misc
 .cache/
 *.tgz
