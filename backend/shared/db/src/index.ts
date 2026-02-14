@@ -24,5 +24,14 @@ export {
   type UpdateParams,
 } from "./helpers.js";
 
+// User profile operations
+export {
+  getProfile,
+  ensureProfile,
+  USERS_TABLE_CONFIG,
+  type UserProfile,
+  type PublicMetadata,
+} from "./users.js";
+
 // Re-export DynamoDB types for convenience
 export type { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";

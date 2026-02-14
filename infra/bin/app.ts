@@ -6,6 +6,7 @@ import { getAwsEnv } from "../config/aws-env";
 import { TablesStack } from "../lib/stacks/core/tables.stack";
 import { BucketsStack } from "../lib/stacks/core/buckets.stack";
 import { ObservabilityStack } from "../lib/stacks/observability/observability.stack";
+import { AuthStack } from "../lib/stacks/auth/auth.stack";
 
 const app = new cdk.App();
 
@@ -25,6 +26,15 @@ const bucketsStack = new BucketsStack(app, "AiLearningHubBuckets", {
   description: "S3 buckets for ai-learning-hub (project notes storage)",
 });
 
+// Auth Stack - JWT Authorizer Lambda (ADR-006: Auth after Core)
+const authStack = new AuthStack(app, "AiLearningHubAuth", {
+  env: awsEnv,
+  description:
+    "Authentication stack for ai-learning-hub (JWT authorizer Lambda)",
+  usersTable: tablesStack.usersTable,
+});
+authStack.addDependency(tablesStack);
+
 // Observability Stack - X-Ray tracing, dashboards, alarms (ADR-006: after Core stacks)
 const observabilityStack = new ObservabilityStack(
   app,
@@ -37,7 +47,7 @@ const observabilityStack = new ObservabilityStack(
 );
 
 // Export stack instances for future cross-stack references (avoids unused variable lint errors)
-export { tablesStack, bucketsStack, observabilityStack };
+export { tablesStack, bucketsStack, authStack, observabilityStack };
 
 cdk.Tags.of(app).add("Project", "ai-learning-hub");
 cdk.Tags.of(app).add("ManagedBy", "CDK");
