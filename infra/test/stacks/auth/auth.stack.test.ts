@@ -45,11 +45,11 @@ describe("AuthStack", () => {
       });
     });
 
-    it("sets environment variables for Clerk and DynamoDB", () => {
+    it("sets environment variables for Clerk SSM param and DynamoDB", () => {
       template.hasResourceProperties("AWS::Lambda::Function", {
         Environment: {
           Variables: Match.objectLike({
-            CLERK_SECRET_KEY: Match.anyValue(),
+            CLERK_SECRET_KEY_PARAM: "/ai-learning-hub/clerk-secret-key",
             USERS_TABLE_NAME: Match.anyValue(),
           }),
         },
@@ -79,6 +79,19 @@ describe("AuthStack", () => {
           Statement: Match.arrayWith([
             Match.objectLike({
               Action: Match.arrayWith(["dynamodb:PutItem"]),
+              Effect: "Allow",
+            }),
+          ]),
+        },
+      });
+    });
+
+    it("grants the Lambda ssm:GetParameter for the Clerk secret key", () => {
+      template.hasResourceProperties("AWS::IAM::Policy", {
+        PolicyDocument: {
+          Statement: Match.arrayWith([
+            Match.objectLike({
+              Action: "ssm:GetParameter",
               Effect: "Allow",
             }),
           ]),

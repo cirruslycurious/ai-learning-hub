@@ -16,6 +16,15 @@ interface MockJwtPayload {
   publicMetadata: Record<string, unknown>;
 }
 
+// Mock @aws-sdk/client-ssm (fetches Clerk secret at runtime)
+const mockSsmSend = vi.fn().mockResolvedValue({
+  Parameter: { Value: "sk_test_fake_key" },
+});
+vi.mock("@aws-sdk/client-ssm", () => ({
+  SSMClient: vi.fn(() => ({ send: mockSsmSend })),
+  GetParameterCommand: vi.fn(),
+}));
+
 // Mock @clerk/backend before importing handler
 vi.mock("@clerk/backend", () => ({
   verifyToken: vi.fn(),
@@ -71,7 +80,10 @@ function mockVerifyResult(payload: MockJwtPayload): void {
 describe("JWT Authorizer Handler", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.CLERK_SECRET_KEY = "sk_test_fake_key";
+    process.env.CLERK_SECRET_KEY_PARAM = "/ai-learning-hub/clerk-secret-key";
+    mockSsmSend.mockResolvedValue({
+      Parameter: { Value: "sk_test_fake_key" },
+    });
   });
 
   describe("AC1: Valid JWT token validation", () => {

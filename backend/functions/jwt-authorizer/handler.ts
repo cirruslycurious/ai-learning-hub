@@ -11,6 +11,7 @@ import type {
   APIGatewayAuthorizerResult,
   Context,
 } from "aws-lambda";
+import { SSMClient, GetParameterCommand } from "@aws-sdk/client-ssm";
 import { verifyToken } from "@clerk/backend";
 import {
   getDefaultClient,
@@ -19,6 +20,30 @@ import {
   type PublicMetadata,
 } from "@ai-learning-hub/db";
 import { createLogger } from "@ai-learning-hub/logging";
+
+// Cold-start cache for Clerk secret key fetched from SSM
+let cachedClerkSecretKey: string | undefined;
+
+async function getClerkSecretKey(): Promise<string> {
+  if (cachedClerkSecretKey) return cachedClerkSecretKey;
+
+  const ssmParamName = process.env.CLERK_SECRET_KEY_PARAM;
+  if (!ssmParamName) {
+    throw new Error("CLERK_SECRET_KEY_PARAM environment variable is not set");
+  }
+
+  const ssm = new SSMClient({});
+  const result = await ssm.send(
+    new GetParameterCommand({ Name: ssmParamName, WithDecryption: true })
+  );
+
+  if (!result.Parameter?.Value) {
+    throw new Error("Clerk secret key not found in SSM");
+  }
+
+  cachedClerkSecretKey = result.Parameter.Value;
+  return cachedClerkSecretKey;
+}
 
 /**
  * Authorizer cache TTL in seconds (AC8).
@@ -72,9 +97,8 @@ export async function handler(
 
   try {
     // AC1: Validate token via @clerk/backend verifyToken
-    const verified = await verifyToken(token, {
-      secretKey: process.env.CLERK_SECRET_KEY!,
-    });
+    const secretKey = await getClerkSecretKey();
+    const verified = await verifyToken(token, { secretKey });
 
     const clerkId = verified.sub;
     const publicMetadata = (verified.publicMetadata ?? {}) as PublicMetadata;

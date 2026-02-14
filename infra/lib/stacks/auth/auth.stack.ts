@@ -5,6 +5,7 @@
  * Requires the users table from TablesStack for profile lookups.
  */
 import * as cdk from "aws-cdk-lib";
+import * as iam from "aws-cdk-lib/aws-iam";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as lambdaNode from "aws-cdk-lib/aws-lambda-nodejs";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
@@ -12,6 +13,8 @@ import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import { NagSuppressions } from "cdk-nag";
 import { Construct } from "constructs";
 import * as path from "path";
+
+const CLERK_SECRET_KEY_PARAM = "/ai-learning-hub/clerk-secret-key";
 
 export interface AuthStackProps extends cdk.StackProps {
   usersTable: dynamodb.ITable;
@@ -43,7 +46,7 @@ export class AuthStack extends cdk.Stack {
         memorySize: 256,
         timeout: cdk.Duration.seconds(10),
         environment: {
-          CLERK_SECRET_KEY: `{{resolve:ssm-secure:/ai-learning-hub/clerk-secret-key}}`,
+          CLERK_SECRET_KEY_PARAM: CLERK_SECRET_KEY_PARAM,
           USERS_TABLE_NAME: usersTable.tableName,
         },
         bundling: {
@@ -57,6 +60,23 @@ export class AuthStack extends cdk.Stack {
 
     // Grant read/write to users table (PutItem for ensureProfile, GetItem for getProfile)
     usersTable.grantReadWriteData(this.jwtAuthorizerFunction);
+
+    // Grant read access to Clerk secret key in SSM Parameter Store
+    this.jwtAuthorizerFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["ssm:GetParameter"],
+        resources: [
+          cdk.Arn.format(
+            {
+              service: "ssm",
+              resource: "parameter",
+              resourceName: CLERK_SECRET_KEY_PARAM.replace(/^\//, ""),
+            },
+            this
+          ),
+        ],
+      })
+    );
 
     // CDK Nag Suppressions
     NagSuppressions.addResourceSuppressions(
