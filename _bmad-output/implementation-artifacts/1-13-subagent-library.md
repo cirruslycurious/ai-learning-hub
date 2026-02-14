@@ -8,7 +8,7 @@ risk: low
 
 # Story 1.13: Specialist Subagent Library (Agent System Documentation)
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -67,17 +67,17 @@ so that **we consistently use the right specialist at the right time (review, fi
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Write `.claude/agents/README.md` (the entrypoint)** (AC: 1–5)
-  - Include: definitions, decision tree (“spawn subagent vs run workflow”), inventory, role-to-asset mapping table, examples, and contribution guidelines.
+- [x] **Task 1: Write `.claude/agents/README.md` (the entrypoint)** (AC: 1–5)
+  - Include: definitions, decision tree ("spawn subagent vs run workflow"), inventory, role-to-asset mapping table, examples, and contribution guidelines.
 
-- [ ] **Task 2: Add an “agent system overview” doc under `.claude/docs/`** (AC: 2–4)
+- [x] **Task 2: Add an "agent system overview" doc under `.claude/docs/`** (AC: 2–4)
   - Create `.claude/docs/agent-system.md` that:
     - Explains how the epic orchestrator uses subagents (review loop, fresh context)
     - Links out to `orchestrator-safety.md`, `safety-architecture.md`, and the relevant skill docs
     - Documents the invariants that matter for subagents (never bypass hooks, never force push, etc.)
   - Keep it scannable and aligned with the progressive disclosure strategy (no mega-doc).
 
-- [ ] **Task 3: Ensure discoverability (optional but recommended)** (AC: 1–3)
+- [x] **Task 3: Ensure discoverability (optional but recommended)** (AC: 1–3)
   - Add a small section to `.claude/docs/README.md` pointing to:
     - `.claude/agents/README.md`
     - `.claude/docs/agent-system.md`
@@ -125,9 +125,25 @@ so that **we consistently use the right specialist at the right time (review, fi
 
 ### Agent Model Used
 
+Claude Opus 4
+
 ### Debug Log References
+
+None — documentation-only story, no test or build issues.
 
 ### Completion Notes List
 
+- Task 1: Created `.claude/agents/README.md` as the primary entrypoint for the agent system. Includes: subagent vs command definitions, decision tree, current subagent inventory (epic-reviewer, epic-fixer), role-to-asset mapping table (12 PRD roles mapped), frontmatter conventions with field table, tool restriction guidance, three practical spawning examples, and contribution guidelines with invariants.
+- Task 2: Created `.claude/docs/agent-system.md` as a progressive disclosure doc covering orchestrator's review loop flow, safety invariants for subagents (three-layer model summary), and pointers to detailed docs.
+- Task 3: Updated `.claude/docs/README.md` to add agent-system.md to the "When to Load Which Doc" table and added a pointer to `.claude/agents/README.md` for subagent details.
+
 ### File List
+
+- `.claude/agents/README.md` — NEW: Primary entrypoint for agent system documentation
+- `.claude/docs/agent-system.md` — NEW: Progressive disclosure doc for agent system overview
+- `.claude/docs/README.md` — MODIFIED: Added agent-system.md and agents/README.md pointers
+
+### Change Log
+
+- 2026-02-14: Implemented Story 1.13 — Created agent system documentation (3 files: agents README, agent-system overview doc, docs README update)
 
