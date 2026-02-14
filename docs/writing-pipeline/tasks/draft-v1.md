@@ -8,17 +8,17 @@ This is Step 3 (Phase 2: Drafting) of the writing pipeline. You are operating as
 
 Read these files before starting work:
 
-| File                             | Purpose                                                                                                |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `{project}/02-outline.md`        | Approved structural outline with section details, key points, and progressive disclosure plan          |
-| `{project}/03-outline-review.md` | Editor feedback on the outline that you may need to integrate                                          |
-| `{project}/01-research.md`       | Research notes with sourced findings to cite in prose                                                  |
-| `{project}/00-request.md`        | Documentation goal, audience profile, scope boundaries, and document type (your assignment)            |
-| `{project}/state.yaml`           | Current pipeline state (should confirm this is Step 3, Task B)                                         |
-| `guides/style-guide.md`          | Writing standards (voice, structure, formatting, naming, length, prohibited patterns) — your rules law |
-| `guides/review-taxonomy.md`      | Severity classification system used in reviews you'll receive (MUST/SHOULD/MINOR)                      |
+| File                             | Purpose                                                                                                     |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `{project}/02-outline.md`        | Approved structural outline with section details, key points, word budgets, and progressive disclosure plan |
+| `{project}/03-outline-review.md` | Editor feedback on the outline that you may need to integrate                                               |
+| `{project}/01-research.md`       | Research notes with sourced findings to cite in prose                                                       |
+| `{project}/00-request.md`        | Documentation goal, audience profile, scope boundaries, **target length**, and document type                |
+| `{project}/state.yaml`           | Current pipeline state (should confirm this is Step 3, Task B)                                              |
+| `guides/style-guide.md`          | Writing standards (voice, structure, formatting, naming, length, prohibited patterns) — your rules law      |
+| `guides/review-taxonomy.md`      | Severity classification system used in reviews you'll receive (MUST/SHOULD/MINOR)                           |
 
-**IMPORTANT:** Read all files. The outline is your blueprint. The style guide governs how you write every sentence. Research notes are your source material for citations.
+**IMPORTANT:** Read all files. The outline is your blueprint — including its section word budgets, which are your length constraints. The style guide governs how you write every sentence. Research notes are your source material for citations. The target length from `00-request.md` is a hard constraint.
 
 ## Output Contract
 
@@ -30,11 +30,19 @@ Produce exactly one file:
 
 **Naming convention:** Replace `{project}` with the actual project directory name specified in `state.yaml`.
 
+**Length compliance:** The draft must not exceed the target length from `00-request.md` by more than 20%. Include a word count comment at the end of the file: `<!-- Word count: X words | Target: Y words | Δ: +/-Z (W%) -->`. If the draft exceeds the 20% ceiling, cut before submitting.
+
 ## Instructions
 
 ### Phase 1: Integration Planning
 
-**1. Read the outline review**
+**1. Extract the length constraint**
+
+Read `00-request.md` and note the target length. Calculate your ceiling (target + 20%). This is the hard limit for the draft. Keep it visible as you write — it governs every scope and depth decision.
+
+Read the section word budgets from `02-outline.md`. These are your per-section ceilings. If the outline includes a Length Budget summary, use it as your allocation guide.
+
+**2. Read the outline review**
 
 Open `03-outline-review.md` and extract any structural changes the Editor requested:
 
@@ -42,10 +50,11 @@ Open `03-outline-review.md` and extract any structural changes the Editor reques
 - Added or removed sections
 - Changes to scope or coverage
 - Progressive disclosure adjustments
+- Word budget adjustments (if the Editor flagged over-scoping)
 
 Apply these structural changes to your mental model of the document before you begin drafting. If the Editor's feedback conflicts with the original outline, the Editor's feedback wins — they represent the reader's perspective.
 
-**2. Map outline to research**
+**3. Map outline to research**
 
 For each section in the approved outline:
 
@@ -56,7 +65,7 @@ For each section in the approved outline:
 
 Create a mental or written checklist: every section must pull from specific research findings. Do not invent content not backed by research.
 
-**3. Load the style guide**
+**4. Load the style guide**
 
 Re-read `guides/style-guide.md` before drafting. Pay special attention to:
 
@@ -139,7 +148,18 @@ Apply style guide rules:
 - Max 2 sentences per paragraph in procedure sections
 - No hedging, no marketing language, no synthetic voice patterns
 
-**4. Add Layer 3 content (if applicable)**
+**4. Check against the word budget**
+
+After writing each section, do a rough word count. If the section exceeds its budget from the outline by more than 30%, stop and cut before moving to the next section. Ask:
+
+- Am I explaining something the audience already knows? (Check the audience profile.)
+- Am I covering an edge case that belongs in a subsection, not the main flow?
+- Am I repeating information that another section already covers?
+- Am I providing more context than the reader needs?
+
+Cut now. Do not defer cutting to "final integration" — over-length sections compound into an over-length draft.
+
+**5. Add Layer 3 content (if applicable)**
 
 If the section has edge cases, advanced options, or deep detail:
 
@@ -150,7 +170,9 @@ If the section has edge cases, advanced options, or deep detail:
 - Use **Tip** callouts for shortcuts or alternative approaches
 - Max 2 callouts per section
 
-**5. Add cross-references**
+**Layer 3 content must fit within the section's word budget.** If adding subsections would blow the budget, either cut the subsection (it's optional detail) or condense the Layer 2 prose to make room.
+
+**6. Add cross-references**
 
 If this section relates to another document or section:
 
@@ -158,7 +180,7 @@ If this section relates to another document or section:
 - Use relative paths for internal links, full URLs for external resources
 - State the relationship in prose: "After configuring authentication (see [Auth Guide](./auth.md)), you set up authorization rules."
 
-**6. Self-review the section**
+**7. Self-review the section**
 
 Before moving to the next section, check:
 
@@ -168,6 +190,7 @@ Before moving to the next section, check:
 - [ ] Are prerequisites stated before steps that need them?
 - [ ] Are all factual claims cited or marked `[UNVERIFIED]`?
 - [ ] Does every code example have the language tag and no unexplained placeholders?
+- [ ] **Is the section within its word budget (or within 30% over)?**
 
 ### Phase 4: Citation Format
 
@@ -208,7 +231,15 @@ not found in code or config — need to inspect CloudFront distribution settings
 
 ### Phase 5: Final Integration
 
-**1. Check section ordering**
+**1. Check total word count**
+
+Count the total words in the draft (excluding code blocks and the word count comment). Compare against the target length from `00-request.md`:
+
+- **Within target:** Proceed.
+- **Within 20% over target:** Acceptable. Proceed.
+- **More than 20% over target:** Cut before submitting. Review each section against its word budget. Identify which sections exceeded their budgets and cut there first. If the draft is more than 50% over target, the scope is likely too broad — add a `[LENGTH NOTE]` comment and cut what you can.
+
+**2. Check section ordering**
 
 Verify your draft follows style guide ordering rules:
 
@@ -220,7 +251,7 @@ Verify your draft follows style guide ordering rules:
 
 If the Editor's outline review requested reordering, ensure you applied it.
 
-**2. Check scope compliance**
+**3. Check scope compliance**
 
 Compare your draft against `00-request.md`:
 
@@ -235,15 +266,23 @@ If you discovered adjacent topics during drafting, do NOT expand scope. Note the
 Consider a follow-on document for advanced deployment topics.] -->
 ```
 
-**3. Run the self-review checklist**
+**4. Run the self-review checklist**
 
 Use the Tech Writer self-review checklist (see "Success Criteria" below) before writing the file to disk.
 
-**4. Write the draft file**
+**5. Add word count metadata**
+
+At the end of the draft, add:
+
+```markdown
+<!-- Word count: X words | Target: Y words | Δ: +/-Z (W%) -->
+```
+
+**6. Write the draft file**
 
 Save the draft as `{project}/04-draft-v1.md`.
 
-Do not add any front matter, metadata, or status markers. The draft is pure markdown content.
+Do not add any front matter, metadata, or status markers beyond the word count comment. The draft is pure markdown content plus the word count metadata.
 
 ## Success Criteria
 
@@ -253,6 +292,8 @@ Before submitting your draft, verify:
 - [ ] Every section from the approved outline is represented in the draft
 - [ ] All structural changes from the outline review are applied
 - [ ] Draft follows style guide [MUST] rules with zero violations
+- [ ] **Draft word count is within 20% of target length from `00-request.md`**
+- [ ] **Word count comment appears at the end of the file**
 - [ ] All procedures use numbered lists starting with imperative verbs
 - [ ] All conceptual content uses prose paragraphs or unordered lists
 - [ ] All commands are copy-pastable and include language tags in code blocks
@@ -272,13 +313,15 @@ Before submitting your draft, verify:
 These constraints apply to this task:
 
 1. **Follow style-guide.md on every sentence.** Voice, structure, formatting, naming, length, prohibited patterns — all rules apply.
-2. **Cite all sources.** File paths with line numbers, exact commands, doc URLs. Enable SME verification.
-3. **Mark unverified claims.** Use `[UNVERIFIED: what is needed]` format. Do not silently guess or invent behavior.
-4. **Apply progressive disclosure.** Heading + first sentence for skimmers, full section for readers, subsections for deep readers.
-5. **Verify all procedures.** If the draft says "run `npm run deploy`", verify that command exists in `package.json`. Procedures that do not work destroy reader trust permanently.
-6. **Stay within scope.** Write only what `00-request.md` asks for. Note adjacent topics as potential follow-ons; do not expand scope.
-7. **Use research findings, not general knowledge.** Every claim must map to a finding in `01-research.md` or be marked `[UNVERIFIED]`.
-8. **No placeholder content.** "TODO: add details" is never acceptable. If you lack information, mark it `[UNVERIFIED]` with what would resolve the gap.
+2. **Respect the target length.** Extract it from `00-request.md`. Do not exceed it by more than 20%. If you cannot fit the scope, surface the tension with a `[LENGTH NOTE]` — do not silently produce a 2x over-length draft.
+3. **Write to the section word budgets.** Each section has a budget from the outline. Use it as a ceiling. Cut sections that exceed their budgets before moving on.
+4. **Cite all sources.** File paths with line numbers, exact commands, doc URLs. Enable SME verification.
+5. **Mark unverified claims.** Use `[UNVERIFIED: what is needed]` format. Do not silently guess or invent behavior.
+6. **Apply progressive disclosure.** Heading + first sentence for skimmers, full section for readers, subsections for deep readers.
+7. **Verify all procedures.** If the draft says "run `npm run deploy`", verify that command exists in `package.json`. Procedures that do not work destroy reader trust permanently.
+8. **Stay within scope.** Write only what `00-request.md` asks for. Note adjacent topics as potential follow-ons; do not expand scope.
+9. **Use research findings, not general knowledge.** Every claim must map to a finding in `01-research.md` or be marked `[UNVERIFIED]`.
+10. **No placeholder content.** "TODO: add details" is never acceptable. If you lack information, mark it `[UNVERIFIED]` with what would resolve the gap.
 
 ## Common Pitfalls
 
@@ -334,6 +377,11 @@ Good: "A partition key is the primary identifier DynamoDB uses to distribute dat
 Bad: Ignoring the Editor's request to reorder sections or add prerequisites
 Good: Applying every structural change from `03-outline-review.md` before drafting
 
+**11. Ignoring the word budget and producing an over-length draft**
+
+Bad: Writing 6,000 words against a 2,400-word target because "the topic requires it"
+Good: Writing to the section budgets, cutting sections that run long, and surfacing a `[LENGTH NOTE]` if the scope genuinely cannot fit the target
+
 ## Notes
 
 - **This draft establishes the baseline.** All subsequent revisions build on this. If the structure is wrong here, you will pay for it in multiple revision rounds. Get the structure right the first time by following the approved outline and the outline review feedback.
@@ -342,6 +390,7 @@ Good: Applying every structural change from `03-outline-review.md` before drafti
 - **Procedures must be runnable.** A reader following your steps should succeed without guessing, without prior knowledge not stated in prerequisites, and without debugging your instructions. Verify every command, every placeholder, every prerequisite.
 - **Style guide compliance is not optional.** The Editor will flag violations. Every [MUST] violation you ship is a gate blocker. Every [SHOULD] violation is rework. Write it right the first time.
 - **Unverified claims are acceptable; invented claims are not.** If you cannot verify something, mark it `[UNVERIFIED]` with what is needed to resolve it. The SME will handle it. Do not guess and present the guess as fact.
+- **The first draft sets the length trajectory.** If this draft is 2x over the target, every subsequent revision will push further past it. The Editor can cut redundancy, but the Editor cannot compress a fundamentally over-scoped document. Respect the word budgets now. Cut now. Do not defer length discipline to later rounds.
 
 ## Example Section
 

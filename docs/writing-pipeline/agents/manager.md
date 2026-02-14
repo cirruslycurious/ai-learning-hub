@@ -276,7 +276,7 @@ If no diagrams were produced (designer was skipped), copy `20-final.md` to `21-f
 After every subagent completes:
 
 1. Read the output artifact from disk — confirm the file exists and is non-empty. If either check fails, handle per the error table.
-2. Update `state.yaml`: set the step's `status` to `completed`, `output` to the filename, `gate` to the decision (if applicable)
+2. Read `state.yaml`, then update it: set the step's `status` to `completed`, `output` to the filename, `gate` to the decision (if applicable)
 3. Make the gate decision from what is in the file — not from memory of what was told to a previous agent
 4. If the gate decision triggers a revision, increment `revision_count` in `state.yaml`. Check against the global cap (5) before spawning.
 

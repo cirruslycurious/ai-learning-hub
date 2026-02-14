@@ -213,4 +213,8 @@ paths = [
   '''.claude/skills/epic-orchestrator/SKILL.md''',
   '''infra/test/config/aws-env.test.ts''',
   '''docs/progress/aws-setup-complete.md''',
+  # Docs that mention connection-string patterns as examples (mongodb://, postgres://, redis://)
+  '''docs/writing-pipeline/projects/''',
+  '''docs/research/''',
+  '''\.claude/docs/orchestrator-safety\.md''',
 ]
