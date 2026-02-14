@@ -94,7 +94,7 @@ Verify diagram placement markers or diagram suggestion files against `diagram-gu
 
 **Do not verify technical accuracy of diagrams.** The SME verified that. Check conformance only.
 
-**Retain diagram markers and diagram suggestion files in the final document.** The assembly step (Step 13) will integrate final diagrams into the document.
+**Retain diagram placement markers (mermaid blocks and HTML alt-text comments) but REMOVE any "Diagram Suggestions" section.** The "Diagram Suggestions" section is internal scaffolding for the Designer — it should not appear in the final document. Only the actual mermaid diagram blocks embedded in the prose should remain.
 
 ### Phase 3: Apply the Stephen Test
 
@@ -167,7 +167,7 @@ Create `20-final.md` with all your edits applied. This is the complete, polished
 **What it contains:**
 
 - The full text of `18-draft-v4.md` with all your corrections integrated
-- All diagram markers or diagram suggestion files retained exactly as they appear in the draft (the assembly step will replace markers with actual diagrams)
+- All mermaid diagram blocks and HTML comments embedded inline in the prose retained exactly as they appear. - Any "Diagram Suggestions" section (if present) must be removed — that is internal Designer scaffolding, not final content.
 - No review notes, no editor comments, no TODO markers — this is the clean final copy
 
 **What it must pass:**

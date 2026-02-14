@@ -4,7 +4,7 @@
 
 This task occurs at Steps 4b, 5b, 11b, and 11d (Phase 2 and Phase 4) of the writing pipeline. You are operating as the Tech Writer agent to revise a draft based on review feedback from the Editor, SME, or QA Reader. This task is reusable across all review types with different handling rules for each reviewer's feedback format.
 
-You produce a revised draft that addresses all MUST items, handles SHOULD items with justifications if declined, and applies the audience-plausibility filter to QA Reader confusion points.
+You produce a revised draft that addresses all MUST items, handles SHOULD items with justifications if declined, applies the audience-plausibility filter to QA Reader confusion points, and respects the target length constraint throughout.
 
 ## Input Contract
 
@@ -13,13 +13,13 @@ Read these files before starting work:
 | File                        | Purpose                                                                                                                                     |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `{project}/state.yaml`      | Current pipeline state (confirms which step, which draft version, which review notes to process)                                            |
-| `{project}/00-request.md`   | Original documentation goal, **audience profile** (critical for QA downgrade decisions), scope boundaries                                   |
+| `{project}/00-request.md`   | Original documentation goal, **audience profile** (critical for QA downgrade decisions), scope boundaries, **target length**                |
 | `guides/style-guide.md`     | Writing standards you must continue to follow                                                                                               |
 | `guides/review-taxonomy.md` | Severity classification system (MUST/SHOULD/MINOR) and handling obligations                                                                 |
 | Current draft               | The draft being revised (e.g., `04-draft-v1.md`, `12-draft-v3.md`, `16-draft-v3r1.md`)                                                      |
 | Review notes                | Editor notes, SME notes, or QA notes specified in `state.yaml` (e.g., `05-editorial-notes.md`, `13-sme-notes.md`, `17-qa-read-feedback.md`) |
 
-**IMPORTANT:** Do not proceed until you have read all files. The audience profile in `00-request.md` is critical for mapping QA Reader confusion points to severity levels.
+**IMPORTANT:** Do not proceed until you have read all files. The audience profile in `00-request.md` is critical for mapping QA Reader confusion points to severity levels. The target length in `00-request.md` is the length anchor for this revision — not the previous draft's word count.
 
 ## Output Contract
 
@@ -31,6 +31,8 @@ Produce exactly one file:
 
 **Naming convention:** Per `state.yaml`, typically `06-draft-v1r1.md` (revision 1 of draft v1), `16-draft-v3r1.md` (revision 1 of draft v3), or `18-draft-v3r2.md` (revision 2 of draft v3).
 
+**Length compliance:** The revision must be the same length or shorter than the previous draft, unless feedback explicitly called for added content (e.g., a MUST item requesting a missing section). The revision must not exceed the target length from `00-request.md` by more than 20%. Include a word count comment at the end: `<!-- Word count: X words | Target: Y words | Δ: +/-Z (W%) -->`.
+
 **Revision-specific additions:**
 
 1. **`[NOTE]` comments** — Inline comments explaining alternative fixes when your fix differs significantly from the reviewer's suggestion
@@ -41,7 +43,11 @@ Produce exactly one file:
 
 ### Phase 1: Understand the Review
 
-**1. Load the review notes**
+**1. Load the length constraint**
+
+Extract the target length from `00-request.md`. Calculate the 20% ceiling. Note the current draft's word count. This is your length anchor — the revision must stay within the ceiling regardless of how much feedback you are addressing.
+
+**2. Load the review notes**
 
 Read the review file specified in `state.yaml`. Identify the reviewer type:
 
@@ -49,7 +55,11 @@ Read the review file specified in `state.yaml`. Identify the reviewer type:
 - **SME notes:** `{NN}-sme-notes.md` — technical accuracy feedback using MUST/SHOULD/MINOR with evidence citations
 - **QA notes:** `{NN}-qa-read-feedback.md` — confusion points with severity self-assessments (not MUST/SHOULD/MINOR)
 
-**2. Classify all review items**
+**3. Check for a Reorganization Map**
+
+If the Editor's review includes a Reorganization Map (CUT/MERGE/CONDENSE actions), this is your first priority. The map defines structural surgery that must happen before you address individual per-pass findings. Note the estimated word reduction — this is capacity you free up for any additions required by other findings.
+
+**4. Classify all review items**
 
 For **Editor or SME reviews:**
 
@@ -61,7 +71,7 @@ For **QA Reader reviews:**
 - Items are formatted as confusion points with severity self-assessments ("Could not proceed", "Recovered with effort", "Minor friction")
 - You must map each confusion point to MUST/SHOULD/MINOR using the audience-plausibility filter (see Phase 2, Step 4)
 
-**3. Inventory MUST items**
+**5. Inventory MUST items**
 
 Create a working list of all MUST items. These are non-negotiable — every MUST item must be addressed in the revision with zero exceptions.
 
@@ -159,7 +169,19 @@ The Editor validates downgrade judgments on their next review pass. Downgrade ju
 
 ### Phase 3: Execute the Revision
 
-**1. Address MUST items**
+**1. Apply the Reorganization Map first (if present)**
+
+If the Editor's review includes a Reorganization Map with CUT, MERGE, or CONDENSE actions:
+
+1. Apply the Reorganization Map before addressing individual per-pass findings
+2. For CUT items: remove the specified content. If the Editor indicated salvageable content to relocate, move it to the specified target location.
+3. For MERGE items: fold the unique content from the specified section into the target section. Delete the source section.
+4. For CONDENSE items: reduce the specified content to approximately the word count the Editor suggested.
+5. After applying the Reorganization Map, address remaining per-pass findings within the surviving structure.
+
+**Do not add compensating content when cutting.** If the Editor says to cut a section, cut it. Do not replace a 500-word redundant section with a 300-word "summary" of the same content.
+
+**2. Address MUST items**
 
 Work through every MUST item. For each:
 
@@ -192,7 +214,7 @@ rule: tables for structured multi-attribute data). -->
 - Adjusting the fix to match the style guide
 - Combining multiple MUST items into a single structural fix
 
-**2. Address SHOULD items**
+**3. Address SHOULD items**
 
 Work through SHOULD items with the expectation that you will address most of them.
 
@@ -234,13 +256,13 @@ You may decline a SHOULD item if you have a **substantive reason**. Add an entry
 
 **Convergence rule:** If you decline a SHOULD item with justification, the Editor may accept the decline or escalate it to MUST — but escalation requires **new evidence** not present in the original review. See `review-taxonomy.md` for convergence rules.
 
-**3. Address MINOR items (optional)**
+**4. Address MINOR items (optional)**
 
 Handle MINOR items at your discretion. No justification or response needed if you skip them.
 
 **Good practice:** If a MINOR fix takes less than 10 seconds (word choice, extra whitespace), apply it. If it requires rethinking a paragraph, skip it unless you have time.
 
-**4. Apply progressive disclosure principles**
+**5. Apply progressive disclosure principles**
 
 As you revise, ensure the draft maintains progressive disclosure layering:
 
@@ -250,17 +272,25 @@ As you revise, ensure the draft maintains progressive disclosure layering:
 
 **Revision anti-pattern:** Adding content that flattens the layers. If an SME note calls for additional context, ask: where in the disclosure stack does this belong? Do not add expert-level detail to the overview paragraph.
 
-**5. Maintain or reduce length**
+**6. Enforce the length constraint**
 
-Revisions should be the same length or shorter than the previous draft, unless feedback explicitly called for added content (e.g., a MUST item requesting a missing section).
+After applying all changes, count the total words. Compare against:
 
-**Length inflation signals:**
+- **The previous draft's word count:** The revision should be the same length or shorter, unless feedback explicitly called for added content.
+- **The target length from `00-request.md`:** The revision must not exceed the target by more than 20%.
 
-- Adding redundant explanations to sections the reviewer did not flag
-- Over-qualifying statements out of defensive caution
-- Expanding examples when the existing examples were not flagged as insufficient
+**If the revision is longer than the previous draft:**
 
-**Test:** If Draft v1 was 800 lines and Draft v1r1 is 950 lines, review the diff. Are all 150 new lines addressing reviewer feedback? If not, you are inflating rather than revising. Cut the padding.
+- Every additional word must trace to a specific review finding. If it doesn't, it's inflation — cut it.
+- If addressing feedback required adding content, identify where to cut an equivalent amount elsewhere.
+
+**If the revision exceeds the 20% ceiling:**
+
+- Review each section's word count against the outline's word budgets.
+- Cut sections that have grown beyond their budgets.
+- If you cannot bring the revision within the ceiling, add a `[LENGTH NOTE]` comment explaining the tension.
+
+**Length inflation is the primary mechanism by which the pipeline produces bloated documents.** Each revision round adds a few paragraphs of "clarification" or "context" that locally seem justified but cumulatively push the document far past its target. Your job is to resist this. Address the finding, do not add padding.
 
 ### Phase 4: Document Your Work
 
@@ -300,7 +330,15 @@ When you downgraded a QA Reader confusion point using the audience-plausibility 
 
 If the previous draft had `[UNVERIFIED]` markers that review feedback resolved (e.g., the SME provided verification), remove the markers and update the claim with the new citation.
 
-**5. Self-review**
+**5. Add word count metadata**
+
+At the end of the revised draft, add or update the word count comment:
+
+```markdown
+<!-- Word count: X words | Target: Y words | Δ: +/-Z (W%) -->
+```
+
+**6. Self-review**
 
 Before writing the revision to disk, run the self-review checklist (see below).
 
@@ -312,7 +350,10 @@ Before submitting your revision, verify:
 - [ ] Every declined SHOULD item has a `[DECLINED]` entry in `## Review Responses` with substantive justification
 - [ ] Every alternative fix for a MUST item has a `[NOTE]` comment explaining the approach
 - [ ] Every downgraded QA confusion point has a `[DOWNGRADED]` comment referencing the audience profile
-- [ ] The revision is the same length or shorter than the previous draft, unless feedback explicitly called for added content
+- [ ] **If a Reorganization Map was present, all CUT/MERGE/CONDENSE actions have been applied**
+- [ ] **The revision is the same length or shorter than the previous draft, unless feedback explicitly called for added content**
+- [ ] **The revision does not exceed the target length from `00-request.md` by more than 20%**
+- [ ] **Word count comment appears at the end of the file**
 - [ ] All new or updated claims have source citations
 - [ ] Progressive disclosure layering is maintained (heading + first sentence gives gist, sections layer detail)
 - [ ] Style guide compliance is maintained (voice, structure, formatting, naming)
@@ -323,23 +364,26 @@ Before submitting your revision, verify:
 These constraints apply to this task:
 
 1. **Address every MUST item.** Zero exceptions. No justifications accepted for skipping MUST items.
-2. **Substantive justifications only.** "Preferred the original" is not substantive. Reference the style guide, audience profile, scope boundaries, or verified sources.
-3. **Accuracy wins.** When Editor and SME conflict, fix accuracy first, then apply style.
-4. **Apply the audience-plausibility filter.** QA Reader confusion points must be evaluated against the declared target audience, not the QA Reader's actual background.
-5. **Document all downgrades.** Every QA downgrade requires a `[DOWNGRADED]` comment referencing the audience profile.
-6. **Do not inflate across rounds.** Revisions address specific feedback. Do not add padding, extra qualifiers, or redundant explanations to sections the reviewer did not flag.
-7. **Follow the style guide.** Revision does not exempt you from style compliance. Maintain voice, structure, and formatting rules.
-8. **Do not expand scope.** If review feedback requests out-of-scope content, note it as a scope conflict. Do not add out-of-scope material to satisfy a review item.
-9. **Maintain progressive disclosure.** SME context belongs at the appropriate depth level. Do not dump expert knowledge into overview paragraphs.
+2. **Respect the target length.** The revision must not exceed the target from `00-request.md` by more than 20%. The target is the anchor — not the previous draft's length.
+3. **Apply the Reorganization Map first.** If the Editor provided CUT/MERGE/CONDENSE actions, apply them before addressing per-pass findings. Do not add compensating content when cutting.
+4. **Substantive justifications only.** "Preferred the original" is not substantive. Reference the style guide, audience profile, scope boundaries, or verified sources.
+5. **Accuracy wins.** When Editor and SME conflict, fix accuracy first, then apply style.
+6. **Apply the audience-plausibility filter.** QA Reader confusion points must be evaluated against the declared target audience, not the QA Reader's actual background.
+7. **Document all downgrades.** Every QA downgrade requires a `[DOWNGRADED]` comment referencing the audience profile.
+8. **Do not inflate across rounds.** Revisions address specific feedback. Do not add padding, extra qualifiers, or redundant explanations to sections the reviewer did not flag.
+9. **Follow the style guide.** Revision does not exempt you from style compliance. Maintain voice, structure, and formatting rules.
+10. **Do not expand scope.** If review feedback requests out-of-scope content, note it as a scope conflict. Do not add out-of-scope material to satisfy a review item.
+11. **Maintain progressive disclosure.** SME context belongs at the appropriate depth level. Do not dump expert knowledge into overview paragraphs.
 
 ## Review Type Differences
 
 ### Editor review (Steps 4b, 11b)
 
 **Focus:** Structure, style, clarity, consistency, tone
-**Format:** MUST/SHOULD/MINOR items
+**Format:** MUST/SHOULD/MINOR items, potentially with Reorganization Map (CUT/MERGE/CONDENSE actions)
 **Special handling:**
 
+- If a Reorganization Map is present, apply it first before addressing per-pass findings.
 - Editor structural recommendations may conflict with style guide. Style guide wins. Note conflicts in `[NOTE]` comments.
 - Editor second-pass (11b) makes inline edits for SHOULD/MINOR rather than producing a review. Treat second-pass inline edits as if they were MUST items from the first pass.
 
@@ -407,6 +451,16 @@ Good: Skipping MINOR items when time-constrained, addressing them when convenien
 Bad: SME provides verification, but you leave the `[UNVERIFIED]` marker in the draft
 Good: SME provides verification, you remove the marker and update the claim with the SME's source citation
 
+**9. Adding compensating content after cutting**
+
+Bad: Editor says "CUT section 'Dependency Analysis' — redundant." You cut it but add a 300-word summary paragraph covering the same ground.
+Good: Editor says "CUT section 'Dependency Analysis'." You cut it. The content that remains in other sections already covers the topic.
+
+**10. Ignoring the length constraint during revision**
+
+Bad: Adding 500 words of SME-requested context without cutting 500 words elsewhere, pushing the draft from 2,600 to 3,100 against a 2,400-word target
+Good: Adding 500 words of SME-requested context, cutting 500 words of redundancy or over-explanation elsewhere, keeping the draft at 2,600
+
 ## Notes
 
 - **Max 2 revision rounds per gate.** If MUST items persist after 2 rounds, the Manager escalates to the user. Do not assume you have infinite revision attempts.
@@ -414,3 +468,4 @@ Good: SME provides verification, you remove the marker and update the claim with
 - **Declined items and convergence.** If you decline a SHOULD item with justification, the Editor may accept the decline or escalate to MUST with **new evidence**. The Editor may not re-raise the same item as SHOULD with stronger language. See `review-taxonomy.md` for convergence rules.
 - **Audience-plausibility filter is critical for QA feedback.** The QA Reader may not match the target audience. Your job is to translate their confusion into severity levels appropriate for the actual target audience. The Editor validates your downgrades.
 - **Revision is not rewriting.** You are addressing specific feedback, not producing a new draft. Stay focused on the review items. Do not rewrite sections the reviewer did not flag.
+- **The target length is your anchor.** Not the previous draft's length. If the previous draft was already over the target, the revision should bring it closer — not push it further. Every revision is an opportunity to tighten, not just correct.

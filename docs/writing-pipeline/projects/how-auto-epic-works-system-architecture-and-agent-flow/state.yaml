@@ -1,0 +1,151 @@
+# Tech Writing Pipeline State File
+project: "how-auto-epic-works-system-architecture-and-agent-flow"
+task: "Write comprehensive technical guide: How Auto Epic Works - System Architecture and Agent Flow"
+status: in-progress
+started: 2026-02-09T00:00:00Z
+current_phase: 5
+current_phase: 7
+current_step: 12
+current_agent: editor
+revision_count: 5
+
+steps:
+  1-research-outline:
+    status: completed
+    agent: tech-writer
+    output: 02-outline.md
+
+  2-outline-review:
+    status: completed
+    agent: editor
+    output: 03-outline-review.md
+    gate: must-revise
+    revision_round: 1
+
+  2r-outline-revision:
+    status: completed
+    agent: tech-writer
+    output: 02-outline.md
+
+  2-rereviewed:
+    status: completed
+    agent: editor
+    output: 03-outline-review-v2.md
+    gate: conditional-pass
+
+  3-draft-v1:
+    status: completed
+    agent: tech-writer
+    output: 04-draft-v1.md
+
+  4-editorial-review-v1:
+    status: completed
+    agent: editor
+    output: 05-editorial-review-v1.md
+    gate: must-revise
+    revision_round: 1
+
+  4b-draft-v1r1:
+    status: completed
+    agent: tech-writer
+    output: 06-draft-v1r1.md
+
+  4c-editorial-second-pass:
+    status: completed
+    agent: editor
+    output: 06-draft-v1r1-corrected.md
+    gate: pass
+
+  5-sme-review:
+    status: completed
+    agent: sme
+    output: 07-sme-review-v1.md
+    gate: must-revise
+    revision_round: 1
+
+  5b-draft-v1r2:
+    status: completed
+    agent: tech-writer
+    output: 06-draft-v1r2.md
+
+  5c-manager-verification:
+    status: completed
+    agent: manager
+    output: verified
+    gate: pass
+
+  6-draft-v2:
+    status: completed
+    agent: tech-writer
+    output: 08-draft-v2.md
+
+  7a-editorial-review-v2:
+    status: completed
+    agent: editor
+    output: 09-editorial-review-v2.md
+    gate: must-revise
+
+  7b-diagrams-v1:
+    status: completed
+    agent: designer
+    output: 10-diagrams-v1.md
+
+  8-sme-review-v2:
+    status: completed
+    agent: sme
+    output: 11-sme-review-v2.md
+    gate: must-revise
+
+  9-draft-v3:
+    status: completed
+    agent: tech-writer
+    output: 12-draft-v3.md
+
+  10a-editorial-review-v3:
+    status: completed
+    agent: editor
+    output: 13-editorial-review-v3.md
+    gate: pass
+
+  10b-diagrams-v2:
+    status: completed
+    agent: designer
+    output: 14-diagrams-v2.md
+
+  11-qa-read-v1:
+    status: completed
+    agent: qa-reader
+    output: 15-qa-read-v1.md
+    gate: has-confusion
+
+  11b-draft-v3r1:
+    status: completed
+    agent: tech-writer
+    output: 16-draft-v3r1.md
+
+  11c-qa-read-v2:
+    status: completed
+    agent: qa-reader
+    output: 17-qa-read-v2.md
+    gate: minor-friction-only
+
+  11d-draft-v3r2:
+    status: skipped
+    agent: tech-writer
+    output: null
+    reason: no-blocking-confusion
+
+  12-final-review:
+    status: in-progress
+    agent: editor
+    output: null
+
+  13-assemble-final:
+    status: pending
+    agent: manager
+    output: null
+
+  14-present:
+    status: pending
+    agent: null
+    output: null

@@ -8,25 +8,27 @@ This is Step 1 (Phase 1: Foundation) of the writing pipeline. You are operating 
 
 Read these files before starting work:
 
-| File                        | Purpose                                                                                    |
-| --------------------------- | ------------------------------------------------------------------------------------------ |
-| `{project}/00-request.md`   | Documentation goal, audience profile, scope boundaries, and any special constraints        |
-| `{project}/state.yaml`      | Current pipeline state (should confirm this is Step 1, Task A)                             |
-| `guides/style-guide.md`     | Writing standards you must follow (voice, structure, formatting, naming, length, patterns) |
-| `guides/review-taxonomy.md` | Severity classification system (MUST/SHOULD/MINOR) used in reviews you'll receive later    |
+| File                        | Purpose                                                                                                |
+| --------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `{project}/00-request.md`   | Documentation goal, audience profile, scope boundaries, **target length**, and any special constraints |
+| `{project}/state.yaml`      | Current pipeline state (should confirm this is Step 1, Task A)                                         |
+| `guides/style-guide.md`     | Writing standards you must follow (voice, structure, formatting, naming, length, patterns)             |
+| `guides/review-taxonomy.md` | Severity classification system (MUST/SHOULD/MINOR) used in reviews you'll receive later                |
 
-**IMPORTANT:** Do not proceed until you have read all four files. The request file defines what you're writing; the style guide defines how you write it.
+**IMPORTANT:** Do not proceed until you have read all four files. The request file defines what you're writing — including the target length, which constrains the outline's scope and depth. The style guide defines how you write it.
 
 ## Output Contract
 
 Produce exactly two files:
 
-| File                       | Format                                                                                                       | Purpose                                          |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------ |
-| `{project}/01-research.md` | Research notes with Claim + Source + Confidence for each finding                                             | Verified understanding from primary sources      |
-| `{project}/02-outline.md`  | Structural outline with Heading, Covers, Key Points, Research Notes, Progressive Disclosure for each section | Blueprint for the draft with full section detail |
+| File                       | Format                                                                                                                                                        | Purpose                                          |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `{project}/01-research.md` | Research notes with Claim + Source + Confidence for each finding                                                                                              | Verified understanding from primary sources      |
+| `{project}/02-outline.md`  | Structural outline with Heading, Covers, Word Budget, Key Points, Research Notes, Progressive Disclosure for each section, plus a Length Budget summary table | Blueprint for the draft with full section detail |
 
 **Naming convention:** Replace `{project}` with the actual project directory name specified in `state.yaml`.
+
+**Length compliance:** The outline's section word budgets must sum to within 20% of the target length specified in `00-request.md`. The Length Budget summary table at the end of the outline must show the total budget and variance from target.
 
 ## Instructions
 
@@ -40,7 +42,8 @@ Read `00-request.md` completely to extract:
 - **Audience profile:** Who is the reader? What do they know? What do they need to know?
 - **Scope boundaries:** What is included? What is explicitly out of scope?
 - **Document type:** Tutorial, how-to guide, explanation, reference?
-- **Special constraints:** Length limits, required sections, integration with existing docs?
+- **Target length:** How many words? This constrains outline scope and section depth.
+- **Special constraints:** Required sections, integration with existing docs?
 
 **2. Conduct primary source research**
 
@@ -155,7 +158,19 @@ One sentence restating the documentation goal from 00-request.md.
 
 ### Phase 2: Outline
 
-**1. Structure the document**
+**1. Determine the length budget**
+
+Extract the target length from `00-request.md`. This is the constraint that governs the outline's scope and depth:
+
+- Count the planned H2 sections
+- Divide the target length across sections, weighted by topic complexity
+- Each section gets a word budget that represents a ceiling, not a fill target
+
+The section budgets must sum to within 20% of the target length. If they exceed the target by more than 20%, the outline is over-scoped — either consolidate sections, reduce depth, or cut sections before submitting.
+
+**The length budget forces hard choices.** If the target is 2,400 words and you plan 8 sections, each section averages ~300 words. That means you cannot give every section deep-dive subsections — you must choose where to go deep and where to stay at overview level. These choices happen now, in the outline, not later when the draft is already 5,000 words.
+
+**2. Structure the document**
 
 Using your research findings, design the document structure following style guide rules:
 
@@ -167,7 +182,9 @@ Using your research findings, design the document structure following style guid
 - Common cases before edge cases
 - Defaults before customization
 
-**2. Design each section**
+**Section count guidance:** Aim for 5–7 H2 sections for a typical document. More than 7 H2 sections usually signals a flat structure that will develop redundancy — standalone sections tend to re-explain context that a parent section would have established once. If you have more than 7, evaluate whether some should be subsections of others.
+
+**3. Design each section**
 
 The outline is NOT just a list of headings. For each section, provide:
 
@@ -175,6 +192,8 @@ The outline is NOT just a list of headings. For each section, provide:
 ## Section: [Heading Text]
 
 **Covers:** One sentence stating what this section explains or what the reader accomplishes.
+
+**Word budget:** ~X words
 
 **Key points:**
 
@@ -186,14 +205,14 @@ The outline is NOT just a list of headings. For each section, provide:
 **Progressive disclosure:** Describe what a skimming reader gets (heading + first sentence) vs. what a thorough reader gets (full section content).
 ```
 
-**3. Ensure complete coverage**
+**4. Ensure complete coverage**
 
 Every section in the outline must map to at least one finding in `01-research.md`. If a section does not map to research, either:
 
 - Research it now and update `01-research.md`
 - Remove the section from the outline (it's out of scope)
 
-**4. Apply progressive disclosure**
+**5. Apply progressive disclosure**
 
 Structure sections so readers choose their depth:
 
@@ -203,7 +222,35 @@ Structure sections so readers choose their depth:
 
 Specify this layering explicitly in the "Progressive disclosure" field for each section.
 
-**5. Write `02-outline.md`**
+**6. Write the Length Budget summary**
+
+At the end of `02-outline.md`, include a Length Budget summary table:
+
+```markdown
+## Length Budget
+
+| Section              | Budget     |
+| -------------------- | ---------- |
+| Overview             | ~300       |
+| Architecture layers  | ~500       |
+| System flow          | ~800       |
+| Component deep-dives | ~600       |
+| Quick reference      | ~200       |
+| **Total**            | **~2,400** |
+
+**Target (from 00-request.md):** 2,400 words
+**Budget variance:** 0%
+```
+
+If the total budget exceeds the target by more than 20%, do not submit the outline. Either consolidate sections, reduce depth, or note the tension for the Editor:
+
+```markdown
+<!-- [LENGTH NOTE: Section budgets total ~3,200 words against a 2,400-word target (33% over).
+Sections X, Y, and Z each require ~600 words for adequate coverage. Recommend either
+increasing the target or splitting "Component deep-dives" into a separate document.] -->
+```
+
+**7. Write `02-outline.md`**
 
 Create the outline file with one "Section" block per major section (H2 level) you plan to include in the draft.
 
@@ -219,9 +266,13 @@ Before submitting your output, verify:
 - [ ] All gaps are documented with what's needed to resolve them
 - [ ] Outline sections follow style guide ordering rules (task before reference, prerequisites before procedures)
 - [ ] Every outline section references specific findings from `01-research.md`
+- [ ] **Every outline section includes a word budget**
+- [ ] **Section budgets sum to within 20% of target length from `00-request.md`**
+- [ ] **Length Budget summary table is present at the end of the outline**
 - [ ] Outline uses progressive disclosure structure (what skimmers get vs. what deep readers get)
 - [ ] No placeholder content exists ("TODO: research this", "need to verify")
 - [ ] Key terms are defined with sources, not from general knowledge
+- [ ] **Outline has no more than 7 H2 sections unless complexity genuinely requires it**
 
 ## Key Rules
 
@@ -235,6 +286,8 @@ These constraints apply to this task:
 6. **Research from primary sources only.** Do not write from general knowledge about how a technology "typically works."
 7. **Stay within scope.** If you discover adjacent topics during research, note them as potential follow-on documents. Do not expand this document's scope.
 8. **Do not create placeholder content.** Every claim must have a source or an explicit unverified marker.
+9. **Respect the target length.** The outline's section budgets must sum to within 20% of the target. If they don't, the outline is over-scoped — fix the outline, not the budget.
+10. **Prefer fewer, deeper sections over many shallow sections.** A flat outline with 10+ H2 sections will produce a flat, redundant document. Consolidate related content under parent sections.
 
 ## Common Pitfalls
 
@@ -269,6 +322,8 @@ Good:
 
 **Covers:** You configure Clerk JWT validation and set up middleware to protect routes.
 
+**Word budget:** ~400 words
+
 **Key points:**
 
 - Clerk public key from environment variable (finding: env-vars)
@@ -300,9 +355,21 @@ Good: "The function appears to have retry logic based on the presence of `aws-sd
 Bad: Adding a "Troubleshooting" section to the outline when you did no troubleshooting research
 Good: Only including sections that map to findings in `01-research.md`
 
+**8. Over-scoping the outline for the target length**
+
+Bad: Planning 12 H2 sections with deep-dive subsections for a 2,400-word document (that structure requires 5,000+ words)
+Good: Planning 5 H2 sections with word budgets that sum to ~2,400, choosing where to go deep and where to stay concise
+
+**9. Ignoring the Length Budget summary**
+
+Bad: Submitting an outline without the Length Budget table, leaving the word budget implicit
+Good: Including the Length Budget summary with per-section budgets, total, target, and variance percentage
+
 ## Notes
 
 - **Research is not optional.** Do not write the outline from assumptions. Conduct actual research using the tools available (Read, Bash, Grep, Glob, WebFetch).
 - **Source citations enable SME verification.** The SME will use your sources to independently verify claims during technical review. Weak citations make the SME's job harder and slow the pipeline.
 - **Outline detail prevents downstream rework.** The Editor reviews your outline at Step 2. If the outline lacks detail, the Editor cannot provide meaningful feedback and the draft will require more revision rounds later.
 - **Progressive disclosure is a planning tool.** Thinking about what skimmers vs. deep readers need helps you layer content correctly in the draft phase.
+- **The length budget prevents downstream bloat.** If the outline over-scopes, the draft will be over-length, and every revision round will push it further past the target. The Editor can cut redundancy, but the Editor cannot compress a fundamentally over-scoped document. Get the scope right in the outline.
+- **Word budgets are ceilings, not fill targets.** A section budgeted at 500 words that can be covered in 350 words is a good section. Do not pad to reach the budget.
