@@ -54,7 +54,7 @@ development_status:
   1-10-tool-risk-classification: done  # Refactored to comprehensive safety architecture docs (4 files)
   1-11-prompt-evaluation-tests: dropped  # Premature optimization, defer to Epic 12 (agentic workflow maturity)
   1-12-model-selection-guide: dropped  # Defaults work fine, added note to CLAUDE.md
-  1-13-subagent-library: ready-for-dev  # Will evolve to agent system documentation
+  1-13-subagent-library: review  # Will evolve to agent system documentation
   1-14-context-management-guide: dropped  # Orchestrator handles it, added note to README
   epic-1-retrospective: optional
 

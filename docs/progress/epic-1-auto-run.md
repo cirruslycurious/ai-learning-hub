@@ -1,9 +1,9 @@
 ---
 epic_id: Epic-1
 status: in-progress
-scope: ["1.9"]
-started: 2026-02-07T18:30:00Z
-last_updated: 2026-02-07T19:37:00Z
+scope: ["1.13"]
+started: 2026-02-14T12:00:00Z
+last_updated: 2026-02-14T12:00:00Z
 stories:
   "1.9":
     status: done
@@ -14,13 +14,18 @@ stories:
     coverage: 100
     review_rounds: 0
     duration: "67m"
+  "1.13":
+    status: in-progress
+    issue: 116
+    branch: story-1-13-specialist-subagent-library-agent-system-documentation
 ---
 
 # Epic 1 Auto-Run Progress
 
-| Story | Status      | PR   | Coverage | Review Rounds | Duration |
-| ----- | ----------- | ---- | -------- | ------------- | -------- |
-| 1.9   | ✅ Complete | #102 | 100%     | 0             | 67m      |
+| Story | Status         | PR   | Coverage | Review Rounds | Duration |
+| ----- | -------------- | ---- | -------- | ------------- | -------- |
+| 1.9   | ✅ Complete    | #102 | 100%     | 0             | 67m      |
+| 1.13  | 🔄 In Progress | -    | -        | -             | -        |
 
 ## Activity Log
 
@@ -34,3 +39,8 @@ stories:
 - [19:36] Story 1.9: Committed (ed656b1)
 - [19:37] Story 1.9: PR #102 created
 - [19:37] Story 1.9: Status → done
+- [12:00] Epic 1 auto-run resumed (Story 1.13)
+- [12:00] Story 1.13: Initialized as pending
+- [12:01] Story 1.13: Issue #116 created
+- [12:01] Story 1.13: Branch story-1-13-specialist-subagent-library-agent-system-documentation created
+- [12:01] Story 1.13: Status → in-progress
