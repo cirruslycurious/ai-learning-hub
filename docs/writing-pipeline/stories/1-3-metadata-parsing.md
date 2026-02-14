@@ -1,6 +1,6 @@
 # Story 1.3: Metadata Parsing & Token Estimation
 
-Status: draft
+Status: complete
 
 ## Story
 
@@ -47,50 +47,50 @@ so that the index contains rich node information for topic expansion and budget 
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Implement YAML frontmatter parser** (AC: #1)
-  - [ ] Create `scripts/lib/metadata_parser.py`
-  - [ ] Implement `parse_frontmatter(file_path: str) -> Optional[dict]` that reads `---` delimited YAML
-  - [ ] Use `yaml.safe_load()` for parsing
-  - [ ] Return `None` for files without frontmatter
-  - [ ] Handle malformed frontmatter gracefully (log warning, return None)
+- [x] **Task 1: Implement YAML frontmatter parser** (AC: #1)
+  - [x] Create `scripts/lib/metadata_parser.py`
+  - [x] Implement `parse_frontmatter(file_path: str) -> Optional[dict]` that reads `---` delimited YAML
+  - [x] Use `yaml.safe_load()` for parsing
+  - [x] Return `None` for files without frontmatter
+  - [x] Handle malformed frontmatter gracefully (log warning, return None)
 
-- [ ] **Task 2: Implement JSON config parser** (AC: #2)
-  - [ ] Implement `parse_json_config(file_path: str) -> Optional[dict]` that reads JSON files
-  - [ ] Extract relevant metadata fields based on file type
-  - [ ] Handle malformed JSON gracefully (log warning, return None)
+- [x] **Task 2: Implement JSON config parser** (AC: #2)
+  - [x] Implement `parse_json_config(file_path: str) -> Optional[dict]` that reads JSON files
+  - [x] Extract relevant metadata fields based on file type
+  - [x] Handle malformed JSON gracefully (log warning, return None)
 
-- [ ] **Task 3: Implement name extractor** (AC: #3)
-  - [ ] Implement `extract_name(file_path: str, frontmatter: Optional[dict]) -> str`
-  - [ ] Priority: frontmatter `title` > frontmatter `name` > frontmatter `id` > filename-derived
-  - [ ] Filename derivation: strip extension, replace hyphens/underscores with spaces
+- [x] **Task 3: Implement name extractor** (AC: #3)
+  - [x] Implement `extract_name(file_path: str, frontmatter: Optional[dict]) -> str`
+  - [x] Priority: frontmatter `title` > frontmatter `name` > frontmatter `id` > filename-derived
+  - [x] Filename derivation: strip extension, replace hyphens/underscores with spaces
 
-- [ ] **Task 4: Implement token estimator** (AC: #4)
-  - [ ] Create `scripts/lib/token_estimator.py`
-  - [ ] Implement `estimate_tokens(file_path: str) -> int`
-  - [ ] Read file content, split on whitespace, count words
-  - [ ] Multiply by 1.3 and round to nearest integer
-  - [ ] Handle binary files gracefully (return 0 or skip)
+- [x] **Task 4: Implement token estimator** (AC: #4)
+  - [x] Create `scripts/lib/token_estimator.py`
+  - [x] Implement `estimate_tokens(file_path: str) -> int`
+  - [x] Read file content, split on whitespace, count words
+  - [x] Multiply by 1.3 and round to nearest integer
+  - [x] Handle binary files gracefully (return 0 or skip)
 
-- [ ] **Task 5: Implement last_modified extraction** (AC: #5)
-  - [ ] Implement `get_last_modified(file_path: str) -> str` returning ISO 8601 timestamp
-  - [ ] Use `os.path.getmtime()` and convert to ISO format
+- [x] **Task 5: Implement last_modified extraction** (AC: #5)
+  - [x] Implement `get_last_modified(file_path: str) -> str` returning ISO 8601 timestamp
+  - [x] Use `os.path.getmtime()` and convert to ISO format
 
-- [ ] **Task 6: Implement frontmatter tier upgrade logic** (AC: #6)
-  - [ ] Implement `should_upgrade_tier(frontmatter: Optional[dict]) -> bool`
-  - [ ] Returns True if frontmatter contains `id`, `title`, or `role` fields
-  - [ ] Integrate with tier classifier: metadata parser can signal tier upgrade
+- [x] **Task 6: Implement frontmatter tier upgrade logic** (AC: #6)
+  - [x] Implement `should_upgrade_tier(frontmatter: Optional[dict]) -> bool`
+  - [x] Returns True if frontmatter contains `id`, `title`, or `role` fields
+  - [x] Integrate with tier classifier: metadata parser can signal tier upgrade
 
-- [ ] **Task 7: Write tests** (AC: #1-#6)
-  - [ ] Create `scripts/tests/test_metadata_parser.py`
-  - [ ] Test frontmatter extraction with valid YAML
-  - [ ] Test frontmatter extraction with no frontmatter
-  - [ ] Test frontmatter extraction with malformed YAML
-  - [ ] Test JSON config parsing for package.json and settings.json
-  - [ ] Test name extraction priority (title > name > id > filename)
-  - [ ] Create `scripts/tests/test_token_estimator.py`
-  - [ ] Test token estimation with known word count files
-  - [ ] Test that empty files return 0
-  - [ ] Test tier upgrade logic with qualifying and non-qualifying frontmatter
+- [x] **Task 7: Write tests** (AC: #1-#6)
+  - [x] Create `scripts/tests/test_metadata_parser.py`
+  - [x] Test frontmatter extraction with valid YAML
+  - [x] Test frontmatter extraction with no frontmatter
+  - [x] Test frontmatter extraction with malformed YAML
+  - [x] Test JSON config parsing for package.json and settings.json
+  - [x] Test name extraction priority (title > name > id > filename)
+  - [x] Create `scripts/tests/test_token_estimator.py`
+  - [x] Test token estimation with known word count files
+  - [x] Test that empty files return 0
+  - [x] Test tier upgrade logic with qualifying and non-qualifying frontmatter
 
 ## Dev Notes
 
@@ -147,3 +147,24 @@ scripts/tests/
 - Glossary extraction from parsed frontmatter (Story 1.5)
 - Full file walking/enumeration (Story 1.2)
 - Tiktoken-based precise token counting (future enhancement if heuristic proves insufficient)
+
+## Dev Agent Record
+
+### Completion Notes
+
+- All 7 tasks completed with 50 tests covering all 6 acceptance criteria
+- metadata_parser.py: parse_frontmatter(), parse_json_config(), extract_name(), get_last_modified(), should_upgrade_tier()
+- token_estimator.py: estimate_tokens() with word_count \* 1.3 heuristic
+- JSON config parsing supports package.json, tsconfig.json, settings.json, and generic JSON
+- Frontmatter tier upgrade signals to orchestrator (Story 1.6) for path-classified Tier 2/3 files
+
+## File List
+
+- `scripts/lib/metadata_parser.py` — NEW: parse_frontmatter(), parse_json_config(), extract_name(), get_last_modified(), should_upgrade_tier()
+- `scripts/lib/token_estimator.py` — NEW: estimate_tokens()
+- `scripts/tests/test_metadata_parser.py` — NEW: 39 tests covering AC1, AC2, AC3, AC5, AC6
+- `scripts/tests/test_token_estimator.py` — NEW: 11 tests covering AC4
+
+## Change Log
+
+- 2026-02-14: Story 1.3 implemented — metadata parsing, token estimation, tier upgrade logic, 50 tests
