@@ -16,14 +16,46 @@ export function extractAuthContext(
   const authorizerContext = event.requestContext.authorizer;
 
   if (authorizerContext && "userId" in authorizerContext) {
+    // API Gateway authorizer context only supports string values, so arrays
+    // (roles, scopes) may arrive as JSON-serialized strings. Parse them back.
+    // Both authorizers set "role" (singular string) in context; tests may pass
+    // "roles" (plural, as array or JSON string). Handle all variants.
+    const rawRoles = authorizerContext.roles ?? authorizerContext.role;
+    let roles: string[];
+    if (Array.isArray(rawRoles)) {
+      roles = rawRoles;
+    } else if (typeof rawRoles === "string") {
+      try {
+        const parsed = JSON.parse(rawRoles);
+        roles = Array.isArray(parsed) ? parsed : [rawRoles];
+      } catch {
+        roles = [rawRoles];
+      }
+    } else {
+      roles = ["user"];
+    }
+
+    const rawScopes = authorizerContext.scopes;
+    let scopes: string[] | undefined;
+    if (Array.isArray(rawScopes)) {
+      scopes = rawScopes;
+    } else if (typeof rawScopes === "string") {
+      try {
+        const parsed = JSON.parse(rawScopes);
+        scopes = Array.isArray(parsed) ? parsed : undefined;
+      } catch {
+        scopes = undefined;
+      }
+    }
+
     return {
       userId: authorizerContext.userId as string,
-      roles: (authorizerContext.roles as string[] | undefined) ?? ["user"],
+      roles,
       isApiKey:
         authorizerContext.isApiKey === true ||
         authorizerContext.isApiKey === "true",
       apiKeyId: authorizerContext.apiKeyId as string | undefined,
-      scopes: authorizerContext.scopes as string[] | undefined,
+      scopes,
     };
   }
 

@@ -46,7 +46,7 @@ export async function handler(
   const headerKey = Object.keys(event.headers || {}).find(
     (k) => k.toLowerCase() === "x-api-key"
   );
-  const apiKey = headerKey ? event.headers![headerKey] : undefined;
+  const apiKey = headerKey ? event.headers?.[headerKey] : undefined;
 
   if (!apiKey) {
     logger.warn("Missing x-api-key header");
