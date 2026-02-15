@@ -110,6 +110,63 @@ describe("Auth Middleware", () => {
       expect(auth?.scopes).toContain("saves:write");
     });
 
+    it("should deserialize JSON-serialized scopes from API Gateway authorizer context", () => {
+      // API Gateway only supports string values in authorizer context,
+      // so the API key authorizer serializes scopes as JSON.stringify(scopes)
+      const event = createMockEvent({
+        requestContext: {
+          ...createMockEvent().requestContext,
+          authorizer: {
+            userId: "user_456",
+            roles: "user",
+            isApiKey: "true",
+            apiKeyId: "key_789",
+            scopes: '["saves:write"]',
+          },
+        },
+      });
+
+      const auth = extractAuthContext(event);
+
+      expect(auth?.isApiKey).toBe(true);
+      expect(auth?.scopes).toEqual(["saves:write"]);
+    });
+
+    it("should deserialize wildcard scopes from API Gateway authorizer context", () => {
+      const event = createMockEvent({
+        requestContext: {
+          ...createMockEvent().requestContext,
+          authorizer: {
+            userId: "user_456",
+            isApiKey: "true",
+            scopes: '["*"]',
+          },
+        },
+      });
+
+      const auth = extractAuthContext(event);
+
+      expect(auth?.scopes).toEqual(["*"]);
+    });
+
+    it("should handle native array scopes (direct invocation / test context)", () => {
+      // In test or direct invocation scenarios, scopes may already be an array
+      const event = createMockEvent({
+        requestContext: {
+          ...createMockEvent().requestContext,
+          authorizer: {
+            userId: "user_456",
+            isApiKey: true,
+            scopes: ["saves:write"],
+          },
+        },
+      });
+
+      const auth = extractAuthContext(event);
+
+      expect(auth?.scopes).toEqual(["saves:write"]);
+    });
+
     it("should handle string isApiKey value", () => {
       const event = createMockEvent({
         requestContext: {
@@ -290,6 +347,130 @@ describe("Auth Middleware", () => {
       };
 
       expect(() => requireScope(auth, "saves:write")).toThrow(AppError);
+    });
+  });
+
+  describe("Scope enforcement integration (AC1-AC4)", () => {
+    it("AC1: API key with saves:write scope can access POST /saves", () => {
+      // Simulates real API Gateway context from API key authorizer
+      const event = createMockEvent({
+        requestContext: {
+          ...createMockEvent().requestContext,
+          authorizer: {
+            userId: "user_123",
+            role: "user",
+            isApiKey: "true",
+            apiKeyId: "key_abc",
+            authMethod: "api-key",
+            scopes: '["saves:write"]',
+          },
+        },
+      });
+
+      const auth = extractAuthContext(event)!;
+      expect(() => requireScope(auth, "saves:write")).not.toThrow();
+    });
+
+    it("AC1: API key with wildcard scope can access any endpoint", () => {
+      const event = createMockEvent({
+        requestContext: {
+          ...createMockEvent().requestContext,
+          authorizer: {
+            userId: "user_123",
+            role: "user",
+            isApiKey: "true",
+            apiKeyId: "key_abc",
+            authMethod: "api-key",
+            scopes: '["*"]',
+          },
+        },
+      });
+
+      const auth = extractAuthContext(event)!;
+      expect(() => requireScope(auth, "saves:write")).not.toThrow();
+      expect(() => requireScope(auth, "projects:read")).not.toThrow();
+    });
+
+    it("AC2: Capture-only key denied on non-saves endpoints → SCOPE_INSUFFICIENT", () => {
+      const event = createMockEvent({
+        requestContext: {
+          ...createMockEvent().requestContext,
+          authorizer: {
+            userId: "user_123",
+            role: "user",
+            isApiKey: "true",
+            apiKeyId: "key_abc",
+            authMethod: "api-key",
+            scopes: '["saves:write"]',
+          },
+        },
+      });
+
+      const auth = extractAuthContext(event)!;
+      expect(() => requireScope(auth, "*")).toThrow(AppError);
+
+      try {
+        requireScope(auth, "*");
+      } catch (e) {
+        if (AppError.isAppError(e)) {
+          expect(e.code).toBe(ErrorCode.FORBIDDEN);
+        }
+      }
+    });
+
+    it("AC3: JWT auth bypasses scope check entirely", () => {
+      const event = createMockEvent({
+        requestContext: {
+          ...createMockEvent().requestContext,
+          authorizer: {
+            userId: "user_123",
+            role: "user",
+            authMethod: "jwt",
+          },
+        },
+      });
+
+      const auth = extractAuthContext(event)!;
+      // JWT users bypass all scope checks
+      expect(() => requireScope(auth, "saves:write")).not.toThrow();
+      expect(() => requireScope(auth, "*")).not.toThrow();
+    });
+
+    it("extracts role (singular string) from authorizer context into roles array", () => {
+      // Both authorizers set "role" (singular) in context. Verify it maps to roles array.
+      const event = createMockEvent({
+        requestContext: {
+          ...createMockEvent().requestContext,
+          authorizer: {
+            userId: "user_123",
+            role: "analyst",
+            authMethod: "jwt",
+          },
+        },
+      });
+
+      const auth = extractAuthContext(event)!;
+      expect(auth.roles).toEqual(["analyst"]);
+      expect(() => requireRole(auth, ["analyst"])).not.toThrow();
+      expect(() => requireRole(auth, ["admin"])).toThrow(AppError);
+    });
+
+    it("admin role from authorizer context passes requireRole check", () => {
+      const event = createMockEvent({
+        requestContext: {
+          ...createMockEvent().requestContext,
+          authorizer: {
+            userId: "user_123",
+            role: "admin",
+            isApiKey: "true",
+            scopes: '["*"]',
+          },
+        },
+      });
+
+      const auth = extractAuthContext(event)!;
+      expect(auth.roles).toEqual(["admin"]);
+      expect(() => requireRole(auth, ["admin"])).not.toThrow();
     });
   });
 });
