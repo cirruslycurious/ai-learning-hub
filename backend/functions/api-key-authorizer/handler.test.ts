@@ -81,9 +81,11 @@ function createEvent(
     queryStringParameters: null,
     multiValueQueryStringParameters: null,
     stageVariables: null,
+    path: "/resource",
     requestContext: {
       accountId: "123456789",
       apiId: "api-id",
+      authorizer: undefined,
       httpMethod: "GET",
       identity: {
         accessKey: null,

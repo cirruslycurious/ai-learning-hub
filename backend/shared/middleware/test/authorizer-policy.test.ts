@@ -61,9 +61,11 @@ describe("Authorizer Policy Helpers", () => {
 
       expect(result.policyDocument.Version).toBe("2012-10-17");
       expect(result.policyDocument.Statement).toHaveLength(1);
-      expect(result.policyDocument.Statement[0].Action).toBe(
-        "execute-api:Invoke"
-      );
+      const statement = result.policyDocument.Statement[0] as unknown as Record<
+        string,
+        unknown
+      >;
+      expect(statement.Action).toBe("execute-api:Invoke");
     });
   });
 });
