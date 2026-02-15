@@ -1,11 +1,17 @@
 /**
- * User profile database operations for the users table.
- * Supports create-on-first-auth and profile retrieval.
+ * User profile and API key database operations for the users table.
+ * Supports create-on-first-auth, profile retrieval, and API key lookup.
  */
 import type { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { AppError, ErrorCode } from "@ai-learning-hub/types";
 import { createLogger } from "@ai-learning-hub/logging";
-import { getItem, putItem, type TableConfig } from "./helpers.js";
+import {
+  getItem,
+  putItem,
+  queryItems,
+  updateItem,
+  type TableConfig,
+} from "./helpers.js";
 
 export const USERS_TABLE_CONFIG: TableConfig = {
   tableName: process.env.USERS_TABLE_NAME ?? "ai-learning-hub-users",
@@ -94,4 +100,77 @@ export async function ensureProfile(
     }
     throw error;
   }
+}
+
+/**
+ * API key item stored in the users table (SK: APIKEY#<keyId>).
+ * Looked up via the apiKeyHash-index GSI for authentication.
+ *
+ * Design note: API keys use revocation-only invalidation (via `revokedAt`).
+ * There is intentionally no `expiresAt` field — keys remain valid until
+ * explicitly revoked by the user (Story 2.6) or an admin. If time-based
+ * expiration is added in a future story, the authorizer must be updated
+ * to check the field before returning Allow.
+ */
+export interface ApiKeyItem extends Record<string, unknown> {
+  PK: string;
+  SK: string;
+  userId: string;
+  keyId: string;
+  keyHash: string;
+  name: string;
+  scopes: string[];
+  revokedAt?: string;
+  lastUsedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Look up an API key by its SHA-256 hash via the apiKeyHash-index GSI.
+ * Returns the API key item or null if not found.
+ */
+export async function getApiKeyByHash(
+  client: DynamoDBDocumentClient,
+  keyHash: string
+): Promise<ApiKeyItem | null> {
+  const logger = createLogger();
+
+  const result = await queryItems<ApiKeyItem>(
+    client,
+    USERS_TABLE_CONFIG,
+    {
+      indexName: "apiKeyHash-index",
+      keyConditionExpression: "keyHash = :keyHash",
+      expressionAttributeValues: { ":keyHash": keyHash },
+      limit: 1,
+    },
+    logger
+  );
+
+  return result.items[0] ?? null;
+}
+
+/**
+ * Update the lastUsedAt timestamp for an API key (fire-and-forget).
+ * Called after successful API key authentication.
+ */
+export async function updateApiKeyLastUsed(
+  client: DynamoDBDocumentClient,
+  userId: string,
+  keyId: string
+): Promise<void> {
+  const logger = createLogger({ userId });
+  const now = new Date().toISOString();
+
+  await updateItem(
+    client,
+    USERS_TABLE_CONFIG,
+    {
+      key: { PK: `USER#${userId}`, SK: `APIKEY#${keyId}` },
+      updateExpression: "SET lastUsedAt = :now, updatedAt = :now",
+      expressionAttributeValues: { ":now": now },
+    },
+    logger
+  );
 }
