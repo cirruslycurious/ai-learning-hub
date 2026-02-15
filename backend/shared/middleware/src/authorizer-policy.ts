@@ -5,7 +5,7 @@
  * (Story 2.2) to generate consistent Allow/Deny policy documents.
  *
  * Resource "*" is intentional: authorizer responses are cached by API Gateway
- * across endpoints, so the policy must apply to all methods (Minor #1).
+ * across endpoints, so the policy must apply to all methods.
  */
 import type { APIGatewayAuthorizerResult } from "aws-lambda";
 
