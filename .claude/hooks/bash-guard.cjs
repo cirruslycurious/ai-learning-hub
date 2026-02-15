@@ -244,6 +244,61 @@ function checkCommand(command) {
   }
 
   // ═══════════════════════════════════════════════════════════════════
+  // PR MERGE GATE - Block merge when CI checks are failing or pending
+  // ═══════════════════════════════════════════════════════════════════
+  const prMergeMatch = command.match(/\bgh\s+pr\s+merge\s+(\d+)/i);
+  if (prMergeMatch) {
+    const prNumber = prMergeMatch[1];
+    try {
+      const { execSync } = require("child_process");
+      const checksOutput = execSync(`gh pr checks ${prNumber} 2>&1`, {
+        encoding: "utf8",
+        timeout: 15000,
+        cwd: process.env.CLAUDE_PROJECT_DIR || process.cwd(),
+      });
+
+      const lines = checksOutput.trim().split("\n").filter(Boolean);
+      const failing = [];
+      const pending = [];
+
+      for (const line of lines) {
+        // gh pr checks output format: NAME\tSTATUS\tDURATION\tURL
+        const lower = line.toLowerCase();
+        if (lower.includes("\tfail\t") || lower.includes("\tfail ")) {
+          failing.push(line.split("\t")[0]?.trim());
+        } else if (
+          lower.includes("\tpending\t") ||
+          lower.includes("\tpending ") ||
+          lower.includes("\tin_progress") ||
+          lower.includes("\tqueued")
+        ) {
+          pending.push(line.split("\t")[0]?.trim());
+        }
+      }
+
+      if (failing.length > 0) {
+        return {
+          blocked: true,
+          reason: `[PR-MERGE-GATE] CI checks FAILING on PR #${prNumber}: ${failing.join(", ")}. Fix the failures before merging. Escalate to human if unclear.`,
+        };
+      }
+
+      if (pending.length > 0) {
+        return {
+          blocked: true,
+          reason: `[PR-MERGE-GATE] CI checks still RUNNING on PR #${prNumber}: ${pending.join(", ")}. Wait for checks to complete before merging. If stuck, escalate to human.`,
+        };
+      }
+    } catch (execErr) {
+      // If gh pr checks itself fails (e.g., no checks configured), escalate
+      return {
+        escalate: true,
+        reason: `⚠️ Could not verify CI status for PR #${prNumber}. Error: ${execErr.message?.split("\n")[0]}. Ask the human whether to proceed.`,
+      };
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
   // ESCALATE - Require human approval (all levels)
   // ═══════════════════════════════════════════════════════════════════
   const escalatePatterns = [

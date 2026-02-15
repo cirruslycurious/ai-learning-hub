@@ -6,8 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/bash-guard.js\"",
-            "timeout": 5000
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/bash-guard.cjs\"",
+            "timeout": 17500
           }
         ]
       },
