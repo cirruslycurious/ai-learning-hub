@@ -160,10 +160,15 @@ All operations go through StoryRunner interface (see story-runner.md). No direct
 **Final quality gate** (run AFTER PostToolUse hooks complete, before review):
 
 ```bash
-npm run lint      # Verify format/style
-npm run build     # Verify TypeScript compiles
+npm run lint             # Verify format/style
+npm run type-check       # Verify TypeScript compiles (tsc --build, matches CI exactly)
 npm test -- --coverage   # Verify all tests pass AND capture coverage in a single run
 ```
+
+> **Why `type-check` not `build`?** CI runs `tsc --build` (project references mode),
+> which is stricter than per-workspace `tsc`. Using `type-check` locally ensures
+> parity with CI and catches type errors before pushing. You can also run
+> `npm run validate` which chains lint → type-check → test in one command.
 
 **Capture coverage** from the `npm test -- --coverage` output (the single test run above). Parse the coverage summary line to extract the overall percentage. Store as `coverage` for PR body and state file:
 
@@ -260,6 +265,20 @@ pr = getOrCreatePR(story, epic, issue, coverage)
 ```
 
 **If PR creation fails:** Show manual fallback command, mark story as `blocked`, ask user to continue or pause.
+
+**Verify CI passes** (MANDATORY — do NOT proceed to human checkpoint until CI is green):
+
+```bash
+gh pr checks ${pr.number} --watch   # Wait for all CI checks to complete
+```
+
+- **All checks pass:** Proceed to 2.6 (Finalize Story)
+- **Any check fails:** Investigate the failure, fix locally, push again, and re-verify.
+  Do NOT present the PR as ready for merge until CI is green.
+
+> **Why this matters:** The local quality gate (`npm run validate`) catches most issues,
+> but CI may run additional or stricter checks (e.g., `tsc --build` vs per-workspace `tsc`,
+> CDK synth, security scanning). Never assume local green means CI green.
 
 ### 2.6 Finalize Story [HUMAN CHECKPOINT]
 
@@ -462,3 +481,21 @@ Override auto-detected epic file path.
 ### `--no-require-merged`
 
 Disable strict dependency completion checking (state file wins for all stories, not just leaf stories). Use only when you understand the risk.
+
+---
+
+## Lessons Learned
+
+Accumulated from past epic runs. Read these before starting a new epic.
+
+### Epic 2 (Authentication)
+
+1. **Use `npm run type-check` not `npm run build` in quality gate.** CI runs `tsc --build` (project references mode) which is stricter than per-workspace `tsc`. Vitest strips types via esbuild, so tests pass even with TS errors. The `type-check` script matches CI exactly. Run `npm run validate` to chain lint → type-check → test.
+
+2. **CDK entry paths need `process.cwd()` not `__dirname`.** With ESM + esbuild bundling, `__dirname` resolves to the bundled output directory, not the source. Use `path.join(process.cwd(), 'backend/functions/...')`.
+
+3. **Use `CLERK_SECRET_KEY_PARAM` env var + SSM runtime fetch.** Don't use CDK `ssm-secure` dynamic references for Lambda env vars — they resolve at deploy time and get cached. Instead, pass the SSM parameter name and fetch at runtime with `@aws-sdk/client-ssm`.
+
+4. **Merge guard pre-commit hook is active.** The repo has a gitleaks pre-commit hook that blocks commits with secrets. Factor this into commit workflows.
+
+5. **Always verify CI passes before presenting PR as ready.** After pushing a PR, run `gh pr checks --watch` and wait for all checks to pass. Never tell the user a PR is ready to merge without confirming CI is green first. Local quality gate is necessary but not sufficient — CI is the source of truth.
