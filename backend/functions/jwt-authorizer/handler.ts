@@ -37,12 +37,13 @@ async function getClerkSecretKey(): Promise<string> {
     new GetParameterCommand({ Name: ssmParamName, WithDecryption: true })
   );
 
-  if (!result.Parameter?.Value) {
+  const value = result.Parameter?.Value;
+  if (!value) {
     throw new Error("Clerk secret key not found in SSM");
   }
 
-  cachedClerkSecretKey = result.Parameter.Value;
-  return cachedClerkSecretKey;
+  cachedClerkSecretKey = value;
+  return value;
 }
 
 /**
