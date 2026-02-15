@@ -2,12 +2,21 @@
  * Tests for user profile database operations
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { getProfile, ensureProfile, USERS_TABLE_CONFIG } from "../src/users.js";
+import {
+  getProfile,
+  ensureProfile,
+  getApiKeyByHash,
+  updateApiKeyLastUsed,
+  USERS_TABLE_CONFIG,
+  type ApiKeyItem,
+} from "../src/users.js";
 
 // Mock the DynamoDB helpers
 vi.mock("../src/helpers.js", () => ({
   getItem: vi.fn(),
   putItem: vi.fn(),
+  queryItems: vi.fn(),
+  updateItem: vi.fn(),
 }));
 
 // Mock the logging module
@@ -23,10 +32,12 @@ vi.mock("@ai-learning-hub/logging", () => ({
   }),
 }));
 
-import { getItem, putItem } from "../src/helpers.js";
+import { getItem, putItem, queryItems, updateItem } from "../src/helpers.js";
 
 const mockGetItem = vi.mocked(getItem);
 const mockPutItem = vi.mocked(putItem);
+const mockQueryItems = vi.mocked(queryItems);
+const mockUpdateItem = vi.mocked(updateItem);
 
 // Mock DynamoDB client
 const mockClient =
@@ -182,5 +193,137 @@ describe("ensureProfile", () => {
     const item = putCall[2] as Record<string, unknown>;
     expect(item.displayName).toBe("Admin User");
     expect(item.role).toBe("admin");
+  });
+});
+
+describe("getApiKeyByHash", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns API key item when found via GSI query", async () => {
+    const mockApiKey: ApiKeyItem = {
+      PK: "USER#clerk_123",
+      SK: "APIKEY#key_abc",
+      userId: "clerk_123",
+      keyId: "key_abc",
+      keyHash: "abc123hash",
+      name: "My Key",
+      scopes: ["*"],
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-01T00:00:00Z",
+    };
+
+    mockQueryItems.mockResolvedValueOnce({
+      items: [mockApiKey],
+      hasMore: false,
+    });
+
+    const result = await getApiKeyByHash(mockClient, "abc123hash");
+
+    expect(result).toEqual(mockApiKey);
+    expect(mockQueryItems).toHaveBeenCalledWith(
+      mockClient,
+      USERS_TABLE_CONFIG,
+      expect.objectContaining({
+        indexName: "apiKeyHash-index",
+        keyConditionExpression: "keyHash = :keyHash",
+        expressionAttributeValues: { ":keyHash": "abc123hash" },
+        limit: 1,
+      }),
+      expect.any(Object)
+    );
+  });
+
+  it("returns null when no API key found", async () => {
+    mockQueryItems.mockResolvedValueOnce({
+      items: [],
+      hasMore: false,
+    });
+
+    const result = await getApiKeyByHash(mockClient, "nonexistent_hash");
+
+    expect(result).toBeNull();
+  });
+
+  it("returns API key item with revokedAt when key is revoked", async () => {
+    const revokedKey: ApiKeyItem = {
+      PK: "USER#clerk_123",
+      SK: "APIKEY#key_abc",
+      userId: "clerk_123",
+      keyId: "key_abc",
+      keyHash: "abc123hash",
+      name: "Revoked Key",
+      scopes: ["*"],
+      revokedAt: "2026-01-15T00:00:00Z",
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-15T00:00:00Z",
+    };
+
+    mockQueryItems.mockResolvedValueOnce({
+      items: [revokedKey],
+      hasMore: false,
+    });
+
+    const result = await getApiKeyByHash(mockClient, "abc123hash");
+
+    expect(result).toEqual(revokedKey);
+    expect(result?.revokedAt).toBe("2026-01-15T00:00:00Z");
+  });
+
+  it("propagates errors from queryItems", async () => {
+    mockQueryItems.mockRejectedValueOnce(new Error("DynamoDB error"));
+
+    await expect(getApiKeyByHash(mockClient, "abc123hash")).rejects.toThrow(
+      "DynamoDB error"
+    );
+  });
+});
+
+describe("updateApiKeyLastUsed", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("updates lastUsedAt timestamp for the API key", async () => {
+    mockUpdateItem.mockResolvedValueOnce(null);
+
+    await updateApiKeyLastUsed(mockClient, "clerk_123", "key_abc");
+
+    expect(mockUpdateItem).toHaveBeenCalledWith(
+      mockClient,
+      USERS_TABLE_CONFIG,
+      expect.objectContaining({
+        key: { PK: "USER#clerk_123", SK: "APIKEY#key_abc" },
+        updateExpression: "SET lastUsedAt = :now, updatedAt = :now",
+        expressionAttributeValues: {
+          ":now": expect.any(String),
+        },
+      }),
+      expect.any(Object)
+    );
+  });
+
+  it("uses ISO 8601 timestamp format", async () => {
+    mockUpdateItem.mockResolvedValueOnce(null);
+
+    await updateApiKeyLastUsed(mockClient, "clerk_123", "key_abc");
+
+    const updateCall = mockUpdateItem.mock.calls[0];
+    const values = updateCall[2].expressionAttributeValues as Record<
+      string,
+      unknown
+    >;
+    const timestamp = values[":now"] as string;
+    // Verify it's a valid ISO 8601 timestamp
+    expect(new Date(timestamp).toISOString()).toBe(timestamp);
+  });
+
+  it("propagates errors from updateItem", async () => {
+    mockUpdateItem.mockRejectedValueOnce(new Error("DynamoDB error"));
+
+    await expect(
+      updateApiKeyLastUsed(mockClient, "clerk_123", "key_abc")
+    ).rejects.toThrow("DynamoDB error");
   });
 });

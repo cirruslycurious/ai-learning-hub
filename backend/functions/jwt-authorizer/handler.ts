@@ -20,6 +20,7 @@ import {
   type PublicMetadata,
 } from "@ai-learning-hub/db";
 import { createLogger } from "@ai-learning-hub/logging";
+import { generatePolicy, deny } from "@ai-learning-hub/middleware";
 
 // Cold-start cache for Clerk secret key fetched from SSM
 let cachedClerkSecretKey: string | undefined;
@@ -53,39 +54,6 @@ async function getClerkSecretKey(): Promise<string> {
  * TODO: Wire into API Gateway TokenAuthorizer in the API story.
  */
 export const AUTHORIZER_CACHE_TTL = 300;
-
-interface PolicyDocument {
-  Version: string;
-  Statement: Array<{
-    Action: string;
-    Effect: "Allow" | "Deny";
-    Resource: string;
-  }>;
-}
-
-function generatePolicy(effect: "Allow" | "Deny"): PolicyDocument {
-  return {
-    Version: "2012-10-17",
-    Statement: [
-      {
-        Action: "execute-api:Invoke",
-        Effect: effect,
-        Resource: "*",
-      },
-    ],
-  };
-}
-
-function deny(
-  principalId: string,
-  errorCode: string
-): APIGatewayAuthorizerResult {
-  return {
-    principalId,
-    policyDocument: generatePolicy("Deny"),
-    context: { errorCode },
-  };
-}
 
 export async function handler(
   event: APIGatewayTokenAuthorizerEvent,

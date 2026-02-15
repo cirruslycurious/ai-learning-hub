@@ -29,8 +29,8 @@ describe("AuthStack", () => {
   });
 
   describe("JWT Authorizer Lambda", () => {
-    it("creates a Lambda function", () => {
-      template.resourceCountIs("AWS::Lambda::Function", 1);
+    it("creates both authorizer Lambda functions", () => {
+      template.resourceCountIs("AWS::Lambda::Function", 2);
     });
 
     it("uses the latest Node.js runtime", () => {
@@ -100,6 +100,41 @@ describe("AuthStack", () => {
     });
   });
 
+  describe("API Key Authorizer Lambda", () => {
+    it("creates exactly one Lambda with USERS_TABLE_NAME but without CLERK_SECRET_KEY_PARAM", () => {
+      // Find all Lambda functions and identify the API key authorizer:
+      // it has USERS_TABLE_NAME but NOT CLERK_SECRET_KEY_PARAM
+      const lambdas = template.findResources("AWS::Lambda::Function");
+      const apiKeyLambdas = Object.entries(lambdas).filter(([, resource]) => {
+        const envVars = resource.Properties?.Environment?.Variables ?? {};
+        return envVars.USERS_TABLE_NAME && !envVars.CLERK_SECRET_KEY_PARAM;
+      });
+      expect(apiKeyLambdas).toHaveLength(1);
+    });
+
+    it("creates exactly one Lambda with both USERS_TABLE_NAME and CLERK_SECRET_KEY_PARAM (JWT authorizer)", () => {
+      // The JWT authorizer has both USERS_TABLE_NAME and CLERK_SECRET_KEY_PARAM
+      const lambdas = template.findResources("AWS::Lambda::Function");
+      const jwtLambdas = Object.entries(lambdas).filter(([, resource]) => {
+        const envVars = resource.Properties?.Environment?.Variables ?? {};
+        return envVars.USERS_TABLE_NAME && envVars.CLERK_SECRET_KEY_PARAM;
+      });
+      expect(jwtLambdas).toHaveLength(1);
+    });
+
+    it("API key authorizer Lambda has USERS_TABLE_NAME environment variable", () => {
+      const lambdas = template.findResources("AWS::Lambda::Function");
+      const apiKeyLambda = Object.values(lambdas).find((resource) => {
+        const envVars = resource.Properties?.Environment?.Variables ?? {};
+        return envVars.USERS_TABLE_NAME && !envVars.CLERK_SECRET_KEY_PARAM;
+      });
+      expect(apiKeyLambda).toBeDefined();
+      expect(
+        apiKeyLambda!.Properties.Environment.Variables.USERS_TABLE_NAME
+      ).toBeDefined();
+    });
+  });
+
   describe("Stack Outputs", () => {
     it("exports the JWT authorizer function ARN", () => {
       const outputs = template.findOutputs("*");
@@ -109,6 +144,16 @@ describe("AuthStack", () => {
     it("exports the JWT authorizer function name", () => {
       const outputs = template.findOutputs("*");
       expect(outputs.JwtAuthorizerFunctionName).toBeDefined();
+    });
+
+    it("exports the API key authorizer function ARN", () => {
+      const outputs = template.findOutputs("*");
+      expect(outputs.ApiKeyAuthorizerFunctionArn).toBeDefined();
+    });
+
+    it("exports the API key authorizer function name", () => {
+      const outputs = template.findOutputs("*");
+      expect(outputs.ApiKeyAuthorizerFunctionName).toBeDefined();
     });
   });
 });

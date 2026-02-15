@@ -1,8 +1,8 @@
 /**
- * Auth Stack — JWT Authorizer Lambda
+ * Auth Stack — JWT and API Key Authorizer Lambdas
  *
- * Creates the Lambda authorizer for Clerk JWT validation (ADR-013).
- * Requires the users table from TablesStack for profile lookups.
+ * Creates Lambda authorizers for Clerk JWT validation and API key
+ * authentication (ADR-013). Requires the users table from TablesStack.
  */
 import * as cdk from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
@@ -22,6 +22,7 @@ export interface AuthStackProps extends cdk.StackProps {
 
 export class AuthStack extends cdk.Stack {
   public readonly jwtAuthorizerFunction: lambdaNode.NodejsFunction;
+  public readonly apiKeyAuthorizerFunction: lambdaNode.NodejsFunction;
 
   constructor(scope: Construct, id: string, props: AuthStackProps) {
     super(scope, id, props);
@@ -119,6 +120,81 @@ export class AuthStack extends cdk.Stack {
       value: this.jwtAuthorizerFunction.functionName,
       description: "JWT Authorizer Lambda function name",
       exportName: "AiLearningHub-JwtAuthorizerFunctionName",
+    });
+
+    // API Key Authorizer Lambda (ADR-013, Story 2.2)
+    this.apiKeyAuthorizerFunction = new lambdaNode.NodejsFunction(
+      this,
+      "ApiKeyAuthorizerFunction",
+      {
+        runtime: lambda.Runtime.NODEJS_LATEST,
+        handler: "handler",
+        entry: path.join(
+          process.cwd(),
+          "..",
+          "backend",
+          "functions",
+          "api-key-authorizer",
+          "handler.ts"
+        ),
+        memorySize: 256,
+        timeout: cdk.Duration.seconds(10),
+        environment: {
+          USERS_TABLE_NAME: usersTable.tableName,
+        },
+        bundling: {
+          minify: true,
+          sourceMap: true,
+          externalModules: ["@aws-sdk/*"],
+        },
+        tracing: lambda.Tracing.ACTIVE,
+      }
+    );
+
+    // Grant read/write to users table (Query GSI for key lookup, GetItem for profile, UpdateItem for lastUsedAt)
+    usersTable.grantReadWriteData(this.apiKeyAuthorizerFunction);
+
+    // CDK Nag Suppressions for API Key Authorizer
+    NagSuppressions.addResourceSuppressions(
+      this.apiKeyAuthorizerFunction,
+      [
+        {
+          id: "AwsSolutions-IAM4",
+          reason:
+            "Lambda basic execution role (CloudWatch Logs, X-Ray) is managed by CDK construct",
+        },
+        {
+          id: "AwsSolutions-L1",
+          reason:
+            "Using NODEJS_LATEST which resolves to the latest stable Node.js runtime supported by CDK",
+        },
+      ],
+      true
+    );
+
+    NagSuppressions.addResourceSuppressions(
+      this.apiKeyAuthorizerFunction.role!,
+      [
+        {
+          id: "AwsSolutions-IAM5",
+          reason:
+            "Wildcard permissions for DynamoDB table read/write and X-Ray are scoped to specific table ARN by CDK grantReadWriteData",
+        },
+      ],
+      true
+    );
+
+    // API Key Authorizer Stack Outputs
+    new cdk.CfnOutput(this, "ApiKeyAuthorizerFunctionArn", {
+      value: this.apiKeyAuthorizerFunction.functionArn,
+      description: "API Key Authorizer Lambda function ARN",
+      exportName: "AiLearningHub-ApiKeyAuthorizerFunctionArn",
+    });
+
+    new cdk.CfnOutput(this, "ApiKeyAuthorizerFunctionName", {
+      value: this.apiKeyAuthorizerFunction.functionName,
+      description: "API Key Authorizer Lambda function name",
+      exportName: "AiLearningHub-ApiKeyAuthorizerFunctionName",
     });
   }
 }

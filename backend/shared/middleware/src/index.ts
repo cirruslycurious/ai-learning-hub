@@ -21,6 +21,13 @@ export {
   requireScope,
 } from "./auth.js";
 
+// Authorizer policy helpers (shared between JWT and API Key authorizers)
+export {
+  generatePolicy,
+  deny,
+  type PolicyDocument,
+} from "./authorizer-policy.js";
+
 // Handler wrapper
 export {
   wrapHandler,

@@ -50,6 +50,34 @@ vi.mock("@ai-learning-hub/logging", () => ({
   }),
 }));
 
+// Mock @ai-learning-hub/middleware (shared policy helpers)
+vi.mock("@ai-learning-hub/middleware", () => ({
+  generatePolicy: (effect: "Allow" | "Deny") => ({
+    Version: "2012-10-17",
+    Statement: [
+      {
+        Action: "execute-api:Invoke",
+        Effect: effect,
+        Resource: "*",
+      },
+    ],
+  }),
+  deny: (principalId: string, errorCode: string) => ({
+    principalId,
+    policyDocument: {
+      Version: "2012-10-17",
+      Statement: [
+        {
+          Action: "execute-api:Invoke",
+          Effect: "Deny",
+          Resource: "*",
+        },
+      ],
+    },
+    context: { errorCode },
+  }),
+}));
+
 import { handler } from "./handler.js";
 import { verifyToken } from "@clerk/backend";
 import { getProfile, ensureProfile } from "@ai-learning-hub/db";

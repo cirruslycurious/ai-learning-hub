@@ -24,13 +24,16 @@ export {
   type UpdateParams,
 } from "./helpers.js";
 
-// User profile operations
+// User profile and API key operations
 export {
   getProfile,
   ensureProfile,
+  getApiKeyByHash,
+  updateApiKeyLastUsed,
   USERS_TABLE_CONFIG,
   type UserProfile,
   type PublicMetadata,
+  type ApiKeyItem,
 } from "./users.js";
 
 // Re-export DynamoDB types for convenience
