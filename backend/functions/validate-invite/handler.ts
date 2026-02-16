@@ -88,9 +88,7 @@ async function validateInviteHandler(ctx: HandlerContext) {
   const inviteCode = await getInviteCode(client, code);
 
   if (!inviteCode) {
-    throw new AppError(ErrorCode.VALIDATION_ERROR, "Invalid invite code", {
-      code: "INVALID_INVITE_CODE",
-    });
+    throw new AppError(ErrorCode.INVALID_INVITE_CODE, "Invalid invite code");
   }
 
   // Validate code is usable
@@ -99,9 +97,7 @@ async function validateInviteHandler(ctx: HandlerContext) {
     validationError === null && inviteCode.redeemedBy === userId;
 
   if (validationError !== null) {
-    throw new AppError(ErrorCode.VALIDATION_ERROR, validationError, {
-      code: "INVALID_INVITE_CODE",
-    });
+    throw new AppError(ErrorCode.INVALID_INVITE_CODE, validationError);
   }
 
   // AC2: Redeem the code in DynamoDB (conditional update prevents double-redemption)
@@ -119,9 +115,8 @@ async function validateInviteHandler(ctx: HandlerContext) {
         (error as AppError).code === ErrorCode.NOT_FOUND;
       if (isNotFound) {
         throw new AppError(
-          ErrorCode.VALIDATION_ERROR,
-          "Invite code has already been used",
-          { code: "INVALID_INVITE_CODE" }
+          ErrorCode.INVALID_INVITE_CODE,
+          "Invite code has already been used"
         );
       }
       throw error;

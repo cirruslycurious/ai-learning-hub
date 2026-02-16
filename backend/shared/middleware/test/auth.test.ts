@@ -321,7 +321,8 @@ describe("Auth Middleware", () => {
       expect(() => requireScope(auth, "saves:write")).not.toThrow();
     });
 
-    it("should throw FORBIDDEN when API key lacks scope", () => {
+    it("should throw SCOPE_INSUFFICIENT when API key lacks scope", () => {
+      expect.assertions(2);
       const auth = {
         userId: "user_123",
         roles: ["user"],
@@ -334,7 +335,7 @@ describe("Auth Middleware", () => {
         requireScope(auth, "saves:write");
       } catch (e) {
         if (AppError.isAppError(e)) {
-          expect(e.code).toBe(ErrorCode.FORBIDDEN);
+          expect(e.code).toBe(ErrorCode.SCOPE_INSUFFICIENT);
         }
       }
     });
@@ -392,6 +393,7 @@ describe("Auth Middleware", () => {
     });
 
     it("AC2: Capture-only key denied on non-saves endpoints → SCOPE_INSUFFICIENT", () => {
+      expect.assertions(2);
       const event = createMockEvent({
         requestContext: {
           ...createMockEvent().requestContext,
@@ -413,7 +415,7 @@ describe("Auth Middleware", () => {
         requireScope(auth, "*");
       } catch (e) {
         if (AppError.isAppError(e)) {
-          expect(e.code).toBe(ErrorCode.FORBIDDEN);
+          expect(e.code).toBe(ErrorCode.SCOPE_INSUFFICIENT);
         }
       }
     });

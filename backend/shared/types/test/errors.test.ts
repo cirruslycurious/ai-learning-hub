@@ -12,6 +12,15 @@ describe("ErrorCode", () => {
     expect(ErrorCode.INTERNAL_ERROR).toBe("INTERNAL_ERROR");
     expect(ErrorCode.SERVICE_UNAVAILABLE).toBe("SERVICE_UNAVAILABLE");
     expect(ErrorCode.EXTERNAL_SERVICE_ERROR).toBe("EXTERNAL_SERVICE_ERROR");
+
+    // Auth-specific error codes (Story 2.8)
+    expect(ErrorCode.EXPIRED_TOKEN).toBe("EXPIRED_TOKEN");
+    expect(ErrorCode.INVALID_API_KEY).toBe("INVALID_API_KEY");
+    expect(ErrorCode.REVOKED_API_KEY).toBe("REVOKED_API_KEY");
+    expect(ErrorCode.SUSPENDED_ACCOUNT).toBe("SUSPENDED_ACCOUNT");
+    expect(ErrorCode.SCOPE_INSUFFICIENT).toBe("SCOPE_INSUFFICIENT");
+    expect(ErrorCode.INVITE_REQUIRED).toBe("INVITE_REQUIRED");
+    expect(ErrorCode.INVALID_INVITE_CODE).toBe("INVALID_INVITE_CODE");
   });
 });
 
@@ -26,6 +35,15 @@ describe("ErrorCodeToStatus", () => {
     expect(ErrorCodeToStatus[ErrorCode.INTERNAL_ERROR]).toBe(500);
     expect(ErrorCodeToStatus[ErrorCode.SERVICE_UNAVAILABLE]).toBe(503);
     expect(ErrorCodeToStatus[ErrorCode.EXTERNAL_SERVICE_ERROR]).toBe(502);
+
+    // Auth-specific error code mappings (Story 2.8)
+    expect(ErrorCodeToStatus[ErrorCode.EXPIRED_TOKEN]).toBe(401);
+    expect(ErrorCodeToStatus[ErrorCode.INVALID_API_KEY]).toBe(401);
+    expect(ErrorCodeToStatus[ErrorCode.REVOKED_API_KEY]).toBe(401);
+    expect(ErrorCodeToStatus[ErrorCode.SUSPENDED_ACCOUNT]).toBe(403);
+    expect(ErrorCodeToStatus[ErrorCode.SCOPE_INSUFFICIENT]).toBe(403);
+    expect(ErrorCodeToStatus[ErrorCode.INVITE_REQUIRED]).toBe(403);
+    expect(ErrorCodeToStatus[ErrorCode.INVALID_INVITE_CODE]).toBe(400);
   });
 });
 

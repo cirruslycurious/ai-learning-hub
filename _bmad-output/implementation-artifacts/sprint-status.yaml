@@ -58,8 +58,17 @@ development_status:
   1-14-context-management-guide: dropped  # Orchestrator handles it, added note to README
   epic-1-retrospective: done
 
-  # Epic 2: User Authentication & API Keys (stories TBD)
-  epic-2: backlog
+  # Epic 2: User Authentication & API Keys (9 stories)
+  epic-2: in-progress
+  2-1-clerk-jwt-authorizer: done
+  2-2-api-key-authorizer: done
+  2-3-scope-middleware: done
+  2-4-invite-validation-endpoint: done
+  2-5-user-profile: done
+  2-6-api-key-crud: done
+  2-7-rate-limiting: done
+  2-8-auth-error-codes: in-progress
+  2-9-invite-code-generation: backlog
   epic-2-retrospective: optional
 
   # Epic 3: Save URLs - Core CRUD (stories TBD)

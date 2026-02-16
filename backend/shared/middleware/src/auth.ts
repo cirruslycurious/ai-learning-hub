@@ -119,9 +119,13 @@ export function requireScope(auth: AuthContext, requiredScope: string): void {
   const hasScope = scopes.includes(requiredScope);
 
   if (!hasWildcard && !hasScope) {
-    throw new AppError(ErrorCode.FORBIDDEN, "API key lacks required scope", {
-      requiredScope,
-      keyScopes: scopes,
-    });
+    throw new AppError(
+      ErrorCode.SCOPE_INSUFFICIENT,
+      "API key lacks required scope",
+      {
+        requiredScope,
+        keyScopes: scopes,
+      }
+    );
   }
 }

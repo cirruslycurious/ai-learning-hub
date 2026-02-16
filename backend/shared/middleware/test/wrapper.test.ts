@@ -245,7 +245,7 @@ describe("Handler Wrapper", () => {
       expect(result.statusCode).toBe(200);
     });
 
-    it("should check API key scopes", async () => {
+    it("should check API key scopes and return SCOPE_INSUFFICIENT", async () => {
       const handler = wrapHandler(async () => ({ ok: true }), {
         requireAuth: true,
         requiredScope: "saves:write",
@@ -266,6 +266,12 @@ describe("Handler Wrapper", () => {
       const result = await handler(event, mockContext);
 
       expect(result.statusCode).toBe(403);
+      const body = JSON.parse(result.body);
+      expect(body.error.code).toBe("SCOPE_INSUFFICIENT");
+      expect(body.error.details).toEqual({
+        requiredScope: "saves:write",
+        keyScopes: ["saves:read"],
+      });
     });
 
     it("should include request ID in response headers", async () => {
