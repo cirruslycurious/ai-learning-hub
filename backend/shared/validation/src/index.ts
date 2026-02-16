@@ -22,6 +22,7 @@ export {
   userIdSchema,
   apiKeyScopeSchema,
   apiKeyScopesSchema,
+  updateProfileBodySchema,
   validateInviteBodySchema,
 } from "./schemas.js";
 
