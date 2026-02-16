@@ -321,16 +321,30 @@ Push/PR → Lint & Format → Type Check → Unit Tests (80% gate)
 **Error Response Shape:**
 ```json
 {
-  "statusCode": 400 | 401 | 403 | 404 | 429 | 500,
+  "statusCode": 400 | 401 | 403 | 404 | 409 | 429 | 500,
   "body": {
     "error": {
-      "code": "VALIDATION_ERROR | NOT_FOUND | RATE_LIMITED | ...",
+      "code": "VALIDATION_ERROR | NOT_FOUND | DUPLICATE_SAVE | RATE_LIMITED | ...",
       "message": "Human readable message",
       "requestId": "correlation-id-from-x-ray"
     }
   }
 }
 ```
+
+**Error Code Registry:**
+
+| HTTP Status | Code | Usage | Notes |
+|---|---|---|---|
+| 400 | `VALIDATION_ERROR` | Invalid input (bad URL, missing required field, invalid enum) | Field-level details in message |
+| 401 | `UNAUTHORIZED` | Missing or invalid auth token/API key | |
+| 403 | `FORBIDDEN` | Valid auth but insufficient permissions | |
+| 404 | `NOT_FOUND` | Entity doesn't exist or belongs to another user | Never 403 for other-user resources (no info leak) |
+| 409 | `DUPLICATE_SAVE` | URL already saved by this user | Response includes `existingSave` as sibling of `error` object (not nested inside it) |
+| 429 | `RATE_LIMITED` | Rate limit exceeded | Includes `Retry-After` header |
+| 500 | `INTERNAL_ERROR` | Unexpected server error | Logged with full context; generic message to client |
+
+**Note on 409 responses:** Domain-specific data (e.g., `existingSave`) is placed as a sibling of the `error` object, not inside it, preserving the standard `{ code, message, requestId }` shape. Example: `{ "error": { "code": "DUPLICATE_SAVE", ... }, "existingSave": { ... } }`
 
 **Logging Contract (every log line):**
 - `timestamp` — ISO 8601
@@ -483,11 +497,22 @@ The system uses three distinct, independent processing pipelines. Each has its o
 
 | Aspect | Detail |
 |--------|--------|
-| Trigger | EventBridge: `SaveUpdated`, `ProjectUpdated` events |
+| Trigger | EventBridge: `SaveCreated`, `SaveUpdated`, `SaveDeleted`, `SaveRestored`, `ProjectUpdated` events |
 | Input | Save or Project entity from DynamoDB |
 | Output | Search Index record |
 | Target Table | `search-index` |
 | Schema | 39 fields (sourceType: 'save' or 'project') |
+
+**EventBridge Event Catalog (Saves Domain):**
+
+| Event Source | DetailType | Trigger | Key Detail Fields |
+|---|---|---|---|
+| `ai-learning-hub.saves` | `SaveCreated` | POST /saves (new save) | userId, saveId, url, normalizedUrl, urlHash, contentType |
+| `ai-learning-hub.saves` | `SaveUpdated` | PATCH /saves/:saveId | userId, saveId, urlHash, normalizedUrl, updatedFields |
+| `ai-learning-hub.saves` | `SaveDeleted` | DELETE /saves/:saveId | userId, saveId, urlHash, normalizedUrl |
+| `ai-learning-hub.saves` | `SaveRestored` | POST /saves/:saveId/restore (or auto-restore on re-save) | userId, saveId, urlHash, normalizedUrl |
+
+**Downstream consumers must be idempotent:** A `SaveDeleted` event may be followed by a `SaveRestored` event within seconds (undo window). Consumers should handle this sequence gracefully.
 
 **Step Function Flow:**
 1. Fetch entity from source table (GET /saves/{id} or GET /projects/{id})
@@ -1090,34 +1115,53 @@ SK: SAVE#<saveId>
 
 Attributes:
   - saveId: string (ULID)
-  - url: string
-  - urlHash: string (links to content layer)
+  - url: string (original URL as submitted)
+  - normalizedUrl: string (canonical form after normalization — see Epic 3 Story 3.1a)
+  - urlHash: string (SHA-256 of normalizedUrl; links to content layer)
   - title?: string (user override or from content)
   - userNotes?: string (short notes, NOT the big S3 notes)
   - tags: string[]
   - isTutorial: boolean
   - tutorialStatus?: 'saved' | 'started' | 'completed' | null
   - contentType?: ContentType (denormalized from content layer)
+  - linkedProjectCount: number (default 0; incremented/decremented by Epic 5 using atomic ADD)
   - createdAt: string (ISO 8601)
   - updatedAt: string (ISO 8601)
+  - lastAccessedAt?: string (ISO 8601) — updated on GET /saves/:id, supports FR19 sort
   - enrichedAt?: string (ISO 8601)
   - deletedAt?: string (ISO 8601) — soft delete marker
 
 Note: All list queries filter WHERE deletedAt IS NULL
 
+---
+URL Uniqueness Marker Items (same table, different SK pattern):
+PK: USER#<userId>
+SK: URL#<urlHash>
+
+Purpose: Atomic duplicate prevention via TransactWriteItems. Written alongside
+the save item; ConditionExpression `attribute_not_exists(SK)` on the marker
+ensures no two saves share the same normalizedUrl per user. Marker is NEVER
+removed on soft-delete (prevents duplicate-on-restore conflicts). See Epic 3
+Story 3.1b for the two-layer dedup strategy.
+
+---
+
 GSI1: userId-contentType-index
   - PK: userId
   - SK: contentType
+  - Projection: ALL
   - Purpose: Filter saves by type
 
 GSI2: userId-tutorialStatus-index
   - PK: userId
   - SK: tutorialStatus
+  - Projection: ALL
   - Purpose: Tutorial tracker view
 
-GSI3: urlHash-index (sparse)
+GSI3: urlHash-index
   - PK: urlHash
-  - Purpose: Find all saves of same URL (for content layer updates, dedup)
+  - Projection: ALL (must project PK for userId filtering and deletedAt for soft-delete filtering)
+  - Purpose: Duplicate detection (Epic 3), content layer linking (Epic 9)
 ```
 
 ---
@@ -1303,18 +1347,20 @@ GSI1: generatedBy-index
 
 All 10 Global Secondary Indexes across 7 tables:
 
-| # | Table | GSI Name | PK | SK | Purpose |
-|---|-------|----------|----|----|---------|
-| 1 | users | apiKeyHash-index | keyHash | — | API key auth lookup |
-| 2 | saves | userId-contentType-index | userId | contentType | Filter by type |
-| 3 | saves | userId-tutorialStatus-index | userId | tutorialStatus | Tutorial tracker view |
-| 4 | saves | urlHash-index | urlHash | — | Dedup, content layer linking |
-| 5 | projects | userId-status-index | userId | status | Filter by status |
-| 6 | projects | userId-folderId-index | userId | folderId | Folder navigation |
-| 7 | links | userId-projectId-index | userId | projectId | Get saves for project |
-| 8 | links | userId-saveId-index | userId | saveId | Get projects for save |
-| 9 | search-index | userId-sourceType-index | userId | sourceType | Filter search by type |
-| 10 | invite-codes | generatedBy-index | generatedBy | — | List user's generated codes |
+| # | Table | GSI Name | PK | SK | Projection | Purpose |
+|---|-------|----------|----|----|------------|---------|
+| 1 | users | apiKeyHash-index | keyHash | — | ALL | API key auth lookup (needs full user record) |
+| 2 | saves | userId-contentType-index | userId | contentType | ALL | Filter saves by type |
+| 3 | saves | userId-tutorialStatus-index | userId | tutorialStatus | ALL | Tutorial tracker view |
+| 4 | saves | urlHash-index | urlHash | — | ALL | Dedup (needs PK for userId filter, deletedAt for soft-delete filter), content layer linking |
+| 5 | projects | userId-status-index | userId | status | ALL | Filter projects by status |
+| 6 | projects | userId-folderId-index | userId | folderId | ALL | Folder navigation |
+| 7 | links | userId-projectId-index | userId | projectId | ALL | Get saves for project |
+| 8 | links | userId-saveId-index | userId | saveId | ALL | Get projects for save |
+| 9 | search-index | userId-sourceType-index | userId | sourceType | ALL | Filter search by type |
+| 10 | invite-codes | generatedBy-index | generatedBy | — | ALL | List user's generated codes |
+
+**Projection rationale:** ALL projection is used across the board in V1 for simplicity. At boutique scale (<20 users), the additional storage cost of ALL projection is negligible (<$1/month). Projection can be narrowed to INCLUDE in V2 if storage costs become meaningful.
 
 ---
 
@@ -1335,10 +1381,13 @@ How each query maps to table operations:
 | Access Pattern | Table | Key Design | Operation |
 |----------------|-------|------------|-----------|
 | Get save by ID | saves | PK: `USER#<userId>`, SK: `SAVE#<saveId>` | GetItem |
-| List user's saves (paginated) | saves | PK: `USER#<userId>`, SK begins_with `SAVE#` | Query |
+| List user's saves (paginated) | saves | PK: `USER#<userId>`, SK begins_with `SAVE#` | Query (ScanIndexForward=false, Limit=1000) |
 | List saves by content type | saves | GSI: userId-contentType-index | Query |
 | List saves by tutorial status | saves | GSI: userId-tutorialStatus-index | Query |
-| Get saves by URL hash | saves | GSI: urlHash-index | Query |
+| Check duplicate by URL hash | saves | GSI: urlHash-index, FilterExpression on PK + deletedAt | Query (Layer 1 dedup) |
+| Create save + uniqueness marker | saves | TransactWriteItems: SAVE# item + URL# marker | TransactWrite (Layer 2 dedup) |
+| Update lastAccessedAt | saves | PK: `USER#<userId>`, SK: `SAVE#<saveId>` | UpdateItem (awaited, non-throwing) |
+| Restore soft-deleted save | saves | PK: `USER#<userId>`, SK: `SAVE#<saveId>` | UpdateItem (REMOVE deletedAt) |
 
 ### Project Operations
 
@@ -1489,36 +1538,49 @@ async function getProjectWithSaves(userId: string, projectId: string) {
 ### Mobile Save (Critical Path — Must Be Fast)
 
 ```typescript
-async function createSave(userId: string, url: string) {
+async function createSave(userId: string, url: string, metadata?: SaveMetadata) {
   const saveId = ulid();
-  const urlHash = sha256(normalizeUrl(url));
+  const normalizedUrl = normalizeUrl(url); // See shared/validation/url-normalizer.ts
+  const urlHash = sha256(normalizedUrl);
 
-  // 1. Write save (1 write)
-  await db.put({
+  // 1. Layer 1: Fast-path duplicate check via GSI
+  const existing = await db.query({
     TableName: 'saves',
-    Item: {
-      pk: `USER#${userId}`,
-      sk: `SAVE#${saveId}`,
-      saveId,
-      url,
-      urlHash,
-      createdAt: new Date().toISOString(),
-      // No title yet — enrichment will add it
-    }
+    IndexName: 'urlHash-index',
+    KeyConditionExpression: 'urlHash = :hash',
+    FilterExpression: 'pk = :pk AND attribute_not_exists(deletedAt)',
+    ExpressionAttributeValues: { ':hash': urlHash, ':pk': `USER#${userId}` }
+  });
+  if (existing.Items?.length) return { status: 409, existingSave: existing.Items[0] };
+
+  // 2. Layer 2: Atomic write — save item + URL uniqueness marker
+  await db.transactWrite({
+    TransactItems: [
+      { Put: { TableName: 'saves', Item: {
+        pk: `USER#${userId}`, sk: `SAVE#${saveId}`,
+        saveId, url, normalizedUrl, urlHash,
+        contentType: detectContentType(url), // See shared/validation/content-type-detector.ts
+        linkedProjectCount: 0, isTutorial: false,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      }}},
+      { Put: { TableName: 'saves', Item: {
+        pk: `USER#${userId}`, sk: `URL#${urlHash}`,
+      }, ConditionExpression: 'attribute_not_exists(sk)' }}
+    ]
   });
 
-  // 2. Emit event for enrichment (async, non-blocking)
-  await eventBridge.putEvents({
-    Entries: [{
-      Source: 'ai-learning-hub.saves',
-      DetailType: 'SaveCreated',
-      Detail: JSON.stringify({ userId, saveId, url, urlHash })
-    }]
-  });
+  // 3. Emit event for enrichment (awaited but non-throwing)
+  try {
+    await eventBridge.putEvents({
+      Entries: [{ Source: 'ai-learning-hub.saves', DetailType: 'SaveCreated',
+        Detail: JSON.stringify({ userId, saveId, url, normalizedUrl, urlHash }) }]
+    });
+  } catch (err) { logger.warn('EventBridge emission failed', { requestId, err }); }
 
-  return { saveId };
+  return { status: 201, save: { saveId, url, normalizedUrl, urlHash } };
 }
-// Total: 1 write + 1 async event. Fast. ✅
+// Total: 1 GSI query + 1 transact write + 1 async event. Fast. ✅
+// If Layer 2 fails (marker exists): check for soft-deleted save → auto-restore. See Epic 3 Story 3.1b.
 ```
 
 ### Search Across Everything (V1)
@@ -1587,11 +1649,12 @@ Complete API surface organized by domain. Separate `/admin` and `/analytics` pat
 
 | Method | Endpoint | Description | Notes |
 |--------|----------|-------------|-------|
-| POST | `/saves` | Create save | Mobile capture, <3s target |
-| GET | `/saves` | List user's saves | Filters: type, tag, status |
-| GET | `/saves/:id` | Get single save | Includes content layer data |
-| PATCH | `/saves/:id` | Update save | Tags, notes, status |
-| DELETE | `/saves/:id` | Soft delete save | |
+| POST | `/saves` | Create save | Mobile capture, <3s target; 409 if duplicate (returns existingSave) |
+| GET | `/saves` | List user's saves | Filters: contentType, linkStatus, search, sort; paginated |
+| GET | `/saves/:id` | Get single save | Includes content layer data; updates lastAccessedAt |
+| PATCH | `/saves/:id` | Update save | Tags, notes, contentType; URL immutable |
+| DELETE | `/saves/:id` | Soft delete save | Sets deletedAt; idempotent (already-deleted returns 204) |
+| POST | `/saves/:id/restore` | Restore soft-deleted save | Clears deletedAt; emits SaveRestored event; idempotent |
 
 #### /projects
 
