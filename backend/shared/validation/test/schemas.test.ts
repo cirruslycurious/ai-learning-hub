@@ -15,6 +15,7 @@ import {
   userIdSchema,
   apiKeyScopeSchema,
   apiKeyScopesSchema,
+  updateProfileBodySchema,
 } from "../src/schemas.js";
 
 describe("Validation Schemas", () => {
@@ -276,6 +277,78 @@ describe("Validation Schemas", () => {
     it("should reject empty array", () => {
       const result = apiKeyScopesSchema.safeParse([]);
       expect(result.success).toBe(false);
+    });
+  });
+
+  describe("updateProfileBodySchema", () => {
+    it("should accept valid displayName update", () => {
+      const result = updateProfileBodySchema.safeParse({
+        displayName: "Test User",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("should accept valid globalPreferences update", () => {
+      const result = updateProfileBodySchema.safeParse({
+        globalPreferences: { theme: "dark" },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("should accept both displayName and globalPreferences", () => {
+      const result = updateProfileBodySchema.safeParse({
+        displayName: "Test",
+        globalPreferences: { lang: "en" },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject empty object (no fields)", () => {
+      const result = updateProfileBodySchema.safeParse({});
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject empty displayName", () => {
+      const result = updateProfileBodySchema.safeParse({ displayName: "" });
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject whitespace-only displayName", () => {
+      const result = updateProfileBodySchema.safeParse({
+        displayName: "   ",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("should trim displayName whitespace", () => {
+      const result = updateProfileBodySchema.safeParse({
+        displayName: "  Test User  ",
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.displayName).toBe("Test User");
+      }
+    });
+
+    it("should reject displayName exceeding 255 characters", () => {
+      const result = updateProfileBodySchema.safeParse({
+        displayName: "x".repeat(256),
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject globalPreferences exceeding 10KB", () => {
+      const result = updateProfileBodySchema.safeParse({
+        globalPreferences: { data: "x".repeat(11000) },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("should accept globalPreferences under 10KB", () => {
+      const result = updateProfileBodySchema.safeParse({
+        globalPreferences: { data: "x".repeat(5000) },
+      });
+      expect(result.success).toBe(true);
     });
   });
 });

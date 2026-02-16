@@ -28,12 +28,14 @@ export {
 export {
   getProfile,
   ensureProfile,
+  updateProfile,
   getApiKeyByHash,
   updateApiKeyLastUsed,
   USERS_TABLE_CONFIG,
   type UserProfile,
   type PublicMetadata,
   type ApiKeyItem,
+  type UpdateProfileFields,
 } from "./users.js";
 
 // Re-export DynamoDB types for convenience

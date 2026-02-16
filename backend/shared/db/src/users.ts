@@ -26,6 +26,7 @@ export interface UserProfile extends Record<string, unknown> {
   email?: string;
   displayName?: string;
   role: string;
+  globalPreferences?: Record<string, unknown>;
   suspendedAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -149,6 +150,63 @@ export async function getApiKeyByHash(
   );
 
   return result.items[0] ?? null;
+}
+
+/**
+ * Fields that can be updated on a user profile via PATCH /users/me.
+ */
+export interface UpdateProfileFields {
+  displayName?: string;
+  globalPreferences?: Record<string, unknown>;
+}
+
+/**
+ * Update a user profile with the provided fields.
+ * Returns the updated profile or throws NOT_FOUND if the profile doesn't exist.
+ */
+export async function updateProfile(
+  client: DynamoDBDocumentClient,
+  clerkId: string,
+  fields: UpdateProfileFields
+): Promise<UserProfile> {
+  const logger = createLogger({ userId: clerkId });
+  const now = new Date().toISOString();
+
+  // Build dynamic SET expression from provided fields
+  const setExpressions: string[] = ["updatedAt = :now"];
+  const expressionAttributeValues: Record<string, unknown> = { ":now": now };
+  if (fields.displayName !== undefined) {
+    setExpressions.push("displayName = :displayName");
+    expressionAttributeValues[":displayName"] = fields.displayName;
+  }
+
+  if (fields.globalPreferences !== undefined) {
+    setExpressions.push("globalPreferences = :globalPreferences");
+    expressionAttributeValues[":globalPreferences"] = fields.globalPreferences;
+  }
+
+  const updated = await updateItem<UserProfile>(
+    client,
+    USERS_TABLE_CONFIG,
+    {
+      key: { PK: `USER#${clerkId}`, SK: "PROFILE" },
+      updateExpression: `SET ${setExpressions.join(", ")}`,
+      expressionAttributeValues,
+      conditionExpression: "attribute_exists(PK)",
+      returnValues: "ALL_NEW",
+    },
+    logger
+  );
+
+  // Defensive fallback: updateItem helper already throws NOT_FOUND on
+  // ConditionalCheckFailedException, so this branch should not be reached
+  // under normal conditions. Kept as a safety net in case the helper
+  // behavior changes or DynamoDB returns empty Attributes unexpectedly.
+  if (!updated) {
+    throw new AppError(ErrorCode.NOT_FOUND, "User profile not found");
+  }
+
+  return updated;
 }
 
 /**
