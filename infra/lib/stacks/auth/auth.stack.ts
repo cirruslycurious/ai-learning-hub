@@ -315,8 +315,13 @@ export class AuthStack extends cdk.Stack {
     // Grant read/write to invite-codes table (GetItem for lookup, UpdateItem for redemption)
     inviteCodesTable.grantReadWriteData(this.validateInviteFunction);
 
-    // Grant read to users table (for profile checks)
-    usersTable.grantReadData(this.validateInviteFunction);
+    // Grant least-privilege: only UpdateItem needed for rate limit counter increments (Story 2.7)
+    this.validateInviteFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["dynamodb:UpdateItem"],
+        resources: [usersTable.tableArn],
+      })
+    );
 
     // Grant read access to Clerk secret key in SSM Parameter Store
     this.validateInviteFunction.addToRolePolicy(

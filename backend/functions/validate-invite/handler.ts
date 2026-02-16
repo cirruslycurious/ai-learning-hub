@@ -11,6 +11,8 @@ import {
   getDefaultClient,
   getInviteCode,
   redeemInviteCode,
+  enforceRateLimit,
+  USERS_TABLE_CONFIG,
 } from "@ai-learning-hub/db";
 import {
   wrapHandler,
@@ -64,6 +66,23 @@ async function validateInviteHandler(ctx: HandlerContext) {
   const { code } = validateJsonBody(validateInviteBodySchema, event.body);
 
   const client = getDefaultClient();
+
+  // Enforce rate limit: 5 invite validations per IP per hour (Story 2.7, AC4)
+  // TODO: When behind CloudFront, event.requestContext.identity.sourceIp will be
+  // the CDN edge IP, not the real client IP. Use the X-Forwarded-For header
+  // (first IP in the chain) for accurate per-client rate limiting in production.
+  const sourceIp = event.requestContext?.identity?.sourceIp ?? "unknown";
+  await enforceRateLimit(
+    client,
+    USERS_TABLE_CONFIG.tableName,
+    {
+      operation: "invite-validate",
+      identifier: sourceIp,
+      limit: 5,
+      windowSeconds: 3600,
+    },
+    logger
+  );
 
   // Look up invite code in invite-codes table (AC1)
   const inviteCode = await getInviteCode(client, code);

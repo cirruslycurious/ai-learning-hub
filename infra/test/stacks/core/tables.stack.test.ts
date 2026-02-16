@@ -152,6 +152,16 @@ describe("TablesStack", () => {
       });
     });
 
+    it("should enable TTL on users table for rate limit counter cleanup", () => {
+      template.hasResourceProperties("AWS::DynamoDB::Table", {
+        TableName: "ai-learning-hub-users",
+        TimeToLiveSpecification: {
+          AttributeName: "ttl",
+          Enabled: true,
+        },
+      });
+    });
+
     it("should use on-demand billing mode", () => {
       const tables = template.findResources("AWS::DynamoDB::Table");
       Object.values(tables).forEach((table) => {

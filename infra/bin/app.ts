@@ -7,6 +7,7 @@ import { TablesStack } from "../lib/stacks/core/tables.stack";
 import { BucketsStack } from "../lib/stacks/core/buckets.stack";
 import { ObservabilityStack } from "../lib/stacks/observability/observability.stack";
 import { AuthStack } from "../lib/stacks/auth/auth.stack";
+import { RateLimitingStack } from "../lib/stacks/api/rate-limiting.stack";
 
 const app = new cdk.App();
 
@@ -47,8 +48,25 @@ const observabilityStack = new ObservabilityStack(
   }
 );
 
+// Rate Limiting Stack - WAF + API Gateway throttling config (Story 2.7, AC1)
+const rateLimitingStack = new RateLimitingStack(
+  app,
+  "AiLearningHubRateLimiting",
+  {
+    env: awsEnv,
+    description:
+      "Rate limiting for ai-learning-hub (WAF rate-based rules, API Gateway throttling config)",
+  }
+);
+
 // Export stack instances for future cross-stack references (avoids unused variable lint errors)
-export { tablesStack, bucketsStack, authStack, observabilityStack };
+export {
+  tablesStack,
+  bucketsStack,
+  authStack,
+  observabilityStack,
+  rateLimitingStack,
+};
 
 cdk.Tags.of(app).add("Project", "ai-learning-hub");
 cdk.Tags.of(app).add("ManagedBy", "CDK");

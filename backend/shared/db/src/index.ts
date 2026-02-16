@@ -51,5 +51,15 @@ export {
   type InviteCodeItem,
 } from "./invite-codes.js";
 
+// Rate limiting operations
+export {
+  incrementAndCheckRateLimit,
+  enforceRateLimit,
+  getWindowKey,
+  getCounterTTL,
+  type RateLimitConfig,
+  type RateLimitResult,
+} from "./rate-limiter.js";
+
 // Re-export DynamoDB types for convenience
 export type { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
