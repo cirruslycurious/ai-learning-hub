@@ -136,7 +136,7 @@ export function wrapHandler<T = unknown>(
               "API key lacks required scope",
               {
                 requiredScope: options.requiredScope,
-                actualScopes: scopes,
+                keyScopes: scopes,
               }
             );
           }

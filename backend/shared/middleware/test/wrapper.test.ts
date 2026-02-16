@@ -268,6 +268,10 @@ describe("Handler Wrapper", () => {
       expect(result.statusCode).toBe(403);
       const body = JSON.parse(result.body);
       expect(body.error.code).toBe("SCOPE_INSUFFICIENT");
+      expect(body.error.details).toEqual({
+        requiredScope: "saves:write",
+        keyScopes: ["saves:read"],
+      });
     });
 
     it("should include request ID in response headers", async () => {
