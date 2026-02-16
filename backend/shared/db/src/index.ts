@@ -47,8 +47,12 @@ export {
 export {
   getInviteCode,
   redeemInviteCode,
+  createInviteCode,
+  listInviteCodesByUser,
+  toPublicInviteCode,
   INVITE_CODES_TABLE_CONFIG,
   type InviteCodeItem,
+  type PublicInviteCodeItem,
 } from "./invite-codes.js";
 
 // Rate limiting operations

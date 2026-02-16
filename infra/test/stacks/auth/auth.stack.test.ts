@@ -39,8 +39,8 @@ describe("AuthStack", () => {
   });
 
   describe("JWT Authorizer Lambda", () => {
-    it("creates all five Lambda functions (JWT, API Key, Users Me, Validate Invite, API Keys)", () => {
-      template.resourceCountIs("AWS::Lambda::Function", 5);
+    it("creates all six Lambda functions (JWT, API Key, Users Me, Validate Invite, API Keys, Generate Invite)", () => {
+      template.resourceCountIs("AWS::Lambda::Function", 6);
     });
 
     it("uses the latest Node.js runtime", () => {
@@ -111,13 +111,13 @@ describe("AuthStack", () => {
   });
 
   describe("API Key Authorizer Lambda", () => {
-    it("creates Lambdas with USERS_TABLE_NAME but without CLERK_SECRET_KEY_PARAM (API Key authorizer, Users Me, API Keys)", () => {
+    it("creates Lambdas with USERS_TABLE_NAME but without CLERK_SECRET_KEY_PARAM (API Key authorizer, Users Me, API Keys, Generate Invite)", () => {
       const lambdas = template.findResources("AWS::Lambda::Function");
       const nonJwtLambdas = Object.entries(lambdas).filter(([, resource]) => {
         const envVars = resource.Properties?.Environment?.Variables ?? {};
         return envVars.USERS_TABLE_NAME && !envVars.CLERK_SECRET_KEY_PARAM;
       });
-      expect(nonJwtLambdas).toHaveLength(3);
+      expect(nonJwtLambdas).toHaveLength(4);
     });
 
     it("creates Lambdas with both USERS_TABLE_NAME and CLERK_SECRET_KEY_PARAM (JWT authorizer + validate-invite)", () => {
@@ -181,16 +181,26 @@ describe("AuthStack", () => {
       const outputs = template.findOutputs("*");
       expect(outputs.ApiKeysFunctionName).toBeDefined();
     });
+
+    it("exports the generate invite function ARN", () => {
+      const outputs = template.findOutputs("*");
+      expect(outputs.GenerateInviteFunctionArn).toBeDefined();
+    });
+
+    it("exports the generate invite function name", () => {
+      const outputs = template.findOutputs("*");
+      expect(outputs.GenerateInviteFunctionName).toBeDefined();
+    });
   });
 
   describe("Validate Invite Lambda", () => {
-    it("creates a Lambda with INVITE_CODES_TABLE_NAME environment variable", () => {
+    it("creates Lambdas with INVITE_CODES_TABLE_NAME environment variable (validate-invite + generate-invite)", () => {
       const lambdas = template.findResources("AWS::Lambda::Function");
-      const validateLambda = Object.values(lambdas).find((resource) => {
+      const inviteCodeLambdas = Object.values(lambdas).filter((resource) => {
         const envVars = resource.Properties?.Environment?.Variables ?? {};
         return envVars.INVITE_CODES_TABLE_NAME;
       });
-      expect(validateLambda).toBeDefined();
+      expect(inviteCodeLambdas).toHaveLength(2);
     });
   });
 });
