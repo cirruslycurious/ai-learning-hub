@@ -13,24 +13,34 @@ describe("AuthStack", () => {
     const app = new App();
     const awsEnv = getAwsEnv();
 
-    // Create a mock tables stack to provide the users table
+    // Create a mock tables stack to provide the users and invite-codes tables
     const tablesStack = new Stack(app, "TestTablesStack", { env: awsEnv });
     const usersTable = new dynamodb.Table(tablesStack, "UsersTable", {
       tableName: "ai-learning-hub-users",
       partitionKey: { name: "PK", type: dynamodb.AttributeType.STRING },
       sortKey: { name: "SK", type: dynamodb.AttributeType.STRING },
     });
+    const inviteCodesTable = new dynamodb.Table(
+      tablesStack,
+      "InviteCodesTable",
+      {
+        tableName: "ai-learning-hub-invite-codes",
+        partitionKey: { name: "PK", type: dynamodb.AttributeType.STRING },
+        sortKey: { name: "SK", type: dynamodb.AttributeType.STRING },
+      }
+    );
 
     const stack = new AuthStack(app, "TestAuthStack", {
       env: awsEnv,
       usersTable,
+      inviteCodesTable,
     });
     template = Template.fromStack(stack);
   });
 
   describe("JWT Authorizer Lambda", () => {
-    it("creates both authorizer Lambda functions", () => {
-      template.resourceCountIs("AWS::Lambda::Function", 2);
+    it("creates all three auth Lambda functions", () => {
+      template.resourceCountIs("AWS::Lambda::Function", 3);
     });
 
     it("uses the latest Node.js runtime", () => {
@@ -112,14 +122,14 @@ describe("AuthStack", () => {
       expect(apiKeyLambdas).toHaveLength(1);
     });
 
-    it("creates exactly one Lambda with both USERS_TABLE_NAME and CLERK_SECRET_KEY_PARAM (JWT authorizer)", () => {
-      // The JWT authorizer has both USERS_TABLE_NAME and CLERK_SECRET_KEY_PARAM
+    it("creates Lambdas with both USERS_TABLE_NAME and CLERK_SECRET_KEY_PARAM (JWT authorizer + validate-invite)", () => {
+      // Both JWT authorizer and validate-invite have USERS_TABLE_NAME and CLERK_SECRET_KEY_PARAM
       const lambdas = template.findResources("AWS::Lambda::Function");
-      const jwtLambdas = Object.entries(lambdas).filter(([, resource]) => {
+      const clerkLambdas = Object.entries(lambdas).filter(([, resource]) => {
         const envVars = resource.Properties?.Environment?.Variables ?? {};
         return envVars.USERS_TABLE_NAME && envVars.CLERK_SECRET_KEY_PARAM;
       });
-      expect(jwtLambdas).toHaveLength(1);
+      expect(clerkLambdas).toHaveLength(2);
     });
 
     it("API key authorizer Lambda has USERS_TABLE_NAME environment variable", () => {
@@ -154,6 +164,27 @@ describe("AuthStack", () => {
     it("exports the API key authorizer function name", () => {
       const outputs = template.findOutputs("*");
       expect(outputs.ApiKeyAuthorizerFunctionName).toBeDefined();
+    });
+
+    it("exports the validate invite function ARN", () => {
+      const outputs = template.findOutputs("*");
+      expect(outputs.ValidateInviteFunctionArn).toBeDefined();
+    });
+
+    it("exports the validate invite function name", () => {
+      const outputs = template.findOutputs("*");
+      expect(outputs.ValidateInviteFunctionName).toBeDefined();
+    });
+  });
+
+  describe("Validate Invite Lambda", () => {
+    it("creates a Lambda with INVITE_CODES_TABLE_NAME environment variable", () => {
+      const lambdas = template.findResources("AWS::Lambda::Function");
+      const validateLambda = Object.values(lambdas).find((resource) => {
+        const envVars = resource.Properties?.Environment?.Variables ?? {};
+        return envVars.INVITE_CODES_TABLE_NAME;
+      });
+      expect(validateLambda).toBeDefined();
     });
   });
 });
