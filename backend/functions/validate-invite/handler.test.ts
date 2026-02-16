@@ -297,7 +297,7 @@ describe("Validate Invite Handler", () => {
       const body = JSON.parse(result.body);
 
       expect(result.statusCode).toBe(400);
-      expect(body.error.code).toBe("VALIDATION_ERROR");
+      expect(body.error.code).toBe("INVALID_INVITE_CODE");
     });
 
     it("returns 400 for already redeemed code", async () => {
@@ -316,7 +316,7 @@ describe("Validate Invite Handler", () => {
       const body = JSON.parse(result.body);
 
       expect(result.statusCode).toBe(400);
-      expect(body.error.code).toBe("VALIDATION_ERROR");
+      expect(body.error.code).toBe("INVALID_INVITE_CODE");
     });
 
     it("returns 400 for expired code", async () => {
@@ -334,7 +334,7 @@ describe("Validate Invite Handler", () => {
       const body = JSON.parse(result.body);
 
       expect(result.statusCode).toBe(400);
-      expect(body.error.code).toBe("VALIDATION_ERROR");
+      expect(body.error.code).toBe("INVALID_INVITE_CODE");
     });
 
     it("returns 400 for revoked code", async () => {
@@ -352,7 +352,7 @@ describe("Validate Invite Handler", () => {
       const body = JSON.parse(result.body);
 
       expect(result.statusCode).toBe(400);
-      expect(body.error.code).toBe("VALIDATION_ERROR");
+      expect(body.error.code).toBe("INVALID_INVITE_CODE");
     });
 
     it("returns 400 when race condition causes ConditionalCheckFailedException (NOT_FOUND)", async () => {
@@ -374,7 +374,7 @@ describe("Validate Invite Handler", () => {
       const body = JSON.parse(result.body);
 
       expect(result.statusCode).toBe(400);
-      expect(body.error.code).toBe("VALIDATION_ERROR");
+      expect(body.error.code).toBe("INVALID_INVITE_CODE");
       expect(body.error.message).toBe("Invite code has already been used");
     });
   });

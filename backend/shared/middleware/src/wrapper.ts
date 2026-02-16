@@ -132,8 +132,12 @@ export function wrapHandler<T = unknown>(
             !scopes.includes(options.requiredScope)
           ) {
             throw new AppError(
-              ErrorCode.FORBIDDEN,
-              "API key lacks required scope"
+              ErrorCode.SCOPE_INSUFFICIENT,
+              "API key lacks required scope",
+              {
+                requiredScope: options.requiredScope,
+                actualScopes: scopes,
+              }
             );
           }
         }
