@@ -7,6 +7,9 @@ import {
   ensureProfile,
   getApiKeyByHash,
   updateApiKeyLastUsed,
+  createApiKey,
+  listApiKeys,
+  revokeApiKey,
   USERS_TABLE_CONFIG,
   type ApiKeyItem,
 } from "../src/users.js";
@@ -324,6 +327,203 @@ describe("updateApiKeyLastUsed", () => {
 
     await expect(
       updateApiKeyLastUsed(mockClient, "clerk_123", "key_abc")
+    ).rejects.toThrow("DynamoDB error");
+  });
+});
+
+describe("createApiKey", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("generates a 256-bit key and stores SHA-256 hash (AC1)", async () => {
+    mockPutItem.mockResolvedValueOnce(undefined);
+
+    const result = await createApiKey(mockClient, "clerk_123", "My Key", ["*"]);
+
+    expect(result.id).toBeDefined();
+    // ULID format: 26 characters, Crockford Base32
+    expect(result.id).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
+    expect(result.name).toBe("My Key");
+    expect(result.key).toBeDefined();
+    // base64url-encoded 32 bytes = 43 chars
+    expect(result.key.length).toBe(43);
+    expect(result.scopes).toEqual(["*"]);
+    expect(result.createdAt).toBeDefined();
+
+    // Verify putItem was called with the hash, not the raw key
+    const putCall = mockPutItem.mock.calls[0];
+    const item = putCall[2] as Record<string, unknown>;
+    expect(item.keyHash).toBeDefined();
+    expect(item.keyHash).not.toBe(result.key);
+    expect(typeof item.keyHash).toBe("string");
+    // SHA-256 hex digest = 64 chars
+    expect((item.keyHash as string).length).toBe(64);
+  });
+
+  it("stores correct DynamoDB key pattern (PK=USER#, SK=APIKEY#)", async () => {
+    mockPutItem.mockResolvedValueOnce(undefined);
+
+    const result = await createApiKey(mockClient, "user_abc", "Test", ["*"]);
+
+    const putCall = mockPutItem.mock.calls[0];
+    const item = putCall[2] as Record<string, unknown>;
+    expect(item.PK).toBe("USER#user_abc");
+    expect((item.SK as string).startsWith("APIKEY#")).toBe(true);
+    expect(item.userId).toBe("user_abc");
+    expect(item.keyId).toBe(result.id);
+
+    // Verify conditional write to prevent hash collisions
+    const options = putCall[3] as Record<string, unknown>;
+    expect(options.conditionExpression).toBe("attribute_not_exists(PK)");
+  });
+
+  it("creates capture-only key with saves:write scope (AC4)", async () => {
+    mockPutItem.mockResolvedValueOnce(undefined);
+
+    const result = await createApiKey(mockClient, "clerk_123", "Capture", [
+      "saves:write",
+    ]);
+
+    expect(result.scopes).toEqual(["saves:write"]);
+  });
+
+  it("propagates errors from putItem", async () => {
+    mockPutItem.mockRejectedValueOnce(new Error("DynamoDB error"));
+
+    await expect(
+      createApiKey(mockClient, "clerk_123", "Key", ["*"])
+    ).rejects.toThrow("DynamoDB error");
+  });
+});
+
+describe("listApiKeys", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns list of non-revoked API keys (AC2)", async () => {
+    const mockKeys: ApiKeyItem[] = [
+      {
+        PK: "USER#clerk_123",
+        SK: "APIKEY#key_01",
+        userId: "clerk_123",
+        keyId: "key_01",
+        keyHash: "hash1",
+        name: "Key One",
+        scopes: ["*"],
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+        lastUsedAt: "2026-02-01T00:00:00Z",
+      },
+    ];
+
+    mockQueryItems.mockResolvedValueOnce({
+      items: mockKeys,
+      hasMore: false,
+    });
+
+    const result = await listApiKeys(mockClient, "clerk_123");
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].id).toBe("key_01");
+    expect(result.items[0].name).toBe("Key One");
+    // Key hash must NOT be exposed
+    expect(
+      (result.items[0] as unknown as Record<string, unknown>).keyHash
+    ).toBeUndefined();
+    expect(
+      (result.items[0] as unknown as Record<string, unknown>).PK
+    ).toBeUndefined();
+    expect(
+      (result.items[0] as unknown as Record<string, unknown>).SK
+    ).toBeUndefined();
+  });
+
+  it("queries with correct key condition and filter", async () => {
+    mockQueryItems.mockResolvedValueOnce({ items: [], hasMore: false });
+
+    await listApiKeys(mockClient, "clerk_123", 10, "some-cursor");
+
+    expect(mockQueryItems).toHaveBeenCalledWith(
+      mockClient,
+      USERS_TABLE_CONFIG,
+      expect.objectContaining({
+        keyConditionExpression: "PK = :pk AND begins_with(SK, :skPrefix)",
+        expressionAttributeValues: {
+          ":pk": "USER#clerk_123",
+          ":skPrefix": "APIKEY#",
+        },
+        filterExpression: "attribute_not_exists(revokedAt)",
+        limit: 10,
+        cursor: "some-cursor",
+      }),
+      expect.any(Object)
+    );
+  });
+
+  it("returns lastUsedAt as null when not set", async () => {
+    mockQueryItems.mockResolvedValueOnce({
+      items: [
+        {
+          PK: "USER#clerk_123",
+          SK: "APIKEY#key_01",
+          userId: "clerk_123",
+          keyId: "key_01",
+          keyHash: "hash1",
+          name: "Key",
+          scopes: ["*"],
+          createdAt: "2026-01-01T00:00:00Z",
+          updatedAt: "2026-01-01T00:00:00Z",
+        },
+      ],
+      hasMore: false,
+    });
+
+    const result = await listApiKeys(mockClient, "clerk_123");
+    expect(result.items[0].lastUsedAt).toBeNull();
+  });
+});
+
+describe("revokeApiKey", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("sets revokedAt on the API key item (AC3)", async () => {
+    mockUpdateItem.mockResolvedValueOnce(null);
+
+    await revokeApiKey(mockClient, "clerk_123", "key_01");
+
+    expect(mockUpdateItem).toHaveBeenCalledWith(
+      mockClient,
+      USERS_TABLE_CONFIG,
+      expect.objectContaining({
+        key: { PK: "USER#clerk_123", SK: "APIKEY#key_01" },
+        updateExpression: "SET revokedAt = :now, updatedAt = :now",
+        conditionExpression:
+          "attribute_exists(PK) AND attribute_not_exists(revokedAt)",
+      }),
+      expect.any(Object)
+    );
+  });
+
+  it("throws NOT_FOUND when key does not exist (condition fails)", async () => {
+    const { AppError, ErrorCode } = await import("@ai-learning-hub/types");
+    mockUpdateItem.mockRejectedValueOnce(
+      new AppError(ErrorCode.NOT_FOUND, "Item not found")
+    );
+
+    await expect(
+      revokeApiKey(mockClient, "clerk_123", "nonexistent")
+    ).rejects.toThrow("Item not found");
+  });
+
+  it("propagates errors from updateItem", async () => {
+    mockUpdateItem.mockRejectedValueOnce(new Error("DynamoDB error"));
+
+    await expect(
+      revokeApiKey(mockClient, "clerk_123", "key_01")
     ).rejects.toThrow("DynamoDB error");
   });
 });

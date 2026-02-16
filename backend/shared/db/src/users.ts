@@ -3,6 +3,8 @@
  * Supports create-on-first-auth, profile retrieval, and API key lookup.
  */
 import type { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import { randomBytes, createHash } from "crypto";
+import { ulid } from "ulidx";
 import { AppError, ErrorCode } from "@ai-learning-hub/types";
 import { createLogger } from "@ai-learning-hub/logging";
 import {
@@ -228,6 +230,171 @@ export async function updateApiKeyLastUsed(
       key: { PK: `USER#${userId}`, SK: `APIKEY#${keyId}` },
       updateExpression: "SET lastUsedAt = :now, updatedAt = :now",
       expressionAttributeValues: { ":now": now },
+    },
+    logger
+  );
+}
+
+/**
+ * Public response for a newly created API key.
+ * The `key` field is only returned at creation time (AC1: shown only once).
+ */
+export interface CreateApiKeyResult {
+  id: string;
+  name: string;
+  key: string;
+  scopes: string[];
+  createdAt: string;
+}
+
+/**
+ * Public response for listing API keys (no key value or hash).
+ */
+export interface PublicApiKeyItem {
+  id: string;
+  name: string;
+  scopes: string[];
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
+/**
+ * Generate a ULID for API key IDs.
+ * Uses the ulidx library for standard 26-character Crockford Base32 ULIDs,
+ * consistent with the project's entity ID format (see database-schema.md).
+ */
+function generateKeyId(): string {
+  return ulid();
+}
+
+/**
+ * Create a new API key for a user (Story 2.6, AC1).
+ *
+ * Generates a 256-bit random key, stores SHA-256 hash in DynamoDB.
+ * Returns the plaintext key — shown only once (NFR-S3).
+ */
+export async function createApiKey(
+  client: DynamoDBDocumentClient,
+  userId: string,
+  name: string,
+  scopes: string[]
+): Promise<CreateApiKeyResult> {
+  const logger = createLogger({ userId });
+  const now = new Date().toISOString();
+
+  // Generate 256-bit random key (AC1)
+  const rawKey = randomBytes(32).toString("base64url");
+  const keyHash = createHash("sha256").update(rawKey).digest("hex");
+  const keyId = generateKeyId();
+
+  const item: ApiKeyItem = {
+    PK: `USER#${userId}`,
+    SK: `APIKEY#${keyId}`,
+    userId,
+    keyId,
+    keyHash,
+    name,
+    scopes,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await putItem(
+    client,
+    USERS_TABLE_CONFIG,
+    item,
+    { conditionExpression: "attribute_not_exists(PK)" },
+    logger
+  );
+
+  logger.info("API key created", { userId, keyId });
+
+  return {
+    id: keyId,
+    name,
+    key: rawKey,
+    scopes,
+    createdAt: now,
+  };
+}
+
+/**
+ * List all active (non-revoked) API keys for a user (Story 2.6, AC2).
+ *
+ * Returns keys without the key value or hash (NFR-S3, NFR-S8).
+ *
+ * NOTE: DynamoDB applies `Limit` before `FilterExpression`. If many keys are
+ * revoked, the returned page may contain fewer items than `limit`. The client
+ * can use `hasMore`/`nextCursor` to fetch additional pages. At current scale
+ * (max 10 active keys per user) this is acceptable behavior.
+ */
+export async function listApiKeys(
+  client: DynamoDBDocumentClient,
+  userId: string,
+  limit: number = 20,
+  cursor?: string
+): Promise<{
+  items: PublicApiKeyItem[];
+  hasMore: boolean;
+  nextCursor?: string;
+}> {
+  const logger = createLogger({ userId });
+
+  const result = await queryItems<ApiKeyItem>(
+    client,
+    USERS_TABLE_CONFIG,
+    {
+      keyConditionExpression: "PK = :pk AND begins_with(SK, :skPrefix)",
+      expressionAttributeValues: {
+        ":pk": `USER#${userId}`,
+        ":skPrefix": "APIKEY#",
+      },
+      filterExpression: "attribute_not_exists(revokedAt)",
+      limit,
+      cursor,
+    },
+    logger
+  );
+
+  // Strip internal fields — never return key hash (NFR-S3, NFR-S8)
+  const items: PublicApiKeyItem[] = result.items.map((item) => ({
+    id: item.keyId,
+    name: item.name,
+    scopes: item.scopes,
+    createdAt: item.createdAt,
+    lastUsedAt: item.lastUsedAt ?? null,
+  }));
+
+  return {
+    items,
+    hasMore: result.hasMore,
+    nextCursor: result.nextCursor,
+  };
+}
+
+/**
+ * Revoke an API key by setting revokedAt (soft delete) (Story 2.6, AC3).
+ *
+ * The key becomes immediately invalid — the API Key Authorizer checks
+ * `revokedAt` before returning Allow (Story 2.2).
+ */
+export async function revokeApiKey(
+  client: DynamoDBDocumentClient,
+  userId: string,
+  keyId: string
+): Promise<void> {
+  const logger = createLogger({ userId });
+  const now = new Date().toISOString();
+
+  await updateItem(
+    client,
+    USERS_TABLE_CONFIG,
+    {
+      key: { PK: `USER#${userId}`, SK: `APIKEY#${keyId}` },
+      updateExpression: "SET revokedAt = :now, updatedAt = :now",
+      expressionAttributeValues: { ":now": now },
+      conditionExpression:
+        "attribute_exists(PK) AND attribute_not_exists(revokedAt)",
     },
     logger
   );

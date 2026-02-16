@@ -26,6 +26,7 @@ export class AuthStack extends cdk.Stack {
   public readonly apiKeyAuthorizerFunction: lambdaNode.NodejsFunction;
   public readonly usersMeFunction: lambdaNode.NodejsFunction;
   public readonly validateInviteFunction: lambdaNode.NodejsFunction;
+  public readonly apiKeysFunction: lambdaNode.NodejsFunction;
 
   constructor(scope: Construct, id: string, props: AuthStackProps) {
     super(scope, id, props);
@@ -375,6 +376,86 @@ export class AuthStack extends cdk.Stack {
       value: this.validateInviteFunction.functionName,
       description: "Validate Invite Lambda function name",
       exportName: "AiLearningHub-ValidateInviteFunctionName",
+    });
+
+    // API Keys Lambda (Story 2.6: POST/GET/DELETE /users/api-keys)
+    this.apiKeysFunction = new lambdaNode.NodejsFunction(
+      this,
+      "ApiKeysFunction",
+      {
+        runtime: lambda.Runtime.NODEJS_LATEST,
+        handler: "handler",
+        entry: path.join(
+          process.cwd(),
+          "..",
+          "backend",
+          "functions",
+          "api-keys",
+          "handler.ts"
+        ),
+        memorySize: 256,
+        timeout: cdk.Duration.seconds(10),
+        environment: {
+          USERS_TABLE_NAME: usersTable.tableName,
+        },
+        bundling: {
+          minify: true,
+          sourceMap: true,
+          externalModules: ["@aws-sdk/*"],
+        },
+        tracing: lambda.Tracing.ACTIVE,
+      }
+    );
+
+    // Grant least-privilege: PutItem (create), Query (list), UpdateItem (revoke)
+    this.apiKeysFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["dynamodb:PutItem", "dynamodb:Query", "dynamodb:UpdateItem"],
+        resources: [usersTable.tableArn],
+      })
+    );
+
+    // CDK Nag Suppressions for API Keys
+    NagSuppressions.addResourceSuppressions(
+      this.apiKeysFunction,
+      [
+        {
+          id: "AwsSolutions-IAM4",
+          reason:
+            "Lambda basic execution role (CloudWatch Logs, X-Ray) is managed by CDK construct",
+        },
+        {
+          id: "AwsSolutions-L1",
+          reason:
+            "Using NODEJS_LATEST which resolves to the latest stable Node.js runtime supported by CDK",
+        },
+      ],
+      true
+    );
+
+    NagSuppressions.addResourceSuppressions(
+      this.apiKeysFunction.role!,
+      [
+        {
+          id: "AwsSolutions-IAM5",
+          reason:
+            "Wildcard sub-resource permissions for X-Ray tracing are managed by CDK Lambda construct",
+        },
+      ],
+      true
+    );
+
+    // API Keys Stack Outputs
+    new cdk.CfnOutput(this, "ApiKeysFunctionArn", {
+      value: this.apiKeysFunction.functionArn,
+      description: "API Keys Lambda function ARN",
+      exportName: "AiLearningHub-ApiKeysFunctionArn",
+    });
+
+    new cdk.CfnOutput(this, "ApiKeysFunctionName", {
+      value: this.apiKeysFunction.functionName,
+      description: "API Keys Lambda function name",
+      exportName: "AiLearningHub-ApiKeysFunctionName",
     });
   }
 }

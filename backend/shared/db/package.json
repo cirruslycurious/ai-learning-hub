@@ -20,7 +20,8 @@
     "@ai-learning-hub/logging": "*",
     "@ai-learning-hub/types": "*",
     "@aws-sdk/client-dynamodb": "^3.490.0",
-    "@aws-sdk/lib-dynamodb": "^3.490.0"
+    "@aws-sdk/lib-dynamodb": "^3.490.0",
+    "ulidx": "^2.4.1"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^3.2.4",

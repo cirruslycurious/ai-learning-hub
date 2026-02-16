@@ -39,8 +39,8 @@ describe("AuthStack", () => {
   });
 
   describe("JWT Authorizer Lambda", () => {
-    it("creates all four Lambda functions (JWT, API Key, Users Me, Validate Invite)", () => {
-      template.resourceCountIs("AWS::Lambda::Function", 4);
+    it("creates all five Lambda functions (JWT, API Key, Users Me, Validate Invite, API Keys)", () => {
+      template.resourceCountIs("AWS::Lambda::Function", 5);
     });
 
     it("uses the latest Node.js runtime", () => {
@@ -111,13 +111,13 @@ describe("AuthStack", () => {
   });
 
   describe("API Key Authorizer Lambda", () => {
-    it("creates a Lambda with USERS_TABLE_NAME but without CLERK_SECRET_KEY_PARAM (API Key authorizer)", () => {
+    it("creates Lambdas with USERS_TABLE_NAME but without CLERK_SECRET_KEY_PARAM (API Key authorizer, Users Me, API Keys)", () => {
       const lambdas = template.findResources("AWS::Lambda::Function");
       const nonJwtLambdas = Object.entries(lambdas).filter(([, resource]) => {
         const envVars = resource.Properties?.Environment?.Variables ?? {};
         return envVars.USERS_TABLE_NAME && !envVars.CLERK_SECRET_KEY_PARAM;
       });
-      expect(nonJwtLambdas).toHaveLength(2);
+      expect(nonJwtLambdas).toHaveLength(3);
     });
 
     it("creates Lambdas with both USERS_TABLE_NAME and CLERK_SECRET_KEY_PARAM (JWT authorizer + validate-invite)", () => {
@@ -170,6 +170,16 @@ describe("AuthStack", () => {
     it("exports the validate invite function name", () => {
       const outputs = template.findOutputs("*");
       expect(outputs.ValidateInviteFunctionName).toBeDefined();
+    });
+
+    it("exports the API keys function ARN", () => {
+      const outputs = template.findOutputs("*");
+      expect(outputs.ApiKeysFunctionArn).toBeDefined();
+    });
+
+    it("exports the API keys function name", () => {
+      const outputs = template.findOutputs("*");
+      expect(outputs.ApiKeysFunctionName).toBeDefined();
     });
   });
 

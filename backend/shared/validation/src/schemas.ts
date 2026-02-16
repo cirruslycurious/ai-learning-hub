@@ -146,11 +146,12 @@ export const userIdSchema = z
 export const apiKeyScopeSchema = z.enum(["*", "saves:write", "saves:read"]);
 
 /**
- * API Key scopes array
+ * API Key scopes array (duplicates are automatically removed)
  */
 export const apiKeyScopesSchema = z
   .array(apiKeyScopeSchema)
   .min(1)
+  .transform((scopes) => Array.from(new Set(scopes)))
   .describe("API key permission scopes");
 
 /**
