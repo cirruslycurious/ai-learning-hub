@@ -1,9 +1,9 @@
 ---
 epic_id: Epic-2
 status: in-progress
-scope: ["2.1", "2.2", "2.3", "2.4", "2.5", "2.6", "2.7", "2.8"]
+scope: ["2.1", "2.2", "2.3", "2.4", "2.5", "2.6", "2.7", "2.8", "2.9"]
 started: 2026-02-14T12:00:00Z
-last_updated: 2026-02-16T12:00:00Z
+last_updated: 2026-02-16T18:45:00Z
 stories:
   "2.1": { status: done, issue: 122, pr: 123, review_rounds: 1 }
   "2.2": { status: done, pr: 126, review_rounds: 2 }
@@ -12,7 +12,8 @@ stories:
   "2.5": { status: done, pr: 134, review_rounds: 1 }
   "2.6": { status: done, issue: 135, pr: 136, review_rounds: 2 }
   "2.7": { status: done, issue: 137, pr: 138, review_rounds: 2 }
-  "2.8": { status: in-progress, issue: 140 }
+  "2.8": { status: done, issue: 140, pr: 141, review_rounds: 1 }
+  "2.9": { status: in-progress, issue: 142 }
 ---
 
 <!-- Human-readable display below (generated from frontmatter) -->
@@ -28,7 +29,8 @@ stories:
 | 2.5   | ✅ Complete    | #134 | -        | 1             | -        |
 | 2.6   | ✅ Complete    | #136 | >80%     | 2             | -        |
 | 2.7   | ✅ Complete    | #138 | >80%     | 2             | -        |
-| 2.8   | 🔄 In Progress | -    | -        | -             | -        |
+| 2.8   | ✅ Complete    | #141 | -        | 1             | -        |
+| 2.9   | 🔄 In Progress | -    | -        | -             | -        |
 
 ## Activity Log
 
@@ -77,3 +79,8 @@ stories:
 - [12:00] Epic 2 resumed for Story 2.8
 - [12:00] Story 2.8: Issue #140 created, branch story-2-8-auth-error-codes created
 - [12:00] Story 2.8: Implementation started
+- [xx:xx] Story 2.8: PR #141 created and merged to main
+- [xx:xx] Story 2.8: DONE
+- [18:45] Epic 2 resumed for Story 2.9
+- [18:45] Story 2.9: Issue #142 created, branch story-2-9-invite-code-generation created
+- [18:46] Story 2.9: Implementation started

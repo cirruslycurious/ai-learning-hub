@@ -27,6 +27,7 @@ export class AuthStack extends cdk.Stack {
   public readonly usersMeFunction: lambdaNode.NodejsFunction;
   public readonly validateInviteFunction: lambdaNode.NodejsFunction;
   public readonly apiKeysFunction: lambdaNode.NodejsFunction;
+  public readonly generateInviteFunction: lambdaNode.NodejsFunction;
 
   constructor(scope: Construct, id: string, props: AuthStackProps) {
     super(scope, id, props);
@@ -461,6 +462,90 @@ export class AuthStack extends cdk.Stack {
       value: this.apiKeysFunction.functionName,
       description: "API Keys Lambda function name",
       exportName: "AiLearningHub-ApiKeysFunctionName",
+    });
+
+    // Generate Invite Lambda (Story 2.9: POST/GET /users/invite-codes)
+    this.generateInviteFunction = new lambdaNode.NodejsFunction(
+      this,
+      "GenerateInviteFunction",
+      {
+        runtime: lambda.Runtime.NODEJS_LATEST,
+        handler: "handler",
+        entry: path.join(
+          process.cwd(),
+          "..",
+          "backend",
+          "functions",
+          "invite-codes",
+          "handler.ts"
+        ),
+        memorySize: 256,
+        timeout: cdk.Duration.seconds(10),
+        environment: {
+          INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
+          USERS_TABLE_NAME: usersTable.tableName,
+        },
+        bundling: {
+          minify: true,
+          sourceMap: true,
+          externalModules: ["@aws-sdk/*"],
+        },
+        tracing: lambda.Tracing.ACTIVE,
+      }
+    );
+
+    // Grant read/write to invite-codes table (PutItem for create, Query for list via GSI)
+    inviteCodesTable.grantReadWriteData(this.generateInviteFunction);
+
+    // Grant least-privilege: only UpdateItem needed for rate limit counter increments
+    this.generateInviteFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["dynamodb:UpdateItem"],
+        resources: [usersTable.tableArn],
+      })
+    );
+
+    // CDK Nag Suppressions for Generate Invite
+    NagSuppressions.addResourceSuppressions(
+      this.generateInviteFunction,
+      [
+        {
+          id: "AwsSolutions-IAM4",
+          reason:
+            "Lambda basic execution role (CloudWatch Logs, X-Ray) is managed by CDK construct",
+        },
+        {
+          id: "AwsSolutions-L1",
+          reason:
+            "Using NODEJS_LATEST which resolves to the latest stable Node.js runtime supported by CDK",
+        },
+      ],
+      true
+    );
+
+    NagSuppressions.addResourceSuppressions(
+      this.generateInviteFunction.role!,
+      [
+        {
+          id: "AwsSolutions-IAM5",
+          reason:
+            "Wildcard permissions for DynamoDB table read/write and X-Ray are scoped to specific table ARN by CDK grantReadWriteData",
+        },
+      ],
+      true
+    );
+
+    // Generate Invite Stack Outputs
+    new cdk.CfnOutput(this, "GenerateInviteFunctionArn", {
+      value: this.generateInviteFunction.functionArn,
+      description: "Generate Invite Lambda function ARN",
+      exportName: "AiLearningHub-GenerateInviteFunctionArn",
+    });
+
+    new cdk.CfnOutput(this, "GenerateInviteFunctionName", {
+      value: this.generateInviteFunction.functionName,
+      description: "Generate Invite Lambda function name",
+      exportName: "AiLearningHub-GenerateInviteFunctionName",
     });
   }
 }
