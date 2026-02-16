@@ -16,13 +16,13 @@ stories:
 
 # Epic 2 Auto-Run Progress
 
-| Story | Status         | PR   | Coverage | Review Rounds | Duration |
-| ----- | -------------- | ---- | -------- | ------------- | -------- |
-| 2.1   | ✅ Complete    | #123 | >80%     | 1             | ~4h      |
-| 2.2   | ✅ Complete    | #126 | -        | 2             | -        |
-| 2.3   | ✅ Complete    | #128 | -        | 1             | -        |
-| 2.4   | ⏳ Pending     | -    | -        | -             | -        |
-| 2.5   | ⏳ Pending     | -    | -        | -             | -        |
+| Story | Status      | PR   | Coverage | Review Rounds | Duration |
+| ----- | ----------- | ---- | -------- | ------------- | -------- |
+| 2.1   | ✅ Complete | #123 | >80%     | 1             | ~4h      |
+| 2.2   | ✅ Complete | #126 | -        | 2             | -        |
+| 2.3   | ✅ Complete | #128 | -        | 1             | -        |
+| 2.4   | ⏳ Pending  | -    | -        | -             | -        |
+| 2.5   | ⏳ Pending  | -    | -        | -             | -        |
 
 ## Activity Log
 
