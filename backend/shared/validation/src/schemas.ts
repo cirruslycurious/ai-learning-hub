@@ -152,3 +152,30 @@ export const apiKeyScopesSchema = z
   .array(apiKeyScopeSchema)
   .min(1)
   .describe("API key permission scopes");
+
+/**
+ * Update profile request body (PATCH /users/me)
+ * At least one field must be provided.
+ */
+export const updateProfileBodySchema = z
+  .object({
+    displayName: z
+      .string()
+      .trim()
+      .min(1, "Display name cannot be empty")
+      .max(255, "Display name too long")
+      .optional(),
+    globalPreferences: z
+      .record(z.unknown())
+      .refine((obj) => JSON.stringify(obj).length <= 10240, {
+        message: "globalPreferences must be under 10KB",
+      })
+      .optional(),
+  })
+  .refine(
+    (data) =>
+      data.displayName !== undefined || data.globalPreferences !== undefined,
+    {
+      message: "At least one field must be provided",
+    }
+  );
