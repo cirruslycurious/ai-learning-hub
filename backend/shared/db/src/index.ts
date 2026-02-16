@@ -38,5 +38,13 @@ export {
   type UpdateProfileFields,
 } from "./users.js";
 
+// Invite code operations
+export {
+  getInviteCode,
+  redeemInviteCode,
+  INVITE_CODES_TABLE_CONFIG,
+  type InviteCodeItem,
+} from "./invite-codes.js";
+
 // Re-export DynamoDB types for convenience
 export type { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";

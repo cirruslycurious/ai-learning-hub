@@ -50,7 +50,7 @@ vi.mock("@ai-learning-hub/logging", () => ({
   }),
 }));
 
-// Mock @ai-learning-hub/middleware (shared policy helpers)
+// Mock @ai-learning-hub/middleware (shared policy helpers + SSM)
 vi.mock("@ai-learning-hub/middleware", () => ({
   generatePolicy: (effect: "Allow" | "Deny") => ({
     Version: "2012-10-17",
@@ -76,6 +76,8 @@ vi.mock("@ai-learning-hub/middleware", () => ({
     },
     context: { errorCode },
   }),
+  getClerkSecretKey: vi.fn().mockResolvedValue("sk_test_fake_key"),
+  resetClerkSecretKeyCache: vi.fn(),
 }));
 
 import { handler } from "./handler.js";

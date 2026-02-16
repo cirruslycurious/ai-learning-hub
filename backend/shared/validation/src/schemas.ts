@@ -179,3 +179,16 @@ export const updateProfileBodySchema = z
       message: "At least one field must be provided",
     }
   );
+
+/**
+ * Invite code validation request body schema
+ * Code format: 8-16 alphanumeric characters (128-bit entropy)
+ */
+export const validateInviteBodySchema = z.object({
+  code: z
+    .string()
+    .min(8)
+    .max(16)
+    .regex(/^[a-zA-Z0-9]+$/, "Code must be alphanumeric")
+    .describe("Invite code (8-16 alphanumeric characters)"),
+});
