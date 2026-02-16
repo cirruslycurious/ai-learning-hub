@@ -39,6 +39,38 @@ describe("Error Handler", () => {
 
       expect(body.error.details?.field).toBe("email");
     });
+
+    it("should include Retry-After header for RATE_LIMITED errors with retryAfter detail", () => {
+      const error = new AppError(
+        ErrorCode.RATE_LIMITED,
+        "Rate limit exceeded",
+        { retryAfter: 1800, limit: 10, current: 11 }
+      );
+      const response = createErrorResponse(error, "req-rate");
+
+      expect(response.statusCode).toBe(429);
+      expect(response.headers?.["Retry-After"]).toBe("1800");
+      expect(response.headers?.["Content-Type"]).toBe("application/json");
+      expect(response.headers?.["X-Request-Id"]).toBe("req-rate");
+    });
+
+    it("should not include Retry-After header for RATE_LIMITED errors without retryAfter detail", () => {
+      const error = new AppError(ErrorCode.RATE_LIMITED, "Rate limit exceeded");
+      const response = createErrorResponse(error, "req-rate-no-retry");
+
+      expect(response.statusCode).toBe(429);
+      expect(response.headers?.["Retry-After"]).toBeUndefined();
+    });
+
+    it("should not include Retry-After header for non-rate-limit errors", () => {
+      const error = new AppError(ErrorCode.NOT_FOUND, "Not found", {
+        retryAfter: 60,
+      });
+      const response = createErrorResponse(error, "req-other");
+
+      expect(response.statusCode).toBe(404);
+      expect(response.headers?.["Retry-After"]).toBeUndefined();
+    });
   });
 
   describe("normalizeError", () => {

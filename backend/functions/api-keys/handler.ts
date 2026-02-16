@@ -10,6 +10,8 @@ import {
   createApiKey,
   listApiKeys,
   revokeApiKey,
+  enforceRateLimit,
+  USERS_TABLE_CONFIG,
 } from "@ai-learning-hub/db";
 import {
   wrapHandler,
@@ -34,9 +36,7 @@ const deletePathSchema = z.object({
 /**
  * POST /users/api-keys — Create a new API key (AC1, AC4, AC5).
  *
- * TODO(Story 2.7): Rate limiting (10 key generations per user per hour, AC5)
- * will be enforced when Story 2.7 adds the rate-limit middleware. The handler
- * correctly propagates RATE_LIMITED errors thrown by that middleware layer.
+ * Rate limit: 10 key generations per user per hour (Story 2.7, AC4).
  */
 async function handlePost(ctx: HandlerContext) {
   const { event, auth, logger, requestId } = ctx;
@@ -45,6 +45,20 @@ async function handlePost(ctx: HandlerContext) {
   const { name, scopes } = validateJsonBody(createApiKeyBodySchema, event.body);
 
   const client = getDefaultClient();
+
+  // Enforce rate limit: 10 key creations per user per hour (AC4)
+  await enforceRateLimit(
+    client,
+    USERS_TABLE_CONFIG.tableName,
+    {
+      operation: "apikey-create",
+      identifier: userId,
+      limit: 10,
+      windowSeconds: 3600,
+    },
+    logger
+  );
+
   const result = await createApiKey(client, userId, name, scopes);
 
   logger.info("API key created", { userId, keyId: result.id });

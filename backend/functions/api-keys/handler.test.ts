@@ -12,6 +12,7 @@ import { AppError, ErrorCode } from "@ai-learning-hub/types";
 const mockCreateApiKey = vi.fn();
 const mockListApiKeys = vi.fn();
 const mockRevokeApiKey = vi.fn();
+const mockEnforceRateLimit = vi.fn();
 const mockGetDefaultClient = vi.fn(() => ({}));
 
 vi.mock("@ai-learning-hub/db", () => ({
@@ -19,6 +20,12 @@ vi.mock("@ai-learning-hub/db", () => ({
   createApiKey: (...args: unknown[]) => mockCreateApiKey(...args),
   listApiKeys: (...args: unknown[]) => mockListApiKeys(...args),
   revokeApiKey: (...args: unknown[]) => mockRevokeApiKey(...args),
+  enforceRateLimit: (...args: unknown[]) => mockEnforceRateLimit(...args),
+  USERS_TABLE_CONFIG: {
+    tableName: "ai-learning-hub-users",
+    partitionKey: "PK",
+    sortKey: "SK",
+  },
 }));
 
 // Mock @ai-learning-hub/logging
@@ -467,12 +474,12 @@ describe("API Keys Handler", () => {
     });
   });
 
-  describe("Rate limiting (AC5)", () => {
+  describe("Rate limiting (AC5, Story 2.7 AC4)", () => {
     it("returns 429 when rate limit exceeded", async () => {
-      mockCreateApiKey.mockRejectedValueOnce(
+      mockEnforceRateLimit.mockRejectedValueOnce(
         new AppError(
           ErrorCode.RATE_LIMITED,
-          "Rate limit exceeded: 10 key generations per hour"
+          "Rate limit exceeded: 10 apikey-create per 1 hour(s)"
         )
       );
 
@@ -486,6 +493,41 @@ describe("API Keys Handler", () => {
       expect(result.statusCode).toBe(429);
       const body = JSON.parse(result.body);
       expect(body.error.code).toBe("RATE_LIMITED");
+      // createApiKey should NOT be called when rate limited
+      expect(mockCreateApiKey).not.toHaveBeenCalled();
+    });
+
+    it("calls enforceRateLimit with correct config before creating key", async () => {
+      mockEnforceRateLimit.mockResolvedValueOnce(undefined);
+      mockCreateApiKey.mockResolvedValueOnce({
+        id: "key_01",
+        name: "Test",
+        key: "raw-key",
+        scopes: ["*"],
+        createdAt: "2026-02-16T12:00:00Z",
+      });
+
+      const event = createEvent(
+        "POST",
+        { name: "Test", scopes: ["*"] },
+        "user_xyz"
+      );
+      await handler(event, mockContext);
+
+      expect(mockEnforceRateLimit).toHaveBeenCalledWith(
+        expect.anything(),
+        "ai-learning-hub-users",
+        expect.objectContaining({
+          operation: "apikey-create",
+          identifier: "user_xyz",
+          limit: 10,
+          windowSeconds: 3600,
+        }),
+        expect.anything()
+      );
+      // Verify rate limit check happens before key creation
+      expect(mockEnforceRateLimit).toHaveBeenCalledTimes(1);
+      expect(mockCreateApiKey).toHaveBeenCalledTimes(1);
     });
   });
 });

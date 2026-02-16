@@ -19,12 +19,22 @@ export function createErrorResponse(
 ): APIGatewayProxyResult {
   const body: ApiErrorResponse = error.toApiError(requestId);
 
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "X-Request-Id": requestId,
+  };
+
+  // Set Retry-After header for 429 rate-limited responses (AC5, RFC 6585)
+  if (
+    error.code === ErrorCode.RATE_LIMITED &&
+    error.details?.retryAfter != null
+  ) {
+    headers["Retry-After"] = String(error.details.retryAfter);
+  }
+
   return {
     statusCode: error.statusCode,
-    headers: {
-      "Content-Type": "application/json",
-      "X-Request-Id": requestId,
-    },
+    headers,
     body: JSON.stringify(body),
   };
 }
