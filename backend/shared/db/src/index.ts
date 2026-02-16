@@ -31,11 +31,16 @@ export {
   updateProfile,
   getApiKeyByHash,
   updateApiKeyLastUsed,
+  createApiKey,
+  listApiKeys,
+  revokeApiKey,
   USERS_TABLE_CONFIG,
   type UserProfile,
   type PublicMetadata,
   type ApiKeyItem,
   type UpdateProfileFields,
+  type CreateApiKeyResult,
+  type PublicApiKeyItem,
 } from "./users.js";
 
 // Invite code operations

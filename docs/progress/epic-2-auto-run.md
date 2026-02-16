@@ -1,28 +1,32 @@
 ---
 epic_id: Epic-2
 status: in-progress
-scope: ["2.1", "2.2", "2.3", "2.4", "2.5"]
+scope: ["2.1", "2.2", "2.3", "2.4", "2.5", "2.6", "2.7"]
 started: 2026-02-14T12:00:00Z
-last_updated: 2026-02-15T11:00:00Z
+last_updated: 2026-02-16T11:00:00Z
 stories:
   "2.1": { status: done, issue: 122, pr: 123, review_rounds: 1 }
   "2.2": { status: done, pr: 126, review_rounds: 2 }
   "2.3": { status: done, pr: 128, review_rounds: 1 }
-  "2.4": { status: pending }
-  "2.5": { status: pending }
+  "2.4": { status: done, pr: 132, review_rounds: 1 }
+  "2.5": { status: done, pr: 134, review_rounds: 1 }
+  "2.6": { status: in-progress, issue: 135 }
+  "2.7": { status: pending }
 ---
 
 <!-- Human-readable display below (generated from frontmatter) -->
 
 # Epic 2 Auto-Run Progress
 
-| Story | Status      | PR   | Coverage | Review Rounds | Duration |
-| ----- | ----------- | ---- | -------- | ------------- | -------- |
-| 2.1   | ✅ Complete | #123 | >80%     | 1             | ~4h      |
-| 2.2   | ✅ Complete | #126 | -        | 2             | -        |
-| 2.3   | ✅ Complete | #128 | -        | 1             | -        |
-| 2.4   | ⏳ Pending  | -    | -        | -             | -        |
-| 2.5   | ⏳ Pending  | -    | -        | -             | -        |
+| Story | Status         | PR   | Coverage | Review Rounds | Duration |
+| ----- | -------------- | ---- | -------- | ------------- | -------- |
+| 2.1   | ✅ Complete    | #123 | >80%     | 1             | ~4h      |
+| 2.2   | ✅ Complete    | #126 | -        | 2             | -        |
+| 2.3   | ✅ Complete    | #128 | -        | 1             | -        |
+| 2.4   | ✅ Complete    | #132 | -        | 1             | -        |
+| 2.5   | ✅ Complete    | #134 | -        | 1             | -        |
+| 2.6   | 🔄 In Progress | -    | -        | -             | -        |
+| 2.7   | ⏳ Pending     | -    | -        | -             | -        |
 
 ## Activity Log
 
@@ -43,3 +47,10 @@ stories:
 - [10:xx] Story 2.3: PR #128 created and merged to main
 - [10:xx] Story 2.3: DONE
 - [11:00] Epic 2 resumed for Stories 2.4, 2.5
+- [xx:xx] Story 2.4: PR #132 merged to main
+- [xx:xx] Story 2.4: DONE
+- [xx:xx] Story 2.5: PR #134 merged to main
+- [xx:xx] Story 2.5: DONE
+- [11:00] Epic 2 resumed for Stories 2.6, 2.7
+- [11:00] Story 2.6: Issue #135 created, branch story-2-6-api-key-crud created
+- [11:00] Story 2.6: Implementation started
