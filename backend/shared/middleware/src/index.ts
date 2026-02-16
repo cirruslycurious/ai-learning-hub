@@ -36,3 +36,6 @@ export {
   type WrappedHandler,
   type WrapperOptions,
 } from "./wrapper.js";
+
+// SSM utilities
+export { getClerkSecretKey, resetClerkSecretKeyCache } from "./ssm.js";

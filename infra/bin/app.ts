@@ -30,8 +30,9 @@ const bucketsStack = new BucketsStack(app, "AiLearningHubBuckets", {
 const authStack = new AuthStack(app, "AiLearningHubAuth", {
   env: awsEnv,
   description:
-    "Authentication stack for ai-learning-hub (JWT authorizer Lambda)",
+    "Authentication stack for ai-learning-hub (JWT authorizer, API key authorizer, invite validation)",
   usersTable: tablesStack.usersTable,
+  inviteCodesTable: tablesStack.inviteCodesTable,
 });
 authStack.addDependency(tablesStack);
 

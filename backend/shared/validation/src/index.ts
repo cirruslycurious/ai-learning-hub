@@ -22,6 +22,7 @@ export {
   userIdSchema,
   apiKeyScopeSchema,
   apiKeyScopesSchema,
+  validateInviteBodySchema,
 } from "./schemas.js";
 
 // Validation utilities

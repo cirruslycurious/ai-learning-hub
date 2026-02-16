@@ -11,7 +11,6 @@ import type {
   APIGatewayAuthorizerResult,
   Context,
 } from "aws-lambda";
-import { SSMClient, GetParameterCommand } from "@aws-sdk/client-ssm";
 import { verifyToken } from "@clerk/backend";
 import {
   getDefaultClient,
@@ -20,32 +19,11 @@ import {
   type PublicMetadata,
 } from "@ai-learning-hub/db";
 import { createLogger } from "@ai-learning-hub/logging";
-import { generatePolicy, deny } from "@ai-learning-hub/middleware";
-
-// Cold-start cache for Clerk secret key fetched from SSM
-let cachedClerkSecretKey: string | undefined;
-
-async function getClerkSecretKey(): Promise<string> {
-  if (cachedClerkSecretKey) return cachedClerkSecretKey;
-
-  const ssmParamName = process.env.CLERK_SECRET_KEY_PARAM;
-  if (!ssmParamName) {
-    throw new Error("CLERK_SECRET_KEY_PARAM environment variable is not set");
-  }
-
-  const ssm = new SSMClient({});
-  const result = await ssm.send(
-    new GetParameterCommand({ Name: ssmParamName, WithDecryption: true })
-  );
-
-  const value = result.Parameter?.Value;
-  if (!value) {
-    throw new Error("Clerk secret key not found in SSM");
-  }
-
-  cachedClerkSecretKey = value;
-  return value;
-}
+import {
+  generatePolicy,
+  deny,
+  getClerkSecretKey,
+} from "@ai-learning-hub/middleware";
 
 /**
  * Authorizer cache TTL in seconds (AC8).
