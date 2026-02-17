@@ -85,7 +85,7 @@ async function validateInviteHandler(ctx: HandlerContext) {
   );
 
   // Look up invite code in invite-codes table (AC1)
-  const inviteCode = await getInviteCode(client, code);
+  const inviteCode = await getInviteCode(client, code, logger);
 
   if (!inviteCode) {
     throw new AppError(ErrorCode.INVALID_INVITE_CODE, "Invalid invite code");
@@ -104,7 +104,7 @@ async function validateInviteHandler(ctx: HandlerContext) {
   // Skip DynamoDB write for idempotent case (already redeemed by this user)
   if (!isIdempotent) {
     try {
-      await redeemInviteCode(client, code, userId);
+      await redeemInviteCode(client, code, userId, logger);
     } catch (error: unknown) {
       // Race condition: another request redeemed the code between lookup and update.
       // The ConditionalCheckFailedException surfaces as NOT_FOUND from the DB layer.

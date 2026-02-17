@@ -396,12 +396,60 @@ describe("invite-codes DB operations", () => {
       expect(result.status).toBe("redeemed");
     });
 
-    it("includes generatedAt and expiresAt in output", () => {
+    it("includes generatedAt and expiresAt in public output", () => {
       const item = { ...baseItem, expiresAt: "2099-12-31T00:00:00Z" };
       const result = toPublicInviteCode(item);
 
       expect(result.generatedAt).toBe("2026-02-10T00:00:00Z");
       expect(result.expiresAt).toBe("2099-12-31T00:00:00Z");
+    });
+  });
+
+  describe("logger parameter forwarding (Story 2.1-D4)", () => {
+    const mockLogger = {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+      timed: vi.fn(),
+      child: vi.fn().mockReturnThis(),
+      setRequestContext: vi.fn(),
+    };
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it("getInviteCode forwards provided logger to getItem", async () => {
+      mockGetItem.mockResolvedValueOnce(null);
+
+      await getInviteCode(mockClient, "TESTCODE", mockLogger as never);
+
+      expect(mockGetItem).toHaveBeenCalledWith(
+        mockClient,
+        expect.any(Object),
+        expect.any(Object),
+        mockLogger
+      );
+    });
+
+    it("listInviteCodesByUser forwards provided logger to queryItems", async () => {
+      mockQueryItems.mockResolvedValueOnce({ items: [], hasMore: false });
+
+      await listInviteCodesByUser(
+        mockClient,
+        "user_123",
+        undefined,
+        undefined,
+        mockLogger as never
+      );
+
+      expect(mockQueryItems).toHaveBeenCalledWith(
+        mockClient,
+        expect.any(Object),
+        expect.any(Object),
+        mockLogger
+      );
     });
   });
 });

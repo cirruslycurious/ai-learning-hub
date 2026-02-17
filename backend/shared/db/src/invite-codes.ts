@@ -9,7 +9,7 @@ import {
   ErrorCode,
   type PaginatedResponse,
 } from "@ai-learning-hub/types";
-import { createLogger } from "@ai-learning-hub/logging";
+import { createLogger, type Logger } from "@ai-learning-hub/logging";
 import {
   getItem,
   putItem,
@@ -47,15 +47,16 @@ export interface InviteCodeItem extends Record<string, unknown> {
  */
 export async function getInviteCode(
   client: DynamoDBDocumentClient,
-  code: string
+  code: string,
+  logger?: Logger
 ): Promise<InviteCodeItem | null> {
-  const logger = createLogger();
+  const log = logger ?? createLogger();
 
   return getItem<InviteCodeItem>(
     client,
     INVITE_CODES_TABLE_CONFIG,
     { PK: `CODE#${code}`, SK: "META" },
-    logger
+    log
   );
 }
 
@@ -68,9 +69,10 @@ export async function getInviteCode(
 export async function redeemInviteCode(
   client: DynamoDBDocumentClient,
   code: string,
-  redeemedBy: string
+  redeemedBy: string,
+  logger?: Logger
 ): Promise<InviteCodeItem> {
-  const logger = createLogger({ userId: redeemedBy });
+  const log = logger ?? createLogger({ userId: redeemedBy });
   const now = new Date().toISOString();
 
   const result = await updateItem<InviteCodeItem>(
@@ -89,7 +91,7 @@ export async function redeemInviteCode(
         "attribute_exists(PK) AND attribute_not_exists(redeemedBy) AND (attribute_not_exists(isRevoked) OR isRevoked = :false)",
       returnValues: "ALL_NEW",
     },
-    logger
+    log
   );
 
   if (!result) {
@@ -99,7 +101,7 @@ export async function redeemInviteCode(
     );
   }
 
-  logger.info("Invite code redeemed", { code: code.slice(0, 4) + "***" });
+  log.info("Invite code redeemed", { code: code.slice(0, 4) + "***" });
   return result;
 }
 
@@ -127,9 +129,10 @@ function generateAlphanumericCode(length: number = 16): string {
 export async function createInviteCode(
   client: DynamoDBDocumentClient,
   userId: string,
-  expiresInHours: number = 7 * 24
+  expiresInHours: number = 7 * 24,
+  logger?: Logger
 ): Promise<{ code: string; generatedAt: string; expiresAt: string }> {
-  const logger = createLogger({ userId });
+  const log = logger ?? createLogger({ userId });
   const maxAttempts = 2;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -155,10 +158,10 @@ export async function createInviteCode(
         INVITE_CODES_TABLE_CONFIG,
         item,
         { conditionExpression: "attribute_not_exists(PK)" },
-        logger
+        log
       );
 
-      logger.info("Invite code created", { code: code.slice(0, 4) + "***" });
+      log.info("Invite code created", { code: code.slice(0, 4) + "***" });
       return { code, generatedAt, expiresAt };
     } catch (error) {
       if (
@@ -166,7 +169,7 @@ export async function createInviteCode(
         error.code === ErrorCode.CONFLICT &&
         attempt < maxAttempts - 1
       ) {
-        logger.warn("Invite code collision, retrying", { attempt });
+        log.warn("Invite code collision, retrying", { attempt });
         continue;
       }
       if (AppError.isAppError(error) && error.code === ErrorCode.CONFLICT) {
@@ -194,9 +197,10 @@ export async function listInviteCodesByUser(
   client: DynamoDBDocumentClient,
   userId: string,
   limit?: number,
-  cursor?: string
+  cursor?: string,
+  logger?: Logger
 ): Promise<PaginatedResponse<InviteCodeItem>> {
-  const logger = createLogger({ userId });
+  const log = logger ?? createLogger({ userId });
 
   const result = await queryItems<InviteCodeItem>(
     client,
@@ -208,7 +212,7 @@ export async function listInviteCodesByUser(
       limit,
       cursor,
     },
-    logger
+    log
   );
 
   // Sort in-memory by generatedAt descending (newest first)

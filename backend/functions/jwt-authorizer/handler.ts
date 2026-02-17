@@ -58,12 +58,12 @@ export async function handler(
 
     // AC5: Fast path — read profile first (1 DB read for existing users)
     const client = getDefaultClient();
-    let profile = await getProfile(client, clerkId);
+    let profile = await getProfile(client, clerkId, logger);
 
     // AC4: Create-on-first-auth if profile doesn't exist
     if (!profile) {
-      await ensureProfile(client, clerkId, publicMetadata);
-      profile = await getProfile(client, clerkId);
+      await ensureProfile(client, clerkId, publicMetadata, logger);
+      profile = await getProfile(client, clerkId, logger);
     }
 
     // Guard: profile must exist after ensureProfile

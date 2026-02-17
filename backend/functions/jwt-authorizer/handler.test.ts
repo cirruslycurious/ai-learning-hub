@@ -237,7 +237,8 @@ describe("JWT Authorizer Handler", () => {
       expect(mockEnsureProfile).toHaveBeenCalledWith(
         expect.anything(), // client
         "user_new_123",
-        metadata
+        metadata,
+        expect.anything()
       );
       // getProfile should be called twice for new users
       expect(mockGetProfile).toHaveBeenCalledTimes(2);
@@ -264,7 +265,8 @@ describe("JWT Authorizer Handler", () => {
       expect(mockGetProfile).toHaveBeenCalledTimes(1);
       expect(mockGetProfile).toHaveBeenCalledWith(
         expect.anything(),
-        "user_existing"
+        "user_existing",
+        expect.anything()
       );
       // Fast path: ensureProfile should NOT be called
       expect(mockEnsureProfile).not.toHaveBeenCalled();

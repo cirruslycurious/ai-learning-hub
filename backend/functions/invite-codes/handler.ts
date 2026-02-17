@@ -45,7 +45,7 @@ async function handlePost(ctx: HandlerContext) {
     logger
   );
 
-  const result = await createInviteCode(client, userId);
+  const result = await createInviteCode(client, userId, undefined, logger);
 
   logger.info("Invite code generated", { userId });
   return createSuccessResponse(result, requestId, 201);
@@ -64,7 +64,13 @@ async function handleGet(ctx: HandlerContext) {
   );
 
   const client = getDefaultClient();
-  const result = await listInviteCodesByUser(client, userId, limit, cursor);
+  const result = await listInviteCodesByUser(
+    client,
+    userId,
+    limit,
+    cursor,
+    logger
+  );
 
   const publicItems = result.items.map(toPublicInviteCode);
 

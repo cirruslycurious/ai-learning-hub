@@ -101,7 +101,9 @@ describe("Invite Codes Handler", () => {
 
       expect(mockCreateInviteCode).toHaveBeenCalledWith(
         expect.anything(),
-        "user_abc"
+        "user_abc",
+        undefined,
+        expect.anything()
       );
     });
   });
@@ -223,7 +225,8 @@ describe("Invite Codes Handler", () => {
         expect.anything(),
         "user_123",
         5,
-        "some-cursor"
+        "some-cursor",
+        expect.anything()
       );
     });
   });
