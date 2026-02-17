@@ -59,7 +59,7 @@ development_status:
   epic-1-retrospective: done
 
   # Epic 2: User Authentication & API Keys (9 stories)
-  epic-2: in-progress
+  epic-2: done
   2-1-clerk-jwt-authorizer: done
   2-2-api-key-authorizer: done
   2-3-scope-middleware: done
@@ -67,12 +67,31 @@ development_status:
   2-5-user-profile: done
   2-6-api-key-crud: done
   2-7-rate-limiting: done
-  2-8-auth-error-codes: in-progress
-  2-9-invite-code-generation: ready-for-dev
-  epic-2-retrospective: optional
+  2-8-auth-error-codes: done
+  2-9-invite-code-generation: done
+  epic-2-retrospective: done
 
-  # Epic 3: Save URLs - Core CRUD (stories TBD)
-  epic-3: backlog
+  # Epic 2.1: Technical Debt Paydown (5 tasks — must complete before Epic 3 coding)
+  epic-2-1-debt: backlog
+  2-1-d1-api-gateway-stack: backlog  # CDK RestApi, routes, authorizer wiring, Gateway Responses, CORS, extensible pattern
+  2-1-d2-backend-coverage-thresholds: backlog  # Set vitest thresholds to 80%
+  2-1-d3-wrap-handler-mock-dedup: backlog  # Extract shared test mock utility
+  2-1-d4-request-scoped-logger: backlog  # Add optional logger param to all DB functions
+  2-1-d5-e2e-integration-test: backlog  # Full HTTP chain verification: API GW → Authorizer → Lambda → DynamoDB → ADR-008 response
+
+  # Epic 3: Save URLs - Core CRUD (11 stories)
+  epic-3: in-progress
+  3-1a-save-validation-modules: ready-for-dev
+  3-1b-create-save-api: backlog
+  3-2-list-get-saves-api: backlog
+  3-3-update-delete-restore-api: backlog
+  3-4-save-filtering-sorting: backlog
+  3-5-ios-shortcut-capture: backlog
+  3-6-pwa-share-target: backlog
+  3-6a-ui-foundation-design-system: backlog
+  3-7-saves-list-page: backlog
+  3-8-save-filtering-sorting-ui: backlog
+  3-9-save-actions-feedback: backlog
   epic-3-retrospective: optional
 
   # Epic 4: Project Management (stories TBD)
