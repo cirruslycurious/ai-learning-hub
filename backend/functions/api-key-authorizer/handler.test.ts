@@ -186,7 +186,8 @@ describe("API Key Authorizer Handler", () => {
 
       expect(mockGetProfile).toHaveBeenCalledWith(
         expect.anything(),
-        "clerk_123"
+        "clerk_123",
+        expect.anything()
       );
     });
   });
@@ -396,7 +397,8 @@ describe("API Key Authorizer Handler", () => {
       expect(mockUpdateApiKeyLastUsed).toHaveBeenCalledWith(
         expect.anything(),
         "clerk_123",
-        "key_abc"
+        "key_abc",
+        expect.anything()
       );
     });
 

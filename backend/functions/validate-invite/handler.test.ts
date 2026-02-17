@@ -104,7 +104,8 @@ describe("Validate Invite Handler", () => {
       expect(result.statusCode).toBe(200);
       expect(mockGetInviteCode).toHaveBeenCalledWith(
         expect.anything(),
-        "ABCD1234"
+        "ABCD1234",
+        expect.anything()
       );
     });
   });
@@ -137,7 +138,8 @@ describe("Validate Invite Handler", () => {
       expect(mockRedeemInviteCode).toHaveBeenCalledWith(
         expect.anything(),
         "VALIDCODE1",
-        "user_new"
+        "user_new",
+        expect.anything()
       );
 
       // Verify Clerk metadata update

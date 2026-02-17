@@ -112,7 +112,8 @@ describe("API Keys Handler", () => {
         expect.anything(),
         "user_abc",
         "Test",
-        ["*"]
+        ["*"],
+        expect.anything()
       );
     });
   });
@@ -163,7 +164,8 @@ describe("API Keys Handler", () => {
         expect.anything(),
         "user_xyz",
         expect.any(Number),
-        undefined
+        undefined,
+        expect.anything()
       );
     });
   });
@@ -182,7 +184,8 @@ describe("API Keys Handler", () => {
       expect(mockRevokeApiKey).toHaveBeenCalledWith(
         expect.anything(),
         "user_123",
-        "key_01"
+        "key_01",
+        expect.anything()
       );
     });
 

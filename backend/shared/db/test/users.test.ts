@@ -527,3 +527,52 @@ describe("revokeApiKey", () => {
     ).rejects.toThrow("DynamoDB error");
   });
 });
+
+describe("logger parameter forwarding (Story 2.1-D4)", () => {
+  const mockLogger = {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+    timed: vi.fn(),
+    child: vi.fn().mockReturnThis(),
+    setRequestContext: vi.fn(),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("getProfile forwards provided logger to getItem", async () => {
+    mockGetItem.mockResolvedValueOnce(null);
+
+    await getProfile(mockClient, "user_123", mockLogger as never);
+
+    expect(mockGetItem).toHaveBeenCalledWith(
+      mockClient,
+      USERS_TABLE_CONFIG,
+      expect.any(Object),
+      mockLogger
+    );
+  });
+
+  it("createApiKey forwards provided logger to putItem", async () => {
+    mockPutItem.mockResolvedValueOnce(undefined);
+
+    await createApiKey(
+      mockClient,
+      "user_123",
+      "Key",
+      ["*"],
+      mockLogger as never
+    );
+
+    expect(mockPutItem).toHaveBeenCalledWith(
+      mockClient,
+      USERS_TABLE_CONFIG,
+      expect.any(Object),
+      expect.any(Object),
+      mockLogger
+    );
+  });
+});

@@ -6,7 +6,7 @@ import type { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { randomBytes, createHash } from "crypto";
 import { ulid } from "ulidx";
 import { AppError, ErrorCode } from "@ai-learning-hub/types";
-import { createLogger } from "@ai-learning-hub/logging";
+import { createLogger, type Logger } from "@ai-learning-hub/logging";
 import {
   getItem,
   putItem,
@@ -47,15 +47,16 @@ export interface PublicMetadata {
  */
 export async function getProfile(
   client: DynamoDBDocumentClient,
-  clerkId: string
+  clerkId: string,
+  logger?: Logger
 ): Promise<UserProfile | null> {
-  const logger = createLogger({ userId: clerkId });
+  const log = logger ?? createLogger({ userId: clerkId });
 
   return getItem<UserProfile>(
     client,
     USERS_TABLE_CONFIG,
     { PK: `USER#${clerkId}`, SK: "PROFILE" },
-    logger
+    log
   );
 }
 
@@ -69,9 +70,10 @@ export async function getProfile(
 export async function ensureProfile(
   client: DynamoDBDocumentClient,
   clerkId: string,
-  metadata: PublicMetadata
+  metadata: PublicMetadata,
+  logger?: Logger
 ): Promise<void> {
-  const logger = createLogger({ userId: clerkId });
+  const log = logger ?? createLogger({ userId: clerkId });
   const now = new Date().toISOString();
 
   const item: UserProfile = {
@@ -93,9 +95,9 @@ export async function ensureProfile(
       {
         conditionExpression: "attribute_not_exists(PK)",
       },
-      logger
+      log
     );
-    logger.info("Profile created on first auth", { clerkId });
+    log.info("Profile created on first auth", { clerkId });
   } catch (error) {
     // ConditionalCheckFailed means profile already exists — expected on subsequent requests
     if (AppError.isAppError(error) && error.code === ErrorCode.CONFLICT) {
@@ -135,9 +137,10 @@ export interface ApiKeyItem extends Record<string, unknown> {
  */
 export async function getApiKeyByHash(
   client: DynamoDBDocumentClient,
-  keyHash: string
+  keyHash: string,
+  logger?: Logger
 ): Promise<ApiKeyItem | null> {
-  const logger = createLogger();
+  const log = logger ?? createLogger();
 
   const result = await queryItems<ApiKeyItem>(
     client,
@@ -148,7 +151,7 @@ export async function getApiKeyByHash(
       expressionAttributeValues: { ":keyHash": keyHash },
       limit: 1,
     },
-    logger
+    log
   );
 
   return result.items[0] ?? null;
@@ -169,9 +172,10 @@ export interface UpdateProfileFields {
 export async function updateProfile(
   client: DynamoDBDocumentClient,
   clerkId: string,
-  fields: UpdateProfileFields
+  fields: UpdateProfileFields,
+  logger?: Logger
 ): Promise<UserProfile> {
-  const logger = createLogger({ userId: clerkId });
+  const log = logger ?? createLogger({ userId: clerkId });
   const now = new Date().toISOString();
 
   // Build dynamic SET expression from provided fields
@@ -197,7 +201,7 @@ export async function updateProfile(
       conditionExpression: "attribute_exists(PK)",
       returnValues: "ALL_NEW",
     },
-    logger
+    log
   );
 
   // Defensive fallback: updateItem helper already throws NOT_FOUND on
@@ -218,9 +222,10 @@ export async function updateProfile(
 export async function updateApiKeyLastUsed(
   client: DynamoDBDocumentClient,
   userId: string,
-  keyId: string
+  keyId: string,
+  logger?: Logger
 ): Promise<void> {
-  const logger = createLogger({ userId });
+  const log = logger ?? createLogger({ userId });
   const now = new Date().toISOString();
 
   await updateItem(
@@ -231,7 +236,7 @@ export async function updateApiKeyLastUsed(
       updateExpression: "SET lastUsedAt = :now, updatedAt = :now",
       expressionAttributeValues: { ":now": now },
     },
-    logger
+    log
   );
 }
 
@@ -277,9 +282,10 @@ export async function createApiKey(
   client: DynamoDBDocumentClient,
   userId: string,
   name: string,
-  scopes: string[]
+  scopes: string[],
+  logger?: Logger
 ): Promise<CreateApiKeyResult> {
-  const logger = createLogger({ userId });
+  const log = logger ?? createLogger({ userId });
   const now = new Date().toISOString();
 
   // Generate 256-bit random key (AC1)
@@ -304,10 +310,10 @@ export async function createApiKey(
     USERS_TABLE_CONFIG,
     item,
     { conditionExpression: "attribute_not_exists(PK)" },
-    logger
+    log
   );
 
-  logger.info("API key created", { userId, keyId });
+  log.info("API key created", { userId, keyId });
 
   return {
     id: keyId,
@@ -332,13 +338,14 @@ export async function listApiKeys(
   client: DynamoDBDocumentClient,
   userId: string,
   limit: number = 20,
-  cursor?: string
+  cursor?: string,
+  logger?: Logger
 ): Promise<{
   items: PublicApiKeyItem[];
   hasMore: boolean;
   nextCursor?: string;
 }> {
-  const logger = createLogger({ userId });
+  const log = logger ?? createLogger({ userId });
 
   const result = await queryItems<ApiKeyItem>(
     client,
@@ -353,7 +360,7 @@ export async function listApiKeys(
       limit,
       cursor,
     },
-    logger
+    log
   );
 
   // Strip internal fields — never return key hash (NFR-S3, NFR-S8)
@@ -381,9 +388,10 @@ export async function listApiKeys(
 export async function revokeApiKey(
   client: DynamoDBDocumentClient,
   userId: string,
-  keyId: string
+  keyId: string,
+  logger?: Logger
 ): Promise<void> {
-  const logger = createLogger({ userId });
+  const log = logger ?? createLogger({ userId });
   const now = new Date().toISOString();
 
   await updateItem(
@@ -396,6 +404,6 @@ export async function revokeApiKey(
       conditionExpression:
         "attribute_exists(PK) AND attribute_not_exists(revokedAt)",
     },
-    logger
+    log
   );
 }

@@ -41,7 +41,7 @@ async function handleGet(ctx: HandlerContext) {
   const userId = auth!.userId;
 
   const client = getDefaultClient();
-  const profile = await getProfile(client, userId);
+  const profile = await getProfile(client, userId, logger);
 
   if (!profile) {
     throw new AppError(ErrorCode.NOT_FOUND, "User profile not found");
@@ -61,7 +61,7 @@ async function handlePatch(ctx: HandlerContext) {
   const fields = validateJsonBody(updateProfileBodySchema, event.body);
 
   const client = getDefaultClient();
-  const updated = await updateProfile(client, userId, fields);
+  const updated = await updateProfile(client, userId, fields, logger);
 
   logger.info("Profile updated", { userId });
   return toPublicProfile(updated);

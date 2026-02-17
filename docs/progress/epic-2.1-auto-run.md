@@ -1,9 +1,9 @@
 ---
 epic_id: Epic-2.1
 status: in-progress
-scope: ["2.1-D2", "2.1-D3"]
+scope: ["2.1-D2", "2.1-D3", "2.1-D4"]
 started: 2026-02-17T00:24:04Z
-last_updated: 2026-02-17T02:00:00Z
+last_updated: 2026-02-17T20:00:00Z
 stories:
   "2.1-D2":
     {
@@ -16,7 +16,24 @@ stories:
       review_rounds: 2,
       duration: "31m",
     }
-  "2.1-D3": { status: in-progress }
+  "2.1-D3":
+    {
+      status: done,
+      issue: 148,
+      pr: 149,
+      branch: story-2-1-d3-wraphandler-mock-dedup,
+      commit: 2f1f87ebe4c2997d80a64983e8ebbac1f911e4b1,
+      coverage: 99,
+      review_rounds: 2,
+      duration: "~45m",
+    }
+  "2.1-D4":
+    {
+      status: in-progress,
+      issue: 150,
+      branch: story-2-1-d4-request-scoped-logger-in-db-layer,
+      review_rounds: 1,
+    }
 ---
 
 <!-- Human-readable display below (generated from frontmatter) -->
@@ -26,7 +43,8 @@ stories:
 | Story  | Status         | PR   | Coverage | Review Rounds | Duration |
 | ------ | -------------- | ---- | -------- | ------------- | -------- |
 | 2.1-D2 | ✅ Complete    | #147 | 99%      | 2             | 31m      |
-| 2.1-D3 | 🔄 In Progress | -    | -        | -             | -        |
+| 2.1-D3 | ✅ Complete    | #149 | 99%      | 2             | ~45m     |
+| 2.1-D4 | 🔄 In Progress | #150 | -        | 1             | -        |
 
 ## Activity Log
 
@@ -40,3 +58,11 @@ stories:
 - [00:52] Story 2.1-D2: Committed, pushed, PR #147 created
 - [00:55] Story 2.1-D2: CI green (all checks passed), synced with main, marked done
 - [02:00] Story 2.1-D3: Starting implementation (wrapHandler Test Mock Dedup)
+- [02:10] Story 2.1-D3: Audit complete — 4 REST handler tests share wrapHandler mock (~127 lines each)
+- [02:20] Story 2.1-D3: Shared mock-wrapper.ts created with 26 unit tests, barrel export, all 4 handlers migrated
+- [02:25] Story 2.1-D3: Quality gate passed (752 tests, lint clean, type-check clean, 99% coverage)
+- [02:30] Story 2.1-D3: Review round 1 — 0 Critical, 3 Important (scopes dropped, barrel missing types), 4 Minor
+- [02:35] Story 2.1-D3: Fixer addressed all findings (scopes plumbing, barrel type exports, extra tests)
+- [02:38] Story 2.1-D3: Review round 2 — 0 Critical, 1 Important (scopes test coverage), 1 false positive
+- [02:40] Story 2.1-D3: Added 2 scopes tests, committed (+164/-652 = net -488 lines), PR #149 created
+- [02:45] Story 2.1-D3: CI green (all checks passed), PR merged, marked done

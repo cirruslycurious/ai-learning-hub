@@ -59,7 +59,7 @@ async function handlePost(ctx: HandlerContext) {
     logger
   );
 
-  const result = await createApiKey(client, userId, name, scopes);
+  const result = await createApiKey(client, userId, name, scopes, logger);
 
   logger.info("API key created", { userId, keyId: result.id });
   return createSuccessResponse(result, requestId, 201);
@@ -78,7 +78,7 @@ async function handleGet(ctx: HandlerContext) {
   );
 
   const client = getDefaultClient();
-  const result = await listApiKeys(client, userId, limit, cursor);
+  const result = await listApiKeys(client, userId, limit, cursor, logger);
 
   logger.info("API keys listed", { userId, count: result.items.length });
   return result;
@@ -102,7 +102,7 @@ async function handleDelete(ctx: HandlerContext) {
   );
 
   const client = getDefaultClient();
-  await revokeApiKey(client, userId, keyId);
+  await revokeApiKey(client, userId, keyId, logger);
 
   logger.info("API key revoked", { userId, keyId });
   return createNoContentResponse(requestId);

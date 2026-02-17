@@ -129,7 +129,8 @@ describe("Users Me Handler", () => {
 
       expect(mockGetProfile).toHaveBeenCalledWith(
         expect.anything(),
-        "user_abc"
+        "user_abc",
+        expect.anything()
       );
     });
   });
@@ -156,7 +157,8 @@ describe("Users Me Handler", () => {
       expect(mockUpdateProfile).toHaveBeenCalledWith(
         expect.anything(),
         "user_123",
-        { displayName: "New Name" }
+        { displayName: "New Name" },
+        expect.anything()
       );
     });
 

@@ -58,7 +58,7 @@ export async function handler(
     const keyHash = hashApiKey(apiKey);
     const client = getDefaultClient();
 
-    const apiKeyItem = await getApiKeyByHash(client, keyHash);
+    const apiKeyItem = await getApiKeyByHash(client, keyHash, logger);
 
     // AC5: Key not found → throw Unauthorized
     if (!apiKeyItem) {
@@ -73,7 +73,7 @@ export async function handler(
     }
 
     // AC2: Fetch PROFILE and check suspension
-    const profile = await getProfile(client, apiKeyItem.userId);
+    const profile = await getProfile(client, apiKeyItem.userId, logger);
 
     if (!profile) {
       logger.error(
@@ -99,14 +99,17 @@ export async function handler(
     // but may be dropped under cold-start or high-concurrency scenarios.
     // This trade-off is accepted to avoid adding latency to the authorizer
     // critical path. For guaranteed tracking, consider EventBridge in a future story.
-    updateApiKeyLastUsed(client, apiKeyItem.userId, apiKeyItem.keyId).catch(
-      (err) => {
-        logger.warn("Failed to update API key lastUsedAt", {
-          keyId: apiKeyItem.keyId,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-    );
+    updateApiKeyLastUsed(
+      client,
+      apiKeyItem.userId,
+      apiKeyItem.keyId,
+      logger
+    ).catch((err) => {
+      logger.warn("Failed to update API key lastUsedAt", {
+        keyId: apiKeyItem.keyId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
 
     // AC3: Return Allow with context
     // Defensive fallback: profile.role is required and ensureProfile defaults to "user",
