@@ -215,6 +215,8 @@ paths = [
   '''docs/progress/aws-setup-complete.md''',
   # Docs that mention connection-string patterns as examples (mongodb://, postgres://, redis://)
   '''docs/writing-pipeline/projects/''',
+  # Review findings docs that reference placeholder AWS account IDs (000000000000, 123456789012)
+  '''docs/temp/''',
   '''docs/research/''',
   '''\.claude/docs/orchestrator-safety\.md''',
 ]
