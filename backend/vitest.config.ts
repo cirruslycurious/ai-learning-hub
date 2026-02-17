@@ -3,7 +3,11 @@ import { defineConfig } from "vitest/config";
 // Applies to backend/functions/** handler code (shared packages have their own configs)
 export default defineConfig({
   test: {
-    include: ["test/**/*.test.ts", "functions/**/*.test.ts"],
+    include: [
+      "test/**/*.test.ts",
+      "functions/**/*.test.ts",
+      "test-utils/**/*.test.ts",
+    ],
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
@@ -22,6 +26,7 @@ export default defineConfig({
         "**/*.config.{js,ts}",
         "**/*.d.ts",
         "test/**",
+        "test-utils/**",
       ],
     },
   },

@@ -5,8 +5,13 @@
  * Covers all acceptance criteria: AC1-AC7.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { APIGatewayProxyEvent, Context } from "aws-lambda";
 import { AppError, ErrorCode } from "@ai-learning-hub/types";
+import {
+  createMockEvent,
+  createMockContext,
+  mockCreateLoggerModule,
+  mockMiddlewareModule,
+} from "../../test-utils/index.js";
 
 // Mock @ai-learning-hub/db
 const mockCreateInviteCode = vi.fn();
@@ -35,123 +40,10 @@ vi.mock("@ai-learning-hub/db", () => ({
 }));
 
 // Mock @ai-learning-hub/logging
-vi.mock("@ai-learning-hub/logging", () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    timed: vi.fn(),
-    child: vi.fn().mockReturnThis(),
-    setRequestContext: vi.fn(),
-  }),
-}));
+vi.mock("@ai-learning-hub/logging", () => mockCreateLoggerModule());
 
 // Mock @ai-learning-hub/middleware
-vi.mock("@ai-learning-hub/middleware", () => ({
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
-  wrapHandler: (handler: Function, options: Record<string, unknown>) => {
-    return async (event: APIGatewayProxyEvent, context: Context) => {
-      // Simulate auth requirement
-      if (options.requireAuth) {
-        const authorizer = event.requestContext?.authorizer;
-        if (!authorizer?.userId) {
-          return {
-            statusCode: 401,
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              error: {
-                code: "UNAUTHORIZED",
-                message: "Authentication required",
-                requestId: "test-req-id",
-              },
-            }),
-          };
-        }
-      }
-
-      const auth = event.requestContext?.authorizer
-        ? {
-            userId: event.requestContext.authorizer.userId as string,
-            roles: [(event.requestContext.authorizer.role as string) || "user"],
-            isApiKey: event.requestContext.authorizer.authMethod === "api-key",
-          }
-        : null;
-
-      try {
-        const result = await handler({
-          event,
-          context,
-          auth,
-          requestId: "test-req-id",
-          logger: {
-            info: vi.fn(),
-            warn: vi.fn(),
-            error: vi.fn(),
-            debug: vi.fn(),
-            timed: vi.fn(),
-            child: vi.fn().mockReturnThis(),
-            setRequestContext: vi.fn(),
-          },
-          startTime: Date.now(),
-        });
-
-        // If result is already an API Gateway response, return as-is
-        if (
-          typeof result === "object" &&
-          result !== null &&
-          "statusCode" in result
-        ) {
-          return result;
-        }
-
-        // Auto-wrap success
-        return {
-          statusCode: 200,
-          headers: {
-            "Content-Type": "application/json",
-            "X-Request-Id": "test-req-id",
-          },
-          body: JSON.stringify({ data: result }),
-        };
-      } catch (error: unknown) {
-        const err = error as {
-          code?: string;
-          statusCode?: number;
-          message?: string;
-        };
-        const code = err.code ?? "INTERNAL_ERROR";
-        const statusCode = err.statusCode ?? 500;
-        const message = err.message ?? "An unexpected error occurred";
-        return {
-          statusCode,
-          headers: {
-            "Content-Type": "application/json",
-            "X-Request-Id": "test-req-id",
-          },
-          body: JSON.stringify({
-            error: { code, message, requestId: "test-req-id" },
-          }),
-        };
-      }
-    };
-  },
-  extractAuthContext: vi.fn(),
-  requireAuth: vi.fn(),
-  createSuccessResponse: (
-    data: unknown,
-    requestId: string,
-    statusCode = 200
-  ) => ({
-    statusCode,
-    headers: {
-      "Content-Type": "application/json",
-      "X-Request-Id": requestId,
-    },
-    body: JSON.stringify({ data }),
-  }),
-  handleError: vi.fn(),
-}));
+vi.mock("@ai-learning-hub/middleware", () => mockMiddlewareModule());
 
 // Note: @ai-learning-hub/validation is NOT mocked — uses real implementation
 
@@ -161,55 +53,16 @@ function createEvent(
   method: "POST" | "GET",
   userId?: string,
   queryStringParameters?: Record<string, string> | null
-): APIGatewayProxyEvent {
-  return {
-    httpMethod: method,
+) {
+  return createMockEvent({
+    method,
     path: "/users/invite-codes",
-    body: null,
-    headers: { "Content-Type": "application/json" },
-    multiValueHeaders: {},
-    isBase64Encoded: false,
-    pathParameters: null,
+    userId,
     queryStringParameters: queryStringParameters ?? null,
-    multiValueQueryStringParameters: null,
-    stageVariables: null,
-    resource: "/users/invite-codes",
-    requestContext: {
-      accountId: "123456789",
-      apiId: "api-id",
-      authorizer: userId
-        ? { userId, role: "user", authMethod: "jwt" }
-        : undefined,
-      protocol: "HTTP/1.1",
-      httpMethod: method,
-      identity: {
-        sourceIp: "127.0.0.1",
-        accessKey: null,
-        accountId: null,
-        apiKey: null,
-        apiKeyId: null,
-        caller: null,
-        clientCert: null,
-        cognitoAuthenticationProvider: null,
-        cognitoAuthenticationType: null,
-        cognitoIdentityId: null,
-        cognitoIdentityPoolId: null,
-        principalOrgId: null,
-        user: null,
-        userAgent: null,
-        userArn: null,
-      },
-      path: "/users/invite-codes",
-      stage: "dev",
-      requestId: "test-request-id",
-      requestTimeEpoch: Date.now(),
-      resourceId: "resource-id",
-      resourcePath: "/users/invite-codes",
-    },
-  };
+  });
 }
 
-const mockContext = {} as Context;
+const mockContext = createMockContext();
 
 describe("Invite Codes Handler", () => {
   beforeEach(() => {

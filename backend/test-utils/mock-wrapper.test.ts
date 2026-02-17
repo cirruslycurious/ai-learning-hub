@@ -304,5 +304,54 @@ describe("mockMiddlewareModule", () => {
         })
       );
     });
+
+    it("passes scopes through to inner handler auth object", async () => {
+      const mod = mockMiddlewareModule();
+      const innerHandler = vi.fn().mockResolvedValue({ ok: true });
+      const wrapped = mod.wrapHandler(innerHandler, { requireAuth: true });
+
+      const event = createMockEvent({
+        userId: "user_123",
+        authMethod: "api-key",
+        scopes: ["saves:write"],
+      });
+      const result = await wrapped(event, createMockContext());
+
+      expect(result.statusCode).toBe(200);
+      expect(innerHandler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          auth: expect.objectContaining({
+            userId: "user_123",
+            isApiKey: true,
+            scopes: ["saves:write"],
+          }),
+        })
+      );
+    });
+
+    it("parses JSON string scopes from authorizer", async () => {
+      const mod = mockMiddlewareModule();
+      const innerHandler = vi.fn().mockResolvedValue({ ok: true });
+      const wrapped = mod.wrapHandler(innerHandler, {});
+
+      // Simulate API Gateway passing scopes as a JSON string
+      const event = createMockEvent({ userId: "user_123" });
+      event.requestContext.authorizer = {
+        userId: "user_123",
+        role: "user",
+        authMethod: "api-key",
+        scopes: '["saves:write","saves:read"]',
+      };
+      const result = await wrapped(event, createMockContext());
+
+      expect(result.statusCode).toBe(200);
+      expect(innerHandler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          auth: expect.objectContaining({
+            scopes: ["saves:write", "saves:read"],
+          }),
+        })
+      );
+    });
   });
 });
