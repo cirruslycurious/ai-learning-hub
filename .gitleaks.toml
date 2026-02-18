@@ -212,6 +212,10 @@ paths = [
   '''.claude/agents/epic-fixer.md''',
   '''.claude/skills/epic-orchestrator/SKILL.md''',
   '''infra/test/config/aws-env.test.ts''',
+  # API Gateway stack tests use placeholder account ID (123456789012) for CDK synthesis
+  '''infra/test/stacks/api/api-gateway.stack.test.ts''',
+  '''infra/test/stacks/api/auth-routes.stack.test.ts''',
+  '''infra/test/stacks/api/cross-stack-deps.test.ts''',
   '''docs/progress/aws-setup-complete.md''',
   # Docs that mention connection-string patterns as examples (mongodb://, postgres://, redis://)
   '''docs/writing-pipeline/projects/''',

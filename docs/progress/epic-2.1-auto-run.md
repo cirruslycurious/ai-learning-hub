@@ -1,9 +1,9 @@
 ---
 epic_id: Epic-2.1
 status: in-progress
-scope: ["2.1-D2", "2.1-D3", "2.1-D4"]
+scope: ["2.1-D2", "2.1-D3", "2.1-D4", "2.1-D1"]
 started: 2026-02-17T00:24:04Z
-last_updated: 2026-02-17T20:00:00Z
+last_updated: 2026-02-18T00:00:00Z
 stories:
   "2.1-D2":
     {
@@ -29,11 +29,15 @@ stories:
     }
   "2.1-D4":
     {
-      status: in-progress,
+      status: done,
       issue: 150,
+      pr: 151,
       branch: story-2-1-d4-request-scoped-logger-in-db-layer,
+      commit: 0ae0108,
+      coverage: 99,
       review_rounds: 1,
     }
+  "2.1-D1": { status: in-progress }
 ---
 
 <!-- Human-readable display below (generated from frontmatter) -->
@@ -44,7 +48,8 @@ stories:
 | ------ | -------------- | ---- | -------- | ------------- | -------- |
 | 2.1-D2 | ✅ Complete    | #147 | 99%      | 2             | 31m      |
 | 2.1-D3 | ✅ Complete    | #149 | 99%      | 2             | ~45m     |
-| 2.1-D4 | 🔄 In Progress | #150 | -        | 1             | -        |
+| 2.1-D4 | ✅ Complete    | #151 | 99%      | 1             | -        |
+| 2.1-D1 | 🔄 In Progress | -    | -        | -             | -        |
 
 ## Activity Log
 
@@ -66,3 +71,4 @@ stories:
 - [02:38] Story 2.1-D3: Review round 2 — 0 Critical, 1 Important (scopes test coverage), 1 false positive
 - [02:40] Story 2.1-D3: Added 2 scopes tests, committed (+164/-652 = net -488 lines), PR #149 created
 - [02:45] Story 2.1-D3: CI green (all checks passed), PR merged, marked done
+- Story 2.1-D1: Starting implementation (API Gateway + Conventions + Route Registry)
