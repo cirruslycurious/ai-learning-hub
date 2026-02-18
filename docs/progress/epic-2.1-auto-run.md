@@ -37,10 +37,7 @@ stories:
       coverage: 99,
       review_rounds: 1,
     }
-  "2.1-D1":
-    {
-      status: in-progress,
-    }
+  "2.1-D1": { status: in-progress }
 ---
 
 <!-- Human-readable display below (generated from frontmatter) -->
