@@ -3,7 +3,7 @@ epic_id: Epic-2.1
 status: in-progress
 scope: ["2.1-D2", "2.1-D3", "2.1-D4", "2.1-D1"]
 started: 2026-02-17T00:24:04Z
-last_updated: 2026-02-18T00:00:00Z
+last_updated: 2026-02-18T09:20:00Z
 stories:
   "2.1-D2":
     {
@@ -37,19 +37,28 @@ stories:
       coverage: 99,
       review_rounds: 1,
     }
-  "2.1-D1": { status: in-progress }
+  "2.1-D1":
+    {
+      status: done,
+      issue: 152,
+      pr: 153,
+      branch: story-2-1-d1-api-gateway-conventions-route-registry,
+      commit: 848d602,
+      coverage: 100,
+      review_rounds: 2,
+    }
 ---
 
 <!-- Human-readable display below (generated from frontmatter) -->
 
 # Epic 2.1 Auto-Run Progress
 
-| Story  | Status         | PR   | Coverage | Review Rounds | Duration |
-| ------ | -------------- | ---- | -------- | ------------- | -------- |
-| 2.1-D2 | ✅ Complete    | #147 | 99%      | 2             | 31m      |
-| 2.1-D3 | ✅ Complete    | #149 | 99%      | 2             | ~45m     |
-| 2.1-D4 | ✅ Complete    | #151 | 99%      | 1             | -        |
-| 2.1-D1 | 🔄 In Progress | -    | -        | -             | -        |
+| Story  | Status      | PR   | Coverage | Review Rounds | Duration |
+| ------ | ----------- | ---- | -------- | ------------- | -------- |
+| 2.1-D2 | ✅ Complete | #147 | 99%      | 2             | 31m      |
+| 2.1-D3 | ✅ Complete | #149 | 99%      | 2             | ~45m     |
+| 2.1-D4 | ✅ Complete | #151 | 99%      | 1             | -        |
+| 2.1-D1 | ✅ Complete | #153 | 100%     | 2             | -        |
 
 ## Activity Log
 
@@ -72,3 +81,9 @@ stories:
 - [02:40] Story 2.1-D3: Added 2 scopes tests, committed (+164/-652 = net -488 lines), PR #149 created
 - [02:45] Story 2.1-D3: CI green (all checks passed), PR merged, marked done
 - Story 2.1-D1: Starting implementation (API Gateway + Conventions + Route Registry)
+- Story 2.1-D1: Review round 1 — 2 Critical (CDK cycle, authorizer mismatch), 5 Important, 4 Minor
+- Story 2.1-D1: Fixer extracted AuthRoutesStack, fixed CORS, added authorizer-per-route tests
+- Story 2.1-D1: Review round 2 — 2 Critical (CDK cycle persisted, CORS OPTIONS missing on imported API)
+- Story 2.1-D1: Fixed with Fn.importValue for ARNs, explicit addCorsPreflight, CDK Nag suppressions
+- Story 2.1-D1: CDK synth clean (7 stacks), 440 tests (100% coverage), all CI checks green
+- Story 2.1-D1: PR #153 merged, marked done. Also fixed CI npm audit blocking (CVE-2026-26278)

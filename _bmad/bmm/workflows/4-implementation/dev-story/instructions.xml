@@ -26,6 +26,7 @@
       <action>Load the FULL file: {{sprint_status}}</action>
       <action>Read ALL lines from beginning to end - do not skip any content</action>
       <action>Parse the development_status section completely to understand story order</action>
+      <critical>Retain the sprint-status.yaml content in context. Steps 4 and 9 MUST NOT re-read this file — use the version loaded here. Only write updates.</critical>
 
       <action>Find the FIRST story (by reading in order from top to bottom) where:
         - Key matches pattern: number-number-name (e.g., "1-2-user-auth")
@@ -78,7 +79,7 @@
 
     <!-- Non-sprint story discovery -->
     <check if="{{sprint_status}} file does NOT exist">
-      <action>Search {story_dir} for stories directly</action>
+      <action>Search {implementation_artifacts} for stories directly</action>
       <action>Find stories with "ready-for-dev" status in files</action>
       <action>Look for story files matching pattern: *-*-*.md</action>
       <action>Read each candidate story file to check Status section</action>
@@ -114,12 +115,51 @@
     </check>
 
     <action>Store the found story_key (e.g., "1-2-user-authentication") for later status updates</action>
-    <action>Find matching story file in {story_dir} using story_key pattern: {{story_key}}.md</action>
+    <action>Find matching story file in {implementation_artifacts} using story_key pattern: {{story_key}}.md</action>
     <action>Read COMPLETE story file from discovered path</action>
 
     <anchor id="task_check" />
 
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- STORY READINESS GATE — validate before any implementation     -->
+    <!-- This gate prevents implementing from incomplete/stub stories.  -->
+    <!-- Without it, the agent will hallucinate implementation details. -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <critical>Validate story readiness BEFORE parsing tasks or beginning any implementation.
+      A story file existing is necessary but NOT sufficient — the content must be complete enough
+      to implement without guessing. Do NOT skip or weaken this gate.</critical>
+
     <action>Parse sections: Story, Acceptance Criteria, Tasks/Subtasks, Dev Notes, Dev Agent Record, File List, Change Log, Status</action>
+
+    <action>Validate story readiness — check ALL of the following:
+      1. YAML frontmatter has non-empty 'id' and 'title' fields
+      2. Acceptance Criteria section exists with at least 2 concrete, testable criteria
+         (vague items like "it works" or "everything functions correctly" do NOT count)
+      3. Dev Notes / Tasks / Technical Notes section exists with a non-empty task breakdown
+         (a story with no task/subtask list forces the agent to invent implementation steps)
+      4. If YAML frontmatter has a 'status' field, it must be "ready-for-dev" or "done"
+         (NOT "draft", "created", or "backlog")
+    </action>
+
+    <check if="ANY readiness check fails">
+      <output>📋 **Story Readiness Gate — FAILED**
+
+        Story: {{story_key}}
+        Path: {{story_path}}
+
+        {{readiness_failures}}
+
+        The story file exists but lacks sufficient detail for implementation.
+        Implementing from incomplete stories produces code based on guesswork.
+
+        **Options:**
+        1. Run `/bmad-bmm-create-story` to create/complete this story properly
+        2. Run `/bmad-bmm-create-story` in validate mode to improve the existing story
+        3. Provide a different story file path
+      </output>
+      <action>HALT: "Story is not implementation-ready. Complete the story before running dev-story."</action>
+    </check>
+    <!-- ═══════════════════════════════════════════════════════════════ -->
 
     <action>Load comprehensive context from story file's Dev Notes section</action>
     <action>Extract developer guidance from Dev Notes: architecture requirements, previous learnings, technical specifications</action>
@@ -137,11 +177,6 @@
   <step n="2" goal="Load project context and story information">
     <critical>Load all available context to inform implementation</critical>
 
-    <action>Load {project_context} for coding standards and project-wide patterns (if exists)</action>
-    <action>Parse sections: Story, Acceptance Criteria, Tasks/Subtasks, Dev Notes, Dev Agent Record, File List, Change Log, Status</action>
-    <action>Load comprehensive context from story file's Dev Notes section</action>
-    <action>Extract developer guidance from Dev Notes: architecture requirements, previous learnings, technical specifications</action>
-    <action>Use enhanced story context to inform implementation decisions and approaches</action>
     <output>✅ **Context Loaded**
       Story and project context available for implementation
     </output>
@@ -189,8 +224,8 @@
 
   <step n="4" goal="Mark story in-progress" tag="sprint-status">
     <check if="{{sprint_status}} file exists">
-      <action>Load the FULL file: {{sprint_status}}</action>
-      <action>Read all development_status entries to find {{story_key}}</action>
+      <action>Use the sprint-status.yaml content loaded in Step 1 (do not re-read the file)</action>
+      <action>Find development_status entry for {{story_key}} in the cached content</action>
       <action>Get current status value for development_status[{{story_key}}]</action>
 
       <check if="current status == 'ready-for-dev' OR review_continuation == true">
@@ -324,27 +359,12 @@
     <action>Verify ALL tasks and subtasks are marked [x] (re-scan the story document now)</action>
     <action>Run the full regression suite (do not skip)</action>
     <action>Confirm File List includes every changed file</action>
-    <action>Execute enhanced definition-of-done validation</action>
+    <action>Execute definition-of-done validation using the {validation} checklist</action>
     <action>Update the story Status to: "review"</action>
 
-    <!-- Enhanced Definition of Done Validation -->
-    <action>Validate definition-of-done checklist with essential requirements:
-      - All tasks/subtasks marked complete with [x]
-      - Implementation satisfies every Acceptance Criterion
-      - Unit tests for core functionality added/updated
-      - Integration tests for component interactions added when required
-      - End-to-end tests for critical flows added when story demands them
-      - All tests pass (no regressions, new tests successful)
-      - Code quality checks pass (linting, static analysis if configured)
-      - File List includes every new/modified/deleted file (relative paths)
-      - Dev Agent Record contains implementation notes
-      - Change Log includes summary of changes
-      - Only permitted story sections were modified
-    </action>
-
     <!-- Mark story ready for review - sprint status conditional -->
-    <check if="{sprint_status} file exists AND {{current_sprint_status}} != 'no-sprint-tracking'">
-      <action>Load the FULL file: {sprint_status}</action>
+    <check if="{{sprint_status}} file exists AND {{current_sprint_status}} != 'no-sprint-tracking'">
+      <action>Use the sprint-status.yaml content retained from Step 1 (do not re-read the file)</action>
       <action>Find development_status key matching {{story_key}}</action>
       <action>Verify current status is "in-progress" (expected previous state)</action>
       <action>Update development_status[{{story_key}}] = "review"</action>
@@ -352,7 +372,7 @@
       <output>✅ Story status updated to "review" in sprint-status.yaml</output>
     </check>
 
-    <check if="{sprint_status} file does NOT exist OR {{current_sprint_status}} == 'no-sprint-tracking'">
+    <check if="{{sprint_status}} file does NOT exist OR {{current_sprint_status}} == 'no-sprint-tracking'">
       <output>ℹ️ Story status updated to "review" in story file (no sprint tracking configured)</output>
     </check>
 
@@ -371,7 +391,6 @@
   </step>
 
   <step n="10" goal="Completion communication and user support">
-    <action>Execute the enhanced definition-of-done checklist using the validation framework</action>
     <action>Prepare a concise summary in Dev Agent Record → Completion Notes</action>
 
     <action>Communicate to {user_name} that story implementation is complete and ready for review</action>
@@ -401,8 +420,8 @@
     </action>
 
     <output>💡 **Tip:** For best results, run `code-review` using a **different** LLM than the one that implemented this story.</output>
-    <check if="{sprint_status} file exists">
-      <action>Suggest checking {sprint_status} to see project progress</action>
+    <check if="{{sprint_status}} file exists">
+      <action>Suggest checking {{sprint_status}} to see project progress</action>
     </check>
     <action>Remain flexible - allow user to choose their own path or ask for other assistance</action>
   </step>

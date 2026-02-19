@@ -55,3 +55,11 @@ docs/_docgen/rebuild.log
 
 # Large research PDFs (keep text extracts only)
 _bmad-output/planning-artifacts/research/*.pdf
+
+# Auto-epic temp artifacts
+.claude/temp/
+quality-gate-*.json
+secrets-*.json
+gitleaks-*.json
+test-output*.txt
+test-results*.txt
