@@ -30,6 +30,10 @@ function createTestRepo() {
   // Clone it
   execSync(`git clone "${bareDir}" work`, { cwd: root });
 
+  // Configure git identity for CI environments
+  execSync('git config user.email "test@example.com"', { cwd: workDir });
+  execSync('git config user.name "Test User"', { cwd: workDir });
+
   // Initial commit on main
   writeFileSync(join(workDir, "README.md"), "# Test");
   execSync("git add README.md", { cwd: workDir });
