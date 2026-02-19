@@ -3,6 +3,13 @@
  *
  * Tests the Clerk JWT validation authorizer per ADR-013.
  * Covers all acceptance criteria: AC1-AC9.
+ *
+ * ADR-008 / AC12 Exemption:
+ * Authorizer handlers return IAM policy documents (Allow/Deny), NOT API Gateway
+ * proxy responses. Therefore `assertADR008Error` (which validates proxy response
+ * shape) is not applicable here. Instead, we verify that the deny context includes
+ * a valid ErrorCode value, since API Gateway Response Templates use this errorCode
+ * to produce ADR-008-compliant responses to clients.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { APIGatewayTokenAuthorizerEvent, Context } from "aws-lambda";
@@ -380,6 +387,52 @@ describe("JWT Authorizer Handler", () => {
       const result = await handler(createEvent(), mockContext);
 
       expect(result.context?.role).toBe("user");
+    });
+  });
+
+  describe("Authorizer deny context uses valid ErrorCode values (AC12 gateway response support)", () => {
+    it("INVITE_REQUIRED errorCode is a valid ErrorCode enum value", async () => {
+      mockVerifyResult({
+        sub: "user_no_invite",
+        publicMetadata: { inviteValidated: false },
+      });
+
+      const result = await handler(createEvent(), mockContext);
+
+      expect(result.policyDocument.Statement[0].Effect).toBe("Deny");
+      // Verify errorCode maps to a recognized ErrorCode for Gateway Response Templates
+      const validCodes = [
+        "INVITE_REQUIRED",
+        "SUSPENDED_ACCOUNT",
+        "EXPIRED_TOKEN",
+        "UNAUTHORIZED",
+        "FORBIDDEN",
+        "INVALID_API_KEY",
+        "REVOKED_API_KEY",
+        "SCOPE_INSUFFICIENT",
+      ];
+      expect(validCodes).toContain(result.context?.errorCode);
+    });
+
+    it("SUSPENDED_ACCOUNT errorCode is a valid ErrorCode enum value", async () => {
+      mockVerifyResult({
+        sub: "user_susp",
+        publicMetadata: { inviteValidated: true },
+      });
+      mockGetProfile.mockResolvedValueOnce({
+        PK: "USER#user_susp",
+        SK: "PROFILE",
+        userId: "user_susp",
+        role: "user",
+        suspendedAt: "2026-01-15T00:00:00Z",
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-15T00:00:00Z",
+      });
+
+      const result = await handler(createEvent(), mockContext);
+
+      expect(result.policyDocument.Statement[0].Effect).toBe("Deny");
+      expect(result.context?.errorCode).toBe("SUSPENDED_ACCOUNT");
     });
   });
 

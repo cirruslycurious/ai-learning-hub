@@ -101,7 +101,13 @@ export function createMockEvent(
       accountId: "123456789",
       apiId: "api-id",
       authorizer: userId
-        ? { userId, role, authMethod, ...(scopes ? { scopes } : {}) }
+        ? {
+            userId,
+            role,
+            authMethod,
+            ...(authMethod === "api-key" ? { isApiKey: "true" } : {}),
+            ...(scopes ? { scopes } : {}),
+          }
         : undefined,
       protocol: "HTTP/1.1",
       httpMethod: method,
@@ -196,6 +202,48 @@ export function mockMiddlewareModule(
           }
         }
 
+        // Simulate scope enforcement for API key auth (AC15)
+        // Match real middleware: check isApiKey field (boolean or string "true")
+        if (opts.requiredScope) {
+          const authorizer = event.requestContext?.authorizer;
+          if (
+            authorizer?.isApiKey === true ||
+            authorizer?.isApiKey === "true"
+          ) {
+            const rawScopes = authorizer.scopes;
+            let scopes: string[] = [];
+            if (Array.isArray(rawScopes)) {
+              scopes = rawScopes;
+            } else if (typeof rawScopes === "string") {
+              try {
+                const parsed = JSON.parse(rawScopes);
+                scopes = Array.isArray(parsed) ? parsed : [];
+              } catch {
+                scopes = [];
+              }
+            }
+            if (
+              !scopes.includes("*") &&
+              !scopes.includes(opts.requiredScope as string)
+            ) {
+              return {
+                statusCode: 403,
+                headers: {
+                  "Content-Type": "application/json",
+                  "X-Request-Id": "test-req-id",
+                },
+                body: JSON.stringify({
+                  error: {
+                    code: "SCOPE_INSUFFICIENT",
+                    message: "API key lacks required scope",
+                    requestId: "test-req-id",
+                  },
+                }),
+              };
+            }
+          }
+        }
+
         const authorizer = event.requestContext?.authorizer;
         let auth = null;
         if (authorizer) {
@@ -217,7 +265,9 @@ export function mockMiddlewareModule(
           auth = {
             userId: authorizer.userId as string,
             roles: [(authorizer.role as string) || "user"],
-            isApiKey: authorizer.authMethod === "api-key",
+            // Match real middleware: check isApiKey field (boolean or string "true")
+            isApiKey:
+              authorizer.isApiKey === true || authorizer.isApiKey === "true",
             ...(scopes ? { scopes } : {}),
           };
         }
@@ -255,16 +305,22 @@ export function mockMiddlewareModule(
             code?: string;
             statusCode?: number;
             message?: string;
+            details?: Record<string, unknown>;
           };
           const code = err.code ?? "INTERNAL_ERROR";
           const statusCode = err.statusCode ?? 500;
           const message = err.message ?? "An unexpected error occurred";
+          const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+            "X-Request-Id": "test-req-id",
+          };
+          // Add Retry-After header for rate-limited responses (AC16)
+          if (code === "RATE_LIMITED" && err.details?.retryAfter != null) {
+            headers["Retry-After"] = String(err.details.retryAfter);
+          }
           return {
             statusCode,
-            headers: {
-              "Content-Type": "application/json",
-              "X-Request-Id": "test-req-id",
-            },
+            headers,
             body: JSON.stringify({
               error: { code, message, requestId: "test-req-id" },
             }),

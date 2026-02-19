@@ -87,6 +87,7 @@ describe("createMockEvent", () => {
       userId: "user_123",
       role: "user",
       authMethod: "api-key",
+      isApiKey: "true",
       scopes: ["saves:write"],
     });
   });
