@@ -23,9 +23,9 @@ function createTestRepo() {
   const bareDir = join(root, "origin.git");
   const workDir = join(root, "work");
 
-  // Create bare origin
+  // Create bare origin with explicit default branch name
   mkdirSync(bareDir, { recursive: true });
-  execSync("git init --bare", { cwd: bareDir });
+  execSync("git init --bare --initial-branch=main", { cwd: bareDir });
 
   // Clone it
   execSync(`git clone "${bareDir}" work`, { cwd: root });
