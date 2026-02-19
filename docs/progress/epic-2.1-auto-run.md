@@ -1,9 +1,9 @@
 ---
 epic_id: Epic-2.1
 status: in-progress
-scope: ["2.1-D2", "2.1-D3", "2.1-D4", "2.1-D1"]
+scope: ["2.1-D2", "2.1-D3", "2.1-D4", "2.1-D1", "2.1-D5"]
 started: 2026-02-17T00:24:04Z
-last_updated: 2026-02-18T09:20:00Z
+last_updated: 2026-02-19T18:47:26Z
 stories:
   "2.1-D2":
     {
@@ -47,18 +47,26 @@ stories:
       coverage: 100,
       review_rounds: 2,
     }
+  "2.1-D5":
+    {
+      status: in-progress,
+      issue: 157,
+      branch: story-2-1-d5-architecture-enforcement-tests,
+      startedAt: "2026-02-19T18:47:26Z",
+    }
 ---
 
 <!-- Human-readable display below (generated from frontmatter) -->
 
 # Epic 2.1 Auto-Run Progress
 
-| Story  | Status      | PR   | Coverage | Review Rounds | Duration |
-| ------ | ----------- | ---- | -------- | ------------- | -------- |
-| 2.1-D2 | ✅ Complete | #147 | 99%      | 2             | 31m      |
-| 2.1-D3 | ✅ Complete | #149 | 99%      | 2             | ~45m     |
-| 2.1-D4 | ✅ Complete | #151 | 99%      | 1             | -        |
-| 2.1-D1 | ✅ Complete | #153 | 100%     | 2             | -        |
+| Story  | Status         | PR   | Coverage | Review Rounds | Duration |
+| ------ | -------------- | ---- | -------- | ------------- | -------- |
+| 2.1-D2 | ✅ Complete    | #147 | 99%      | 2             | 31m      |
+| 2.1-D3 | ✅ Complete    | #149 | 99%      | 2             | ~45m     |
+| 2.1-D4 | ✅ Complete    | #151 | 99%      | 1             | -        |
+| 2.1-D1 | ✅ Complete    | #153 | 100%     | 2             | -        |
+| 2.1-D5 | 🔄 In Progress | -    | -        | -             | -        |
 
 ## Activity Log
 
@@ -87,3 +95,4 @@ stories:
 - Story 2.1-D1: Fixed with Fn.importValue for ARNs, explicit addCorsPreflight, CDK Nag suppressions
 - Story 2.1-D1: CDK synth clean (7 stacks), 440 tests (100% coverage), all CI checks green
 - Story 2.1-D1: PR #153 merged, marked done. Also fixed CI npm audit blocking (CVE-2026-26278)
+- [18:47] Story 2.1-D5: Issue #157 created, branch created, starting implementation

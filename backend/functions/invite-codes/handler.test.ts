@@ -11,6 +11,7 @@ import {
   createMockContext,
   mockCreateLoggerModule,
   mockMiddlewareModule,
+  assertADR008Error,
 } from "../../test-utils/index.js";
 
 // Mock @ai-learning-hub/db
@@ -257,6 +258,36 @@ describe("Invite Codes Handler", () => {
       expect(result.statusCode).toBe(405);
       expect(body.error.code).toBe("METHOD_NOT_ALLOWED");
       expect(result.headers?.Allow).toBe("POST, GET");
+    });
+  });
+
+  describe("ADR-008 Error Response Compliance (D5-AC12)", () => {
+    it("missing auth on POST returns ADR-008 compliant 401", async () => {
+      const event = createMockEvent({
+        method: "POST",
+        path: "/users/invite-codes",
+      });
+
+      const result = await handler(event, createMockContext());
+      assertADR008Error(result, ErrorCode.UNAUTHORIZED);
+    });
+
+    it("rate limit exceeded returns ADR-008 compliant 429", async () => {
+      mockEnforceRateLimit.mockRejectedValueOnce(
+        new AppError(
+          ErrorCode.RATE_LIMITED,
+          "Rate limit exceeded: 5 invite-generate per 1 day(s)"
+        )
+      );
+
+      const event = createMockEvent({
+        method: "POST",
+        path: "/users/invite-codes",
+        userId: "user_123",
+      });
+
+      const result = await handler(event, createMockContext());
+      assertADR008Error(result, ErrorCode.RATE_LIMITED);
     });
   });
 });

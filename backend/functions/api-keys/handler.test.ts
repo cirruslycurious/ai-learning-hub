@@ -11,6 +11,7 @@ import {
   createMockContext,
   mockCreateLoggerModule,
   mockMiddlewareModule,
+  assertADR008Error,
 } from "../../test-utils/index.js";
 
 // Mock @ai-learning-hub/db
@@ -378,6 +379,35 @@ describe("API Keys Handler", () => {
       // Verify rate limit check happens before key creation
       expect(mockEnforceRateLimit).toHaveBeenCalledTimes(1);
       expect(mockCreateApiKey).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("ADR-008 Error Response Compliance (D5-AC12)", () => {
+    it("missing auth on POST returns ADR-008 compliant 401", async () => {
+      const event = createMockEvent({
+        method: "POST",
+        path: "/users/api-keys",
+        body: { name: "test", scopes: ["saves:write"] },
+      });
+
+      const result = await handler(event, createMockContext());
+      assertADR008Error(result, ErrorCode.UNAUTHORIZED);
+    });
+
+    it("revoke nonexistent key returns ADR-008 compliant error", async () => {
+      mockRevokeApiKey.mockRejectedValueOnce(
+        new AppError(ErrorCode.NOT_FOUND, "API key not found")
+      );
+
+      const event = createMockEvent({
+        method: "DELETE",
+        path: "/users/api-keys/nonexistent",
+        userId: "user_xyz",
+        pathParameters: { id: "nonexistent" },
+      });
+
+      const result = await handler(event, createMockContext());
+      assertADR008Error(result, ErrorCode.NOT_FOUND);
     });
   });
 });
