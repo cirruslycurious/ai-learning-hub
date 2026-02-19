@@ -28,7 +28,7 @@ export {
   type BaseEntity,
   type User,
   type Save,
-  ResourceType,
+  ContentType,
   TutorialStatus,
   type Project,
   ProjectStatus,

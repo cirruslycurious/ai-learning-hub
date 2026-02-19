@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  ResourceType,
+  ContentType,
   TutorialStatus,
   ProjectStatus,
   EnrichmentStatus,
@@ -15,24 +15,31 @@ import type {
 } from "../src/entities.js";
 
 describe("Entity Enums", () => {
-  describe("ResourceType", () => {
-    it("should have all resource types", () => {
-      expect(ResourceType.ARTICLE).toBe("ARTICLE");
-      expect(ResourceType.VIDEO).toBe("VIDEO");
-      expect(ResourceType.PODCAST).toBe("PODCAST");
-      expect(ResourceType.TUTORIAL).toBe("TUTORIAL");
-      expect(ResourceType.DOCUMENTATION).toBe("DOCUMENTATION");
-      expect(ResourceType.REPOSITORY).toBe("REPOSITORY");
-      expect(ResourceType.OTHER).toBe("OTHER");
+  describe("ContentType", () => {
+    it("should have all content types with lowercase values", () => {
+      expect(ContentType.ARTICLE).toBe("article");
+      expect(ContentType.VIDEO).toBe("video");
+      expect(ContentType.PODCAST).toBe("podcast");
+      expect(ContentType.GITHUB_REPO).toBe("github_repo");
+      expect(ContentType.NEWSLETTER).toBe("newsletter");
+      expect(ContentType.TOOL).toBe("tool");
+      expect(ContentType.REDDIT).toBe("reddit");
+      expect(ContentType.LINKEDIN).toBe("linkedin");
+      expect(ContentType.OTHER).toBe("other");
+    });
+
+    it("should have exactly 9 content types", () => {
+      const values = Object.values(ContentType);
+      expect(values).toHaveLength(9);
     });
   });
 
   describe("TutorialStatus", () => {
-    it("should have all tutorial statuses", () => {
-      expect(TutorialStatus.SAVED).toBe("SAVED");
-      expect(TutorialStatus.STARTED).toBe("STARTED");
-      expect(TutorialStatus.IN_PROGRESS).toBe("IN_PROGRESS");
-      expect(TutorialStatus.COMPLETED).toBe("COMPLETED");
+    it("should have all tutorial statuses with lowercase values", () => {
+      expect(TutorialStatus.SAVED).toBe("saved");
+      expect(TutorialStatus.STARTED).toBe("started");
+      expect(TutorialStatus.IN_PROGRESS).toBe("in-progress");
+      expect(TutorialStatus.COMPLETED).toBe("completed");
     });
   });
 
@@ -74,20 +81,52 @@ describe("Entity Types", () => {
   });
 
   describe("Save", () => {
-    it("should accept valid save shape", () => {
+    it("should accept valid save shape with full Epic 3 schema", () => {
       const save: Save = {
         userId: "user_123",
-        saveId: "save_456",
-        url: "https://example.com/article",
+        saveId: "01HXXXXXXXXXXXXXXX",
+        url: "https://www.example.com/article",
+        normalizedUrl: "https://example.com/article",
+        urlHash: "abc123def456",
         title: "Test Article",
-        resourceType: ResourceType.ARTICLE,
-        tutorialStatus: TutorialStatus.SAVED,
+        userNotes: "Great article about testing",
+        contentType: ContentType.ARTICLE,
+        tags: ["testing", "typescript"],
+        isTutorial: false,
+        tutorialStatus: null,
+        linkedProjectCount: 0,
         createdAt: "2026-02-04T12:00:00.000Z",
         updatedAt: "2026-02-04T12:00:00.000Z",
       };
 
-      expect(save.url).toBe("https://example.com/article");
-      expect(save.resourceType).toBe(ResourceType.ARTICLE);
+      expect(save.url).toBe("https://www.example.com/article");
+      expect(save.normalizedUrl).toBe("https://example.com/article");
+      expect(save.contentType).toBe(ContentType.ARTICLE);
+      expect(save.tags).toHaveLength(2);
+      expect(save.isTutorial).toBe(false);
+      expect(save.linkedProjectCount).toBe(0);
+    });
+
+    it("should accept save with optional fields omitted", () => {
+      const save: Save = {
+        userId: "user_123",
+        saveId: "01HXXXXXXXXXXXXXXX",
+        url: "https://example.com",
+        normalizedUrl: "https://example.com/",
+        urlHash: "sha256hash",
+        contentType: ContentType.OTHER,
+        tags: [],
+        isTutorial: false,
+        linkedProjectCount: 0,
+        createdAt: "2026-02-04T12:00:00.000Z",
+        updatedAt: "2026-02-04T12:00:00.000Z",
+      };
+
+      expect(save.title).toBeUndefined();
+      expect(save.userNotes).toBeUndefined();
+      expect(save.lastAccessedAt).toBeUndefined();
+      expect(save.enrichedAt).toBeUndefined();
+      expect(save.deletedAt).toBeUndefined();
     });
   });
 

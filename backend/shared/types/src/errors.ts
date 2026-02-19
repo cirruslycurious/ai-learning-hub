@@ -8,6 +8,7 @@ export enum ErrorCode {
   FORBIDDEN = "FORBIDDEN",
   NOT_FOUND = "NOT_FOUND",
   CONFLICT = "CONFLICT",
+  DUPLICATE_SAVE = "DUPLICATE_SAVE",
   RATE_LIMITED = "RATE_LIMITED",
 
   // Auth-specific errors (ADR-013, Story 2.8)
@@ -34,6 +35,7 @@ export const ErrorCodeToStatus: Record<ErrorCode, number> = {
   [ErrorCode.FORBIDDEN]: 403,
   [ErrorCode.NOT_FOUND]: 404,
   [ErrorCode.CONFLICT]: 409,
+  [ErrorCode.DUPLICATE_SAVE]: 409,
   [ErrorCode.RATE_LIMITED]: 429,
   [ErrorCode.EXPIRED_TOKEN]: 401,
   [ErrorCode.INVALID_API_KEY]: 401,

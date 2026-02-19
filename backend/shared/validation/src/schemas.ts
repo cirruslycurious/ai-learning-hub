@@ -12,7 +12,7 @@ export const uuidSchema = z
   .describe("UUID v4 format identifier");
 
 /**
- * URL validation (http/https only)
+ * URL validation (http/https only, no embedded credentials)
  */
 export const urlSchema = z
   .string()
@@ -21,6 +21,14 @@ export const urlSchema = z
     (url) => url.startsWith("http://") || url.startsWith("https://"),
     "URL must use http or https protocol"
   )
+  .refine((url) => {
+    try {
+      const parsed = new URL(url);
+      return !parsed.username && !parsed.password;
+    } catch {
+      return true; // Let the .url() check above handle malformed URLs
+    }
+  }, "URLs with embedded credentials are not allowed")
   .describe("Valid HTTP/HTTPS URL");
 
 /**
@@ -90,26 +98,28 @@ export const isoDateSchema = z
   .describe("ISO 8601 date string");
 
 /**
- * Resource type enum schema
+ * Content type enum schema (Epic 3 — lowercase values)
  */
-export const resourceTypeSchema = z.enum([
-  "ARTICLE",
-  "VIDEO",
-  "PODCAST",
-  "TUTORIAL",
-  "DOCUMENTATION",
-  "REPOSITORY",
-  "OTHER",
+export const contentTypeSchema = z.enum([
+  "article",
+  "video",
+  "podcast",
+  "github_repo",
+  "newsletter",
+  "tool",
+  "reddit",
+  "linkedin",
+  "other",
 ]);
 
 /**
- * Tutorial status enum schema
+ * Tutorial status enum schema (lowercase, per PRD FR40)
  */
 export const tutorialStatusSchema = z.enum([
-  "SAVED",
-  "STARTED",
-  "IN_PROGRESS",
-  "COMPLETED",
+  "saved",
+  "started",
+  "in-progress",
+  "completed",
 ]);
 
 /**
@@ -123,13 +133,16 @@ export const projectStatusSchema = z.enum([
 ]);
 
 /**
- * Tags array schema (max 10 tags, each 1-50 chars)
+ * Tags array schema (max 20 tags, each 1-50 chars, trimmed and deduplicated)
  */
 export const tagsSchema = z
-  .array(z.string().min(1).max(50))
-  .max(10)
+  .array(z.string().trim().min(1, "Tag cannot be empty").max(50))
+  .max(20)
   .default([])
-  .describe("Array of tags (max 10, each 1-50 characters)");
+  .transform((tags) => Array.from(new Set(tags)))
+  .describe(
+    "Array of tags (max 20, each 1-50 characters, trimmed and deduplicated)"
+  );
 
 /**
  * User ID schema (Clerk format)
@@ -193,3 +206,57 @@ export const validateInviteBodySchema = z.object({
     .regex(/^[a-zA-Z0-9]+$/, "Code must be alphanumeric")
     .describe("Invite code (8-16 alphanumeric characters)"),
 });
+
+/**
+ * Create save request body schema (POST /saves)
+ */
+export const createSaveSchema = z.object({
+  url: urlSchema,
+  title: z
+    .string()
+    .trim()
+    .min(1, "Title cannot be empty")
+    .max(500, "Title must be 500 characters or less")
+    .optional(),
+  userNotes: z
+    .string()
+    .trim()
+    .min(1, "Notes cannot be empty")
+    .max(2000, "User notes must be 2000 characters or less")
+    .optional(),
+  contentType: contentTypeSchema.optional(),
+  tags: tagsSchema,
+});
+
+/**
+ * Update save request body schema (PATCH /saves/:saveId)
+ * URL fields NOT included (immutable after creation).
+ * At least one field required.
+ */
+export const updateSaveSchema = z
+  .object({
+    title: z
+      .string()
+      .trim()
+      .min(1, "Title cannot be empty")
+      .max(500, "Title must be 500 characters or less")
+      .optional(),
+    userNotes: z
+      .string()
+      .trim()
+      .min(1, "Notes cannot be empty")
+      .max(2000, "User notes must be 2000 characters or less")
+      .optional(),
+    contentType: contentTypeSchema.optional(),
+    tags: tagsSchema.optional(),
+  })
+  .refine(
+    (data) =>
+      data.title !== undefined ||
+      data.userNotes !== undefined ||
+      data.contentType !== undefined ||
+      data.tags !== undefined,
+    {
+      message: "At least one field must be provided",
+    }
+  );

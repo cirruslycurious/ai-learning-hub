@@ -5,7 +5,7 @@ import {
   AppError,
   type ApiErrorResponse,
   type ApiSuccessResponse,
-  ResourceType,
+  ContentType,
   ProjectStatus,
 } from "../src/index.js";
 
@@ -19,10 +19,15 @@ describe("index re-exports", () => {
     expect(body.error.requestId).toBe("req-1");
   });
 
+  it("re-exports DUPLICATE_SAVE error code mapping to 409", () => {
+    expect(ErrorCode.DUPLICATE_SAVE).toBe("DUPLICATE_SAVE");
+    expect(ErrorCodeToStatus[ErrorCode.DUPLICATE_SAVE]).toBe(409);
+  });
+
   it("re-exports entity and API types for type-checking", () => {
     const response: ApiSuccessResponse<{ id: string }> = { data: { id: "x" } };
     expect(response.data.id).toBe("x");
-    expect(ResourceType.ARTICLE).toBe("ARTICLE");
+    expect(ContentType.ARTICLE).toBe("article");
     expect(ProjectStatus.EXPLORING).toBe("EXPLORING");
   });
 });
