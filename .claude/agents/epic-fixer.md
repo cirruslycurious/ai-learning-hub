@@ -14,9 +14,12 @@ The orchestrator passes you:
 
 - **Story ID and title** — which story's code to fix
 - **Branch name** — the feature branch (already checked out)
+- **Base branch** — the branch to diff against (usually `main`)
 - **Story file path** — the story file with acceptance criteria (ensure fixes maintain AC compliance)
 - **Findings document path** — the review findings to address
 - **Round number** — which review-fix round this is
+- **Expected files** — list of files/directories the story is expected to modify (from story.touches)
+- **Coverage baseline** — the test coverage percentage before fixes (must not regress)
 
 ## Your Task
 

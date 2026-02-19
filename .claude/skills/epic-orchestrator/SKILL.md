@@ -22,6 +22,7 @@ These are **non-negotiable**. The orchestrator enforces ALL of these at all time
 7. **Idempotent operations** — All GitHub operations (issue/branch/PR creation) reuse existing resources if found
 8. **State persistence** — Progress saved continuously with atomic writes; `--resume` picks up exactly where workflow left off
 9. **Human checkpoints** — Scope confirmation (Phase 1), per-story approval (Phase 2), integration checkpoints (Phase 2), and completion review (Phase 3) require human approval
+10. **Never implement without a real story** — Each story must have a standalone story file with acceptance criteria, dev notes/task breakdown, and ready-for-dev status. Planning summaries, epic descriptions, and progress docs are NOT valid substitutes. FATAL STOP if story files are missing or incomplete (Phase 1.2 + 1.2a)
 
 ---
 
@@ -31,17 +32,77 @@ These are **non-negotiable**. The orchestrator enforces ALL of these at all time
 
 Locate and parse the epic file:
 
-1. Find epic file at `_bmad-output/planning-artifacts/epics/epic-{N}.md` (where N is extracted from epic_id, e.g., "Epic-1" → "epic-1.md")
-2. If `--epic-path` provided, use that path instead
-3. Parse the epic file to extract: epic title, description, and the list of story references
+1. If `--epic-path` provided, use that path directly
+2. Otherwise, load `_bmad-output/planning-artifacts/epics.md` (single file containing all epics under `## Epic List`) and extract the section matching the epic_id. Epics use `### Epic N:` headings (h3). For example, "Epic-1" → find `### Epic 1: ...` and parse through the next `---` separator or next `### Epic` heading or end of file.
+3. Parse the extracted section to get: epic title, description, and the list of story references
 
 ### 1.2 Load Story Files
 
 For each story referenced in the epic:
 
-1. Read story file at `_bmad-output/implementation-artifacts/stories/{story_id}.md`. If not found, use glob fallback: `_bmad-output/**/stories/{story_id}.md`. If still not found, error: `❌ Story file not found for ${story_id}. Expected at _bmad-output/implementation-artifacts/stories/{story_id}.md`
+1. Resolve story file under `_bmad-output/implementation-artifacts/` (flat directory, no `stories/` subfolder). Story IDs use dot notation (e.g., `2.1`) but filenames use dashes with a slug (e.g., `2-1-shared-lambda-layer.md`). Resolution order:
+   - Try exact match: `_bmad-output/implementation-artifacts/{story_id}.md`
+   - Try dash-converted glob: `_bmad-output/implementation-artifacts/{N}-{M}-*.md` (where story_id `N.M` becomes `{N}-{M}-*`)
+   - Fallback glob: `_bmad-output/**/{N}-{M}-*.md`
+     If no match found — **FATAL STOP**:
+
+   ```
+   ❌ FATAL: Story file not found for ${story_id}.
+   Searched: _bmad-output/implementation-artifacts/{story_id}.md, _bmad-output/implementation-artifacts/{N}-{M}-*.md
+
+   The orchestrator CANNOT proceed without standalone story files.
+   Story descriptions embedded in epic plans, progress docs, or other files
+   are NOT valid substitutes — they lack the detail needed for implementation.
+
+   Options:
+   a) Create missing stories now (invoke /bmad-bmm-create-story for each)
+   b) Cancel epic run
+   ```
+
+   **CRITICAL:** Do NOT fall back to reading story content from epic files, progress docs, planning summaries, or any other source. Only standalone story files at the expected path (or glob fallback) are valid. If the file does not exist, STOP. This is the same severity as a dependency cycle — the epic run cannot proceed.
+
+   **Note on file layout:** Story files live flat in `_bmad-output/implementation-artifacts/` (no `stories/` subfolder). The filename convention is `{epic}-{num}-{slug}.md` (e.g., `2-1-shared-lambda-layer.md` for story `2.1`). There is no `_bmad-output/implementation-artifacts/stories/` directory.
+
 2. Parse YAML frontmatter: `id`, `title`, `depends_on`, `touches`, `risk`
 3. Store as structured story objects with `story.dependencies` for consistent access
+
+### 1.2a Story Readiness Validation
+
+After all story files are loaded, validate each story is implementation-ready. A story file existing is necessary but not sufficient — the content must be complete enough for an agent to implement without guessing.
+
+**For each story, verify ALL of the following:**
+
+1. **Required YAML frontmatter fields** — `id`, `title` must be present and non-empty. `depends_on` and `touches` must be present (can be empty arrays).
+2. **Acceptance Criteria** — Story must contain an "Acceptance Criteria" section (or equivalent heading like "ACs") with at least 2 concrete, testable criteria. Criteria that are vague placeholders (e.g., "it works", "everything functions correctly") do not count.
+3. **Dev Notes / Task Breakdown** — Story must contain a "Dev Notes", "Tasks", or "Technical Notes" section with a non-empty task or subtask breakdown. A story with no task breakdown forces the agent to invent implementation steps from vague requirements.
+4. **Status check** — If the story YAML frontmatter contains a `status` field, it must be `ready-for-dev` or `done`. Stories with `status: draft` or `status: created` have not been through the creation workflow and are not ready.
+
+**Readiness result for each story:** `ready` | `not-ready` (with list of failures)
+
+**If ANY story fails readiness validation — STOP and present findings:**
+
+```
+❌ Story Readiness Gate — ${failCount} of ${totalCount} stories not ready
+
+Story ${story_id}: NOT READY
+  ✗ Missing: Acceptance Criteria (found 0, need ≥2)
+  ✗ Missing: Dev Notes / Task Breakdown
+  ✓ YAML frontmatter complete
+
+Story ${story_id}: NOT READY
+  ✗ Status is "draft" (need "ready-for-dev")
+  ✓ Acceptance Criteria (4 found)
+  ✓ Dev Notes present
+
+Options:
+a) Create/complete stories now — invoke /bmad-bmm-create-story for each not-ready story
+b) Remove not-ready stories from scope and continue with ready stories only
+c) Cancel epic run
+```
+
+**Option (b) — scope reduction:** If the user chooses to remove not-ready stories, re-run dependency analysis (1.3) on the reduced set. If removing a story breaks dependencies for other in-scope stories, warn the user before proceeding.
+
+**Why this gate exists:** Without this check, the orchestrator will attempt to implement stories from insufficient detail, causing the dev agent to hallucinate implementation decisions, produce code that doesn't match intent, or build against a planning summary instead of a real spec. This was observed in practice during Epic 2 where the orchestrator proceeded with no standalone story files at all, using a 30-line planning summary as a substitute.
 
 ### 1.3 Dependency Analysis
 
@@ -128,6 +189,10 @@ For each story in scope (topological order):
 
 **Update status:** `updateStoryStatus(story, "in-progress")`
 
+**Record start time:** Add `startedAt: <ISO timestamp>` to the story's entry in the state file YAML frontmatter. This is used to compute duration when the story completes. Example: `startedAt: "2026-02-17T00:24:00Z"`.
+
+**Activity log timestamp requirement:** All activity log entries MUST include an `[HH:MM]` timestamp (minutes since epic run started) or an ISO timestamp. Never use placeholder timestamps like `[xx:xx]`. If the exact time is unknown, use the current system time at the moment of writing.
+
 **Create resources (idempotent via StoryRunner):**
 
 ```
@@ -183,7 +248,45 @@ const coverage = coverageMatch
 // If coverage cannot be parsed, log warning and use "N/A" in PR body
 ```
 
-**Secrets scan gate** (run AFTER quality gate, BEFORE marking for review):
+**Temp artifact paths** — All quality gate artifacts MUST use standard paths (not ad-hoc filenames at project root):
+
+- Secrets scan output: `.claude/temp/secrets-scan.json`
+- Test output capture: `.claude/temp/test-output.txt`
+- AC verification output: `.claude/temp/ac-verification.json`
+
+Ensure `.claude/temp/` exists before writing: `mkdir -p .claude/temp`
+
+**Structured AC verification** (run AFTER quality gate, BEFORE secrets scan):
+
+Before proceeding to the secrets scan, verify each Acceptance Criterion has real implementation and real tests. For each AC in the story file:
+
+1. State the criterion text
+2. Cite the specific implementation file(s) and function(s) that fulfill it
+3. Cite the specific test file(s) and test case(s) that verify it
+4. Classify behavior: `"real"` (test exercises actual behavior) or `"mock-only"` (test only exercises mocked paths)
+
+Write the structured output as JSON to `.claude/temp/ac-verification.json`:
+
+```json
+[
+  {
+    "criterion": "Returns 401 for invalid JWT",
+    "implFile": "backend/functions/auth/handler.ts",
+    "testFile": "backend/functions/auth/handler.test.ts",
+    "behaviorType": "real"
+  }
+]
+```
+
+Then run the validator:
+
+```bash
+node .claude/hooks/ac-verify-validator.cjs --input .claude/temp/ac-verification.json
+```
+
+If the validator reports `pass: false`, STOP. Fix the implementation or tests for the flagged ACs before proceeding. Tests must exercise real behavior, not just mock propagation.
+
+**Secrets scan gate** (run AFTER AC verification, BEFORE commit verification):
 
 Run a secrets pattern scan on all changed files:
 
@@ -201,7 +304,34 @@ For each changed file, verify:
 - No connection strings (mongodb://, postgres://, redis://)
 - No ARNs with embedded account IDs
 
-If ANY findings: **STOP implementation**. Show findings to user. Do NOT proceed to review or commit.
+If ANY findings: **STOP implementation**. Show findings to user. Do NOT proceed to review or commit. Write scan results to `.claude/temp/secrets-scan.json`.
+
+**Commit verification gate** (run AFTER secrets scan, BEFORE marking for review):
+
+Verify that all implementation work is actually committed to the branch. Run:
+
+```bash
+node .claude/hooks/commit-gate.cjs --base-branch ${baseBranch} --story-dirs ${story.touches}
+```
+
+Where `${story.touches}` is the comma-separated list of directories from the story's YAML frontmatter `touches` field (e.g., `backend/functions/auth,infra/stacks`). If the story has no `touches` field, omit `--story-dirs`.
+
+If the gate reports `pass: false`:
+
+- If "No changes committed": run `git add` for the relevant files, then `git commit` with an appropriate message, then re-run the gate.
+- If untracked files listed: either `git add` and commit them, or confirm they are intentionally untracked (e.g., temp files). Re-run the gate.
+
+Do NOT proceed to review with uncommitted implementation files.
+
+**CDK synth gate** (conditional — run AFTER commit verification, BEFORE marking for review):
+
+```bash
+node .claude/hooks/cdk-synth-gate.cjs --base-branch ${baseBranch} --infra-dir infra/
+```
+
+This gate automatically detects whether `infra/` files were changed. If no infra files changed, it reports `skipped: true` and the orchestrator proceeds. If infra files changed, it runs `cdk synth --quiet` and reports the result.
+
+If the gate reports `pass: false`: fix the CDK errors (circular dependencies, missing imports, CORS issues, etc.) and re-run. CDK topology errors caught here save 2+ review rounds.
 
 ### 2.3 Mark for Review
 
@@ -266,6 +396,14 @@ pr = getOrCreatePR(story, epic, issue, coverage)
 
 **If PR creation fails:** Show manual fallback command, mark story as `blocked`, ask user to continue or pause.
 
+**Clean up temp artifacts** (run AFTER push, BEFORE CI verification):
+
+```bash
+node .claude/hooks/temp-cleanup.cjs --project-dir ${projectDir}
+```
+
+This removes any stray quality gate artifacts from the project root (e.g., `quality-gate-*.json`, `secrets-*.json`, `test-output*.txt`). These should have been written to `.claude/temp/` but may have been created at the root by earlier invocations.
+
 **Verify CI passes** (MANDATORY — do NOT proceed to human checkpoint until CI is green):
 
 ```bash
@@ -314,6 +452,11 @@ git merge origin/${baseBranch}    # Merge, never rebase (preserves history, no f
 
 - `updateStoryStatus(story, "done")`
 - Record final commit SHA
+- **Record completion time:** Add `completedAt: <ISO timestamp>` and compute `duration` from `startedAt` to `completedAt` (e.g., `"31m"`, `"1h 12m"`). Write both to the story's state file entry. Duration tracking is mandatory for all stories.
+- **Update completion report:** Upsert the current story's row in `docs/progress/epic-{id}-completion-report.md`:
+  - If the file doesn't exist, create it using the Phase 3 template with this story's row populated
+  - If the file exists, upsert the story's row in the Story Summary table (replace pending row with completed data, or add new row)
+  - Update the header: `Stories Completed` count, `Status` (set to `Partial` if stories remain, `Complete` if all done)
 - Show combined summary: PR#, tests, coverage, review rounds, findings fixed, progress (N/M)
 
 **User prompt (merged with integration checkpoint if applicable):**
@@ -371,7 +514,7 @@ git checkout ${branchName}  # Ensure correct branch context after merge operatio
 
 After all stories complete (or user stops):
 
-1. **Generate epic report** at `docs/progress/epic-{id}-completion-report.md` using this template:
+1. **Finalize epic report** at `docs/progress/epic-{id}-completion-report.md`. Story rows are already populated incrementally during Phase 2.6. In this step, fill in the aggregate Metrics section (average duration, review convergence, common issue categories) and update the Status to "Complete" (or "Paused" if stopped early). Use this template if the file doesn't exist yet:
 
    ```markdown
    # Epic {id} Completion Report
@@ -490,12 +633,14 @@ Accumulated from past epic runs. Read these before starting a new epic.
 
 ### Epic 2 (Authentication)
 
-1. **Use `npm run type-check` not `npm run build` in quality gate.** CI runs `tsc --build` (project references mode) which is stricter than per-workspace `tsc`. Vitest strips types via esbuild, so tests pass even with TS errors. The `type-check` script matches CI exactly. Run `npm run validate` to chain lint → type-check → test.
+1. **Story files MUST exist before the epic run starts.** During an early Epic 2 run, the orchestrator found zero standalone story files (`Glob _bmad-output/**/stories/*` returned nothing). Instead of stopping, it used a 30-line planning summary from `docs/progress/epic-2-stories-and-plan.md` as a substitute and proceeded to implement. This produced code based on guesswork rather than real specs. The fix: Phase 1.2 now FATAL STOPs on missing stories (same severity as dependency cycles), and Phase 1.2a validates story content readiness (ACs, dev notes, status) before any implementation begins. Planning docs, progress files, and embedded story descriptions are never valid substitutes for standalone story files.
 
-2. **CDK entry paths need `process.cwd()` not `__dirname`.** With ESM + esbuild bundling, `__dirname` resolves to the bundled output directory, not the source. Use `path.join(process.cwd(), 'backend/functions/...')`.
+2. **Use `npm run type-check` not `npm run build` in quality gate.** CI runs `tsc --build` (project references mode) which is stricter than per-workspace `tsc`. Vitest strips types via esbuild, so tests pass even with TS errors. The `type-check` script matches CI exactly. Run `npm run validate` to chain lint → type-check → test.
 
-3. **Use `CLERK_SECRET_KEY_PARAM` env var + SSM runtime fetch.** Don't use CDK `ssm-secure` dynamic references for Lambda env vars — they resolve at deploy time and get cached. Instead, pass the SSM parameter name and fetch at runtime with `@aws-sdk/client-ssm`.
+3. **CDK entry paths need `process.cwd()` not `__dirname`.** With ESM + esbuild bundling, `__dirname` resolves to the bundled output directory, not the source. Use `path.join(process.cwd(), 'backend/functions/...')`.
 
-4. **Merge guard pre-commit hook is active.** The repo has a gitleaks pre-commit hook that blocks commits with secrets. Factor this into commit workflows.
+4. **Use `CLERK_SECRET_KEY_PARAM` env var + SSM runtime fetch.** Don't use CDK `ssm-secure` dynamic references for Lambda env vars — they resolve at deploy time and get cached. Instead, pass the SSM parameter name and fetch at runtime with `@aws-sdk/client-ssm`.
 
-5. **Always verify CI passes before presenting PR as ready.** After pushing a PR, run `gh pr checks --watch` and wait for all checks to pass. Never tell the user a PR is ready to merge without confirming CI is green first. Local quality gate is necessary but not sufficient — CI is the source of truth.
+5. **Merge guard pre-commit hook is active.** The repo has a gitleaks pre-commit hook that blocks commits with secrets. Factor this into commit workflows.
+
+6. **Always verify CI passes before presenting PR as ready.** After pushing a PR, run `gh pr checks --watch` and wait for all checks to pass. Never tell the user a PR is ready to merge without confirming CI is green first. Local quality gate is necessary but not sufficient — CI is the source of truth.

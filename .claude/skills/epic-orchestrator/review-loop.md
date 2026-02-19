@@ -25,10 +25,12 @@ Task tool invocation:
     Base branch: {baseBranch}
     Story file: {storyFilePath}
     Round: {round}
+    Output path: docs/progress/story-{story.id}-review-findings-round-{round}.md
+    Expected files: {story.touches}
 
     Review the code changes on this branch compared to the base branch.
     Read the story file to check acceptance criteria compliance.
-    Write your findings to: docs/progress/story-{story.id}-review-findings-round-{round}.md
+    Write your findings to the Output path above.
 
     Use the structured findings format with Critical/Important/Minor categories.
 ```
@@ -131,9 +133,12 @@ Task tool invocation:
   prompt: |
     Fix code review findings for Story {story.id}: {story.title}
     Branch: {branchName}
+    Base branch: {baseBranch}
     Story file: {storyFilePath}
     Findings: docs/progress/story-{story.id}-review-findings-round-{round}.md
     Round: {round}
+    Expected files: {story.touches}
+    Coverage baseline: {coverage}%
 
     Read the findings document. Address all Critical and Important issues.
     Read the story file to ensure fixes maintain acceptance criteria compliance.
@@ -141,7 +146,7 @@ Task tool invocation:
     Run tests after each fix. Stage changes with `git add -A` before committing.
     Commit fixes with message:
       fix: address code review round {round} - [brief description]
-    Maintain 80%+ test coverage.
+    Maintain 80%+ test coverage. Coverage must not regress below the baseline above.
 ```
 
 **Fixer rules:**

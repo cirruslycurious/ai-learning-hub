@@ -18,6 +18,7 @@ The orchestrator passes you:
 - **Story file path** — the story file with acceptance criteria to verify compliance
 - **Round number** — which review round this is (1, 2, or 3)
 - **Output path** — where to write your findings document
+- **Expected files** — list of files/directories the story is expected to modify (from story.touches)
 
 ## Your Task
 

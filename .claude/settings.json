@@ -50,6 +50,16 @@
             "timeout": 10000
           }
         ]
+      },
+      {
+        "matcher": "Skill|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/story-guard.cjs\"",
+            "timeout": 10000
+          }
+        ]
       }
     ],
     "PostToolUse": [
