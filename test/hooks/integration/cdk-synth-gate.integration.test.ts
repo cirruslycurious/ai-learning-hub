@@ -19,8 +19,12 @@ function createTestRepo() {
   const workDir = join(root, "work");
 
   mkdirSync(bareDir, { recursive: true });
-  execSync("git init --bare", { cwd: bareDir });
+  execSync("git init --bare --initial-branch=main", { cwd: bareDir });
   execSync(`git clone "${bareDir}" work`, { cwd: root });
+
+  // Configure git identity for CI environments
+  execSync('git config user.email "test@example.com"', { cwd: workDir });
+  execSync('git config user.name "Test User"', { cwd: workDir });
 
   // Initial commit with infra/ and backend/ dirs
   mkdirSync(join(workDir, "infra", "stacks"), { recursive: true });
