@@ -15,7 +15,7 @@ export {
   paginationQuerySchema,
   sortDirectionSchema,
   isoDateSchema,
-  resourceTypeSchema,
+  contentTypeSchema,
   tutorialStatusSchema,
   projectStatusSchema,
   tagsSchema,
@@ -24,7 +24,19 @@ export {
   apiKeyScopesSchema,
   updateProfileBodySchema,
   validateInviteBodySchema,
+  createSaveSchema,
+  updateSaveSchema,
 } from "./schemas.js";
+
+// URL normalization
+export {
+  normalizeUrl,
+  NormalizeError,
+  type NormalizeResult,
+} from "./url-normalizer.js";
+
+// Content type detection
+export { detectContentType } from "./content-type-detector.js";
 
 // Validation utilities
 export {

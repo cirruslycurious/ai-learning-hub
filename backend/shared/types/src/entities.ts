@@ -23,41 +23,49 @@ export interface User extends BaseEntity {
 }
 
 /**
- * Save entity (from saves table)
+ * Save entity (from saves table) — Epic 3 full schema
  */
 export interface Save extends BaseEntity {
   userId: string;
-  saveId: string;
-  url: string;
-  title?: string;
-  description?: string;
-  favicon?: string;
-  resourceType?: ResourceType;
-  notes?: string;
-  tutorialStatus?: TutorialStatus;
+  saveId: string; // ULID
+  url: string; // Original URL as submitted
+  normalizedUrl: string; // Canonical form after normalization
+  urlHash: string; // SHA-256 of normalizedUrl
+  title?: string; // Max 500 chars
+  userNotes?: string; // Max 2000 chars
+  contentType: ContentType; // Defaults to 'other'
+  tags: string[]; // Max 20 tags, each max 50 chars
+  isTutorial: boolean; // Default false
+  tutorialStatus?: TutorialStatus | null;
+  linkedProjectCount: number; // Default 0
+  lastAccessedAt?: string; // Updated on GET /saves/:id
+  enrichedAt?: string; // Set by Epic 9 enrichment
+  deletedAt?: string; // Soft delete marker
 }
 
 /**
- * Resource types for saved URLs
+ * Content types for saved URLs (Epic 3)
  */
-export enum ResourceType {
-  ARTICLE = "ARTICLE",
-  VIDEO = "VIDEO",
-  PODCAST = "PODCAST",
-  TUTORIAL = "TUTORIAL",
-  DOCUMENTATION = "DOCUMENTATION",
-  REPOSITORY = "REPOSITORY",
-  OTHER = "OTHER",
+export enum ContentType {
+  ARTICLE = "article",
+  VIDEO = "video",
+  PODCAST = "podcast",
+  GITHUB_REPO = "github_repo",
+  NEWSLETTER = "newsletter",
+  TOOL = "tool",
+  REDDIT = "reddit",
+  LINKEDIN = "linkedin",
+  OTHER = "other",
 }
 
 /**
- * Tutorial progress status
+ * Tutorial progress status (lowercase, per PRD FR40)
  */
 export enum TutorialStatus {
-  SAVED = "SAVED",
-  STARTED = "STARTED",
-  IN_PROGRESS = "IN_PROGRESS",
-  COMPLETED = "COMPLETED",
+  SAVED = "saved",
+  STARTED = "started",
+  IN_PROGRESS = "in-progress",
+  COMPLETED = "completed",
 }
 
 /**

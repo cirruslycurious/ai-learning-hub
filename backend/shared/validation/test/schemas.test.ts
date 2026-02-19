@@ -8,7 +8,7 @@ import {
   paginationQuerySchema,
   sortDirectionSchema,
   isoDateSchema,
-  resourceTypeSchema,
+  contentTypeSchema,
   tutorialStatusSchema,
   projectStatusSchema,
   tagsSchema,
@@ -51,6 +51,16 @@ describe("Validation Schemas", () => {
 
     it("should reject invalid URL", () => {
       const result = urlSchema.safeParse("not-a-url");
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject URLs with embedded credentials (user:pass@)", () => {
+      const result = urlSchema.safeParse("https://user:pass@example.com/path");
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject URLs with username only", () => {
+      const result = urlSchema.safeParse("https://user@example.com/path");
       expect(result.success).toBe(false);
     });
   });
@@ -167,36 +177,48 @@ describe("Validation Schemas", () => {
     });
   });
 
-  describe("resourceTypeSchema", () => {
-    it("should accept valid resource types", () => {
+  describe("contentTypeSchema", () => {
+    it("should accept all valid content types (lowercase)", () => {
       const types = [
-        "ARTICLE",
-        "VIDEO",
-        "PODCAST",
-        "TUTORIAL",
-        "DOCUMENTATION",
-        "REPOSITORY",
-        "OTHER",
+        "article",
+        "video",
+        "podcast",
+        "github_repo",
+        "newsletter",
+        "tool",
+        "reddit",
+        "linkedin",
+        "other",
       ];
       for (const type of types) {
-        const result = resourceTypeSchema.safeParse(type);
+        const result = contentTypeSchema.safeParse(type);
         expect(result.success).toBe(true);
       }
     });
 
+    it("should reject old uppercase types", () => {
+      const result = contentTypeSchema.safeParse("ARTICLE");
+      expect(result.success).toBe(false);
+    });
+
     it("should reject invalid type", () => {
-      const result = resourceTypeSchema.safeParse("INVALID");
+      const result = contentTypeSchema.safeParse("INVALID");
       expect(result.success).toBe(false);
     });
   });
 
   describe("tutorialStatusSchema", () => {
-    it("should accept valid statuses", () => {
-      const statuses = ["SAVED", "STARTED", "IN_PROGRESS", "COMPLETED"];
+    it("should accept valid lowercase statuses", () => {
+      const statuses = ["saved", "started", "in-progress", "completed"];
       for (const status of statuses) {
         const result = tutorialStatusSchema.safeParse(status);
         expect(result.success).toBe(true);
       }
+    });
+
+    it("should reject old uppercase statuses", () => {
+      const result = tutorialStatusSchema.safeParse("SAVED");
+      expect(result.success).toBe(false);
     });
   });
 
@@ -224,10 +246,16 @@ describe("Validation Schemas", () => {
       }
     });
 
-    it("should reject more than 10 tags", () => {
-      const tags = Array.from({ length: 11 }, (_, i) => `tag${i}`);
+    it("should reject more than 20 tags", () => {
+      const tags = Array.from({ length: 21 }, (_, i) => `tag${i}`);
       const result = tagsSchema.safeParse(tags);
       expect(result.success).toBe(false);
+    });
+
+    it("should accept up to 20 tags", () => {
+      const tags = Array.from({ length: 20 }, (_, i) => `tag${i}`);
+      const result = tagsSchema.safeParse(tags);
+      expect(result.success).toBe(true);
     });
 
     it("should reject tags over 50 chars", () => {
@@ -238,6 +266,35 @@ describe("Validation Schemas", () => {
     it("should reject empty tags", () => {
       const result = tagsSchema.safeParse([""]);
       expect(result.success).toBe(false);
+    });
+
+    it("should reject whitespace-only tags", () => {
+      const result = tagsSchema.safeParse(["   "]);
+      expect(result.success).toBe(false);
+    });
+
+    it("should trim tags", () => {
+      const result = tagsSchema.safeParse(["  hello  ", " world "]);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual(["hello", "world"]);
+      }
+    });
+
+    it("should deduplicate tags after trimming", () => {
+      const result = tagsSchema.safeParse([" foo ", "foo"]);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual(["foo"]);
+      }
+    });
+
+    it("should preserve order of first occurrence during dedup", () => {
+      const result = tagsSchema.safeParse(["b", "a", "b", "c", "a"]);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual(["b", "a", "c"]);
+      }
     });
   });
 
