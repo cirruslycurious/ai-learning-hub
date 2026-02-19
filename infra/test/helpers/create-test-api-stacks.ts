@@ -29,7 +29,7 @@ export interface TestApiStacks {
  * so we only synthesize once and share the result across all test suites
  * (T1-T4) that import this helper.
  */
- 
+
 let cached: TestApiStacks | null = null;
 
 /**
