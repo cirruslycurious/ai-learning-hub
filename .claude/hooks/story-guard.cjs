@@ -359,9 +359,23 @@ function countAcceptanceCriteria(content) {
     ? afterHeading.slice(0, nextHeading.index)
     : afterHeading;
 
-  // Count list items (- or * or numbered)
-  const items = acSection.match(/^[\s]*[-*]\s+.+|^[\s]*\d+[.)]\s+.+/gm);
-  if (!items) return 0;
+  // Count list items (- or * or numbered) AND table rows
+  const listItems = acSection.match(/^[\s]*[-*]\s+.+|^[\s]*\d+[.)]\s+.+/gm) || [];
+
+  // Count table data rows (rows starting with |, excluding header and separator rows)
+  const tableRows = (acSection.match(/^\|[^|].*\|/gm) || []).filter((row) => {
+    const trimmed = row.trim();
+    // Skip separator rows (|---|---|...) and header rows
+    if (/^\|[\s-:|]+\|$/.test(trimmed)) return false;
+    // Skip header row (first non-separator row — heuristic: contains # or Given/When/Then/Criterion)
+    if (/^\|\s*#\s*\|/i.test(trimmed)) return false;
+    // Must have meaningful content (not just pipes and spaces)
+    const cellContent = trimmed.replace(/\|/g, "").trim();
+    return cellContent.length >= 5;
+  });
+
+  const items = [...listItems, ...tableRows];
+  if (items.length === 0) return 0;
 
   // Filter out vague placeholders
   const vaguePatterns = [
@@ -376,7 +390,7 @@ function countAcceptanceCriteria(content) {
 
   let count = 0;
   for (const item of items) {
-    const text = item.replace(/^[\s]*[-*]\s+|^[\s]*\d+[.)]\s+/, "").trim();
+    const text = item.replace(/^[\s]*[-*]\s+|^[\s]*\d+[.)]\s+|^\|[^|]*\|\s*/, "").trim();
     if (text.length < 5) continue; // Too short to be meaningful
     const isVague = vaguePatterns.some((p) => p.test(text));
     if (!isVague) count++;
