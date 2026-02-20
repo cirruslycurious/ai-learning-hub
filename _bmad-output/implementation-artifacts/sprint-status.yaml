@@ -82,8 +82,9 @@ development_status:
   # Epic 3: Save URLs - Core CRUD (11 stories)
   epic-3: in-progress
   3-1a-save-validation-modules: done  # PR #156 merged 2026-02-19
-  3-1b-create-save-api: backlog
-  3-2-list-get-saves-api: backlog
+  3-1c-events-shared-package: ready-for-dev
+  3-1b-create-save-api: ready-for-dev
+  3-2-list-get-saves-api: ready-for-dev
   3-3-update-delete-restore-api: backlog
   3-4-save-filtering-sorting: backlog
   3-5-ios-shortcut-capture: backlog
