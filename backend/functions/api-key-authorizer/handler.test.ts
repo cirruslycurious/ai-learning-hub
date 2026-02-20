@@ -3,6 +3,13 @@
  *
  * Tests the API key authentication authorizer per ADR-013 Story 2.2.
  * Covers all acceptance criteria: AC1-AC6.
+ *
+ * ADR-008 / AC12 Exemption:
+ * Authorizer handlers return IAM policy documents (Allow/Deny), NOT API Gateway
+ * proxy responses. Therefore `assertADR008Error` (which validates proxy response
+ * shape) is not applicable here. Instead, we verify that the deny context includes
+ * a valid ErrorCode value, since API Gateway Response Templates use this errorCode
+ * to produce ADR-008-compliant responses to clients.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { APIGatewayRequestAuthorizerEvent, Context } from "aws-lambda";
@@ -543,6 +550,48 @@ describe("API Key Authorizer Handler", () => {
     it("exports AUTHORIZER_CACHE_TTL = 300", async () => {
       const { AUTHORIZER_CACHE_TTL } = await import("./handler.js");
       expect(AUTHORIZER_CACHE_TTL).toBe(300);
+    });
+  });
+
+  describe("Authorizer deny context uses valid ErrorCode values (AC12 gateway response support)", () => {
+    it("SUSPENDED_ACCOUNT errorCode is a valid ErrorCode enum value", async () => {
+      mockGetApiKeyByHash.mockResolvedValueOnce({
+        PK: "USER#clerk_123",
+        SK: "APIKEY#key_abc",
+        userId: "clerk_123",
+        keyId: "key_abc",
+        keyHash: "hash",
+        name: "My Key",
+        scopes: ["*"],
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+      });
+      mockGetProfile.mockResolvedValueOnce({
+        PK: "USER#clerk_123",
+        SK: "PROFILE",
+        userId: "clerk_123",
+        role: "user",
+        suspendedAt: "2026-01-15T00:00:00Z",
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-15T00:00:00Z",
+      });
+
+      const result = await handler(createEvent("valid-key"), mockContext);
+
+      expect(result.policyDocument.Statement[0].Effect).toBe("Deny");
+      // Verify errorCode maps to a recognized ErrorCode for Gateway Response Templates
+      const validCodes = [
+        "INVITE_REQUIRED",
+        "SUSPENDED_ACCOUNT",
+        "EXPIRED_TOKEN",
+        "UNAUTHORIZED",
+        "FORBIDDEN",
+        "INVALID_API_KEY",
+        "REVOKED_API_KEY",
+        "SCOPE_INSUFFICIENT",
+      ];
+      expect(validCodes).toContain(result.context?.errorCode);
+      expect(result.context?.errorCode).toBe("SUSPENDED_ACCOUNT");
     });
   });
 

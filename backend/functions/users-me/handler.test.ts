@@ -11,6 +11,7 @@ import {
   createMockContext,
   mockCreateLoggerModule,
   mockMiddlewareModule,
+  assertADR008Error,
 } from "../../test-utils/index.js";
 
 // Mock @ai-learning-hub/db
@@ -284,6 +285,18 @@ describe("Users Me Handler", () => {
 
       expect(result.statusCode).toBe(405);
       expect(body.error.code).toBe("METHOD_NOT_ALLOWED");
+    });
+  });
+
+  describe("ADR-008 Error Response Compliance (D5-AC12)", () => {
+    it("missing auth returns ADR-008 compliant 401", async () => {
+      const event = createMockEvent({
+        method: "GET",
+        path: "/users/me",
+      });
+
+      const result = await handler(event, createMockContext());
+      assertADR008Error(result, ErrorCode.UNAUTHORIZED);
     });
   });
 });

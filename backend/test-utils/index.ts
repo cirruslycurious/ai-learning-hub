@@ -11,3 +11,4 @@ export type {
   MockMiddlewareModule,
   MockMiddlewareOptions,
 } from "./mock-wrapper.js";
+export { assertADR008Error } from "./assert-adr008.js";

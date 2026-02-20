@@ -11,6 +11,7 @@ import {
   createMockContext,
   mockCreateLoggerModule,
   mockMiddlewareModule,
+  assertADR008Error,
 } from "../../test-utils/index.js";
 
 // Mock @ai-learning-hub/db
@@ -400,6 +401,33 @@ describe("Validate Invite Handler", () => {
       expect(mockUpdateUserMetadata).toHaveBeenCalledWith("user_validated", {
         publicMetadata: { inviteValidated: true },
       });
+    });
+  });
+
+  describe("ADR-008 Error Response Compliance (D5-AC12)", () => {
+    it("invalid invite code returns ADR-008 compliant error", async () => {
+      mockGetInviteCode.mockResolvedValueOnce(null);
+
+      const event = createMockEvent({
+        method: "POST",
+        path: "/auth/validate-invite",
+        body: { code: "NONEXISTENT1" },
+        userId: "user_123",
+      });
+
+      const result = await handler(event, createMockContext());
+      assertADR008Error(result, ErrorCode.INVALID_INVITE_CODE);
+    });
+
+    it("missing auth returns ADR-008 compliant 401", async () => {
+      const event = createMockEvent({
+        method: "POST",
+        path: "/auth/validate-invite",
+        body: { code: "VALIDCODE1" },
+      });
+
+      const result = await handler(event, createMockContext());
+      assertADR008Error(result, ErrorCode.UNAUTHORIZED);
     });
   });
 });
