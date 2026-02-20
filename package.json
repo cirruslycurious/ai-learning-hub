@@ -24,10 +24,12 @@
     "type-check": "tsc --build",
     "validate": "npm run lint && npm run type-check && npm test",
     "validate-templates": "node scripts/validate-templates.mjs",
+    "smoke-test": "tsx scripts/smoke-test/run.ts",
     "prepare": "husky install || true"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
+    "tsx": "^4.0.0",
     "@vitest/coverage-v8": "^3.2.4",
     "eslint": "^9.0.0",
     "eslint-plugin-security": "^3.0.1",
