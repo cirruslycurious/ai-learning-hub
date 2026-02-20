@@ -16,7 +16,7 @@ const _dir = dirname(fileURLToPath(import.meta.url));
 
 // Require the compiled CJS output (infra/dist/config/route-registry.js)
 // tsx handles require() for .ts files too, but the dist .js works fine.
- 
+
 const mod = _require(
   resolve(_dir, "../../infra/dist/config/route-registry.js")
 ) as {
