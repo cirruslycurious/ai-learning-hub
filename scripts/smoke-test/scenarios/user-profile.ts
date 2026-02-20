@@ -47,12 +47,12 @@ export const userProfileScenarios: ScenarioDefinition[] = [
         }
         return patchRes.status;
       } finally {
-        // Restore original displayName
-        if (patched) {
+        // Restore original displayName only if the user had one before
+        if (patched && original) {
           await getClient()
             .patch(
               "/users/me",
-              { displayName: original ?? "" },
+              { displayName: original },
               {
                 auth: { type: "jwt", token: jwt },
               }

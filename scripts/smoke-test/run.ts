@@ -84,7 +84,7 @@ function printTable(results: Result[]): void {
     console.log(
       ` ${pad(r.id, COL.id)} │ ${pad(r.name, COL.name)} │ ${pad(statusSymbol, COL.status + 2)} │ ${padL(http, COL.http)} │ ${padL(ms, COL.ms)} `
     );
-    if (r.status === "FAIL" && r.error) {
+    if ((r.status === "FAIL" || r.status === "SKIP") && r.error) {
       const msg = r.error instanceof Error ? r.error.message : String(r.error);
       console.log(`         ↳ ${msg}`);
     }

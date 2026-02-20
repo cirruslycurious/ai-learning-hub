@@ -10,7 +10,7 @@ export default tseslint.config(
       "dist/",
       "**/dist/",
       "**/dist-node/",
-      "cdk.out/",
+      "**/cdk.out/",
       "build/",
       "coverage/",
       "_bmad/",

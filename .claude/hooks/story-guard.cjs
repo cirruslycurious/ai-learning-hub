@@ -348,13 +348,17 @@ function parseFrontmatter(content) {
 function countAcceptanceCriteria(content) {
   // Find AC section — look for heading
   const acMatch = content.match(
-    /^#{1,4}\s*(?:Acceptance\s+Criteria|ACs?)\s*$/im
+    /^(#{1,4})\s*(?:Acceptance\s+Criteria|ACs?)\s*$/im
   );
   if (!acMatch) return 0;
 
-  // Get content after the heading until the next heading of same or higher level
+  const headingLevel = acMatch[1].length; // e.g., 2 for ##
+
+  // Get content after the heading until the next heading of SAME or HIGHER level
+  // (sub-headings like ### are part of this section's subtree and must be included)
   const afterHeading = content.slice(acMatch.index + acMatch[0].length);
-  const nextHeading = afterHeading.match(/\n#{1,4}\s+\S/);
+  const sameLevelPattern = new RegExp(`\\n#{1,${headingLevel}}\\s+\\S`);
+  const nextHeading = afterHeading.match(sameLevelPattern);
   const acSection = nextHeading
     ? afterHeading.slice(0, nextHeading.index)
     : afterHeading;
@@ -407,7 +411,7 @@ function countAcceptanceCriteria(content) {
 function hasDevNotes(content) {
   // Look for dev notes section heading at any level
   const headingMatch = content.match(
-    /^(#{1,4})\s*(?:Dev\s+Notes|Tasks?|Technical\s+Notes|Implementation\s+Notes|Task\s+Breakdown|Subtasks?)\s*$/im
+    /^(#{1,4})\s*(?:Dev\s+Notes|Tasks?(?:\s*\/\s*Subtasks?)?|Technical\s+Notes|Implementation\s+Notes|Task\s+Breakdown|Subtasks?)\s*$/im
   );
   if (!headingMatch) return false;
 
