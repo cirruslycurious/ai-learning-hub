@@ -8,7 +8,7 @@
 #
 # Story 1.10: Tool Risk Classification & Human Approval Gates
 #
-Status: ready-for-dev
+Status: done  # PR #104 — refactored to comprehensive safety architecture docs (4 files)
 #
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 #

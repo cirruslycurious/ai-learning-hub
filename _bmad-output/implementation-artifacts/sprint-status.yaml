@@ -1,4 +1,4 @@
-# generated: 2026-02-04
+# generated: 2026-02-20
 # project: ai-learning-hub
 # project_key: NOKEY
 # tracking_system: file-system
@@ -33,7 +33,7 @@
 # - SM typically creates next story after previous one is 'done' to incorporate learnings
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
-generated: 2026-02-04
+generated: 2026-02-20
 project: ai-learning-hub
 project_key: NOKEY
 tracking_system: file-system
@@ -42,46 +42,46 @@ story_location: _bmad-output/implementation-artifacts
 development_status:
   # Epic 1: Project Foundation & Developer Experience (14 stories)
   epic-1: done
-  1-1-monorepo-scaffold: done
-  1-2-shared-lambda-layer: done
-  1-3-claude-md-progressive-disclosure: done
-  1-4-custom-slash-commands: done
-  1-5-claude-code-hooks: done
-  1-6-github-templates: done
-  1-7-ci-cd-pipeline: done
-  1-8-dynamodb-s3-infrastructure: done
-  1-9-observability-foundation: done
-  1-10-tool-risk-classification: done  # Refactored to comprehensive safety architecture docs (4 files)
+  1-1-monorepo-scaffold: done  # (no PR in merged list — may predate or different branch)
+  1-2-shared-lambda-layer: done  # (no PR in merged list)
+  1-3-claude-md-progressive-disclosure: done  # (no PR in merged list)
+  1-4-custom-slash-commands: done  # (no PR in merged list)
+  1-5-claude-code-hooks: done  # (no PR in merged list)
+  1-6-github-templates: done  # PR #72
+  1-7-ci-cd-pipeline: done  # PR #94 (+ #96, #98 follow-ups)
+  1-8-dynamodb-s3-infrastructure: done  # PR #100
+  1-9-observability-foundation: done  # PR #102
+  1-10-tool-risk-classification: done  # PR #104 — refactored to safety architecture docs (4 files)
   1-11-prompt-evaluation-tests: dropped  # Premature optimization, defer to Epic 12 (agentic workflow maturity)
   1-12-model-selection-guide: dropped  # Defaults work fine, added note to CLAUDE.md
-  1-13-subagent-library: done  # Agent system documentation in main
+  1-13-subagent-library: done  # PR #119 — agent system documentation in main
   1-14-context-management-guide: dropped  # Orchestrator handles it, added note to README
-  epic-1-retrospective: done
+  epic-1-retrospective: done  # PR #121 (sprint status cleanup)
 
   # Epic 2: User Authentication & API Keys (9 stories)
   epic-2: done
-  2-1-clerk-jwt-authorizer: done
-  2-2-api-key-authorizer: done
-  2-3-scope-middleware: done
-  2-4-invite-validation-endpoint: done
-  2-5-user-profile: done
-  2-6-api-key-crud: done
-  2-7-rate-limiting: done
-  2-8-auth-error-codes: done
-  2-9-invite-code-generation: done
+  2-1-clerk-jwt-authorizer: done  # PR #123
+  2-2-api-key-authorizer: done  # PR #126
+  2-3-scope-middleware: done  # PR #128
+  2-4-invite-validation-endpoint: done  # PR #132
+  2-5-user-profile: done  # PR #134
+  2-6-api-key-crud: done  # PR #136
+  2-7-rate-limiting: done  # PR #138
+  2-8-auth-error-codes: done  # PR #141
+  2-9-invite-code-generation: done  # PR #143
   epic-2-retrospective: done
 
-  # Epic 2.1: Technical Debt Paydown (5 tasks — must complete before Epic 3 coding)
-  epic-2-1-debt: backlog
-  2-1-d1-api-gateway-stack: backlog  # CDK RestApi, routes, authorizer wiring, Gateway Responses, CORS, extensible pattern
-  2-1-d2-backend-coverage-thresholds: backlog  # Set vitest thresholds to 80%
-  2-1-d3-wrap-handler-mock-dedup: backlog  # Extract shared test mock utility
-  2-1-d4-request-scoped-logger: backlog  # Add optional logger param to all DB functions
-  2-1-d5-e2e-integration-test: backlog  # Full HTTP chain verification: API GW → Authorizer → Lambda → DynamoDB → ADR-008 response
+  # Epic 2.1: Technical Debt Paydown (5 tasks — gate for Epic 3; complete)
+  epic-2-1-debt: done
+  2-1-d2-backend-coverage-thresholds: done  # PR #147 — 80% thresholds, T6 import enforcement
+  2-1-d3-wrap-handler-mock-dedup: done  # PR #149 — shared mock-wrapper.ts utility
+  2-1-d4-request-scoped-logger: done  # PR #151 — optional Logger param on all DB functions
+  2-1-d1-api-gateway-stack: done  # PR #153 — CDK RestApi, auth routes, conventions doc, route registry, T7 test
+  2-1-d5-e2e-integration-test: done  # PR #158 — architecture enforcement tests (T1–T5), handler integration, Epic 3 gate
 
   # Epic 3: Save URLs - Core CRUD (11 stories)
   epic-3: in-progress
-  3-1a-save-validation-modules: ready-for-dev
+  3-1a-save-validation-modules: done  # PR #156 merged 2026-02-19
   3-1b-create-save-api: backlog
   3-2-list-get-saves-api: backlog
   3-3-update-delete-restore-api: backlog
