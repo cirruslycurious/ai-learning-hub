@@ -83,6 +83,13 @@ describe("T1: API Gateway Contract", () => {
       }
     });
 
+    const expectedStatusCodes: Record<string, string> = {
+      UNAUTHORIZED: "401",
+      ACCESS_DENIED: "403",
+      THROTTLED: "429",
+      DEFAULT_5XX: "500",
+    };
+
     for (const expected of expectedResponses) {
       it(`Gateway Response ${expected.type} has ADR-008 template with code "${expected.code}"`, () => {
         const gwResponses = apiGwTemplate.findResources(
@@ -110,6 +117,14 @@ describe("T1: API Gateway Contract", () => {
         expect(parsed.error).toHaveProperty("code", expected.code);
         expect(parsed.error).toHaveProperty("message");
         expect(parsed.error).toHaveProperty("requestId");
+
+        // D7-AC3: Verify StatusCode matches the expected HTTP status
+        const statusCode = props.StatusCode as string;
+        const expectedStatus = expectedStatusCodes[expected.type];
+        expect(
+          statusCode,
+          `Gateway Response ${expected.type} should have StatusCode ${expectedStatus}`
+        ).toBe(expectedStatus);
       });
     }
   });

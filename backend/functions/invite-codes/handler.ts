@@ -18,6 +18,7 @@ import {
   createSuccessResponse,
   type HandlerContext,
 } from "@ai-learning-hub/middleware";
+import { AppError, ErrorCode } from "@ai-learning-hub/types";
 import { validateQueryParams } from "@ai-learning-hub/validation";
 import { paginationQuerySchema } from "./schemas.js";
 
@@ -94,23 +95,15 @@ async function inviteCodesHandler(ctx: HandlerContext) {
     case "GET":
       return handleGet(ctx);
     default:
-      return {
-        statusCode: 405,
-        headers: {
-          "Content-Type": "application/json",
-          Allow: "POST, GET",
-        },
-        body: JSON.stringify({
-          error: {
-            code: "METHOD_NOT_ALLOWED",
-            message: `Method ${method} not allowed`,
-            requestId: ctx.requestId,
-          },
-        }),
-      };
+      throw new AppError(
+        ErrorCode.METHOD_NOT_ALLOWED,
+        `Method ${method} not allowed`,
+        { responseHeaders: { Allow: "POST, GET" } }
+      );
   }
 }
 
 export const handler = wrapHandler(inviteCodesHandler, {
   requireAuth: true,
+  requiredScope: "invites:manage",
 });

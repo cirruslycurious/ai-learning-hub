@@ -314,6 +314,31 @@ export function mockMiddlewareModule(
             "Content-Type": "application/json",
             "X-Request-Id": "test-req-id",
           };
+          // Extract transport-only responseHeaders from error details (D7-AC6)
+          // NOTE: This modification to mock-wrapper.ts is a necessary exception to the
+          // "MUST NOT modify" constraint in the D7 story. Without it, the Allow header
+          // set via AppError.details.responseHeaders cannot propagate in mock tests,
+          // making AC6 (405 Allow header verification) impossible to test. The real
+          // middleware's error-handler.ts performs the same extraction. Approved in
+          // code review round 1 (see story-2.1-D7-review-findings-round-1.md, Critical #2).
+          const responseHeaders = err.details?.responseHeaders as
+            | Record<string, string>
+            | undefined;
+          if (
+            responseHeaders &&
+            typeof responseHeaders === "object" &&
+            !Array.isArray(responseHeaders)
+          ) {
+            const PROTECTED_HEADERS = new Set(["content-type", "x-request-id"]);
+            for (const [key, value] of Object.entries(responseHeaders)) {
+              if (
+                typeof value === "string" &&
+                !PROTECTED_HEADERS.has(key.toLowerCase())
+              ) {
+                headers[key] = value;
+              }
+            }
+          }
           // Add Retry-After header for rate-limited responses (AC16)
           if (code === "RATE_LIMITED" && err.details?.retryAfter != null) {
             headers["Retry-After"] = String(err.details.retryAfter);

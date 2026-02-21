@@ -155,6 +155,42 @@ describe("Invite Codes Handler", () => {
       expect(mockEnforceRateLimit).toHaveBeenCalledTimes(1);
       expect(mockCreateInviteCode).toHaveBeenCalledTimes(1);
     });
+
+    it("enforceRateLimit is called before createInviteCode (explicit ordering)", async () => {
+      const callOrder: string[] = [];
+      mockEnforceRateLimit.mockImplementationOnce(async () => {
+        callOrder.push("enforceRateLimit");
+      });
+      mockCreateInviteCode.mockImplementationOnce(async () => {
+        callOrder.push("createInviteCode");
+        return {
+          code: "TestCode12345678",
+          generatedAt: "2026-02-16T12:00:00Z",
+          expiresAt: "2026-02-23T12:00:00Z",
+        };
+      });
+
+      const event = createEvent("POST", "user_123");
+      await handler(event, mockContext);
+
+      expect(callOrder).toEqual(["enforceRateLimit", "createInviteCode"]);
+    });
+  });
+
+  describe("Scope enforcement (D7-AC13)", () => {
+    it("returns 403 SCOPE_INSUFFICIENT for API key with insufficient scope", async () => {
+      const event = createMockEvent({
+        method: "POST",
+        path: "/users/invite-codes",
+        userId: "user_123",
+        authMethod: "api-key",
+        scopes: ["saves:read"],
+      });
+
+      const result = await handler(event, createMockContext());
+      assertADR008Error(result, ErrorCode.SCOPE_INSUFFICIENT);
+      expect(result.statusCode).toBe(403);
+    });
   });
 
   describe("AC3/AC7: GET /users/invite-codes — list codes", () => {
@@ -249,14 +285,12 @@ describe("Invite Codes Handler", () => {
   });
 
   describe("Method routing", () => {
-    it("returns 405 for unsupported HTTP method (PUT)", async () => {
+    it("returns 405 for unsupported HTTP method (PUT) (ADR-008 compliant with Allow header)", async () => {
       const event = createEvent("GET", "user_123");
       event.httpMethod = "PUT";
       const result = await handler(event, mockContext);
-      const body = JSON.parse(result.body);
 
-      expect(result.statusCode).toBe(405);
-      expect(body.error.code).toBe("METHOD_NOT_ALLOWED");
+      assertADR008Error(result, ErrorCode.METHOD_NOT_ALLOWED);
       expect(result.headers?.Allow).toBe("POST, GET");
     });
   });

@@ -5,7 +5,6 @@ import type { APIGatewayProxyResult } from "aws-lambda";
 import {
   AppError,
   ErrorCode,
-  type ApiErrorResponse,
   type ApiResponseMeta,
 } from "@ai-learning-hub/types";
 import { createLogger, type Logger } from "@ai-learning-hub/logging";
@@ -17,19 +16,43 @@ export function createErrorResponse(
   error: AppError,
   requestId: string
 ): APIGatewayProxyResult {
-  const body: ApiErrorResponse = error.toApiError(requestId);
-
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "X-Request-Id": requestId,
   };
 
-  // Set Retry-After header for 429 rate-limited responses (AC5, RFC 6585)
+  // Extract transport-only headers from details (strip before body serialization)
+  // Only plain objects with string values are accepted. Security-critical headers
+  // (Content-Type, X-Request-Id) cannot be overridden to prevent header injection.
+  const { responseHeaders, ...bodyDetails } = error.details ?? {};
   if (
-    error.code === ErrorCode.RATE_LIMITED &&
-    error.details?.retryAfter != null
+    responseHeaders &&
+    typeof responseHeaders === "object" &&
+    !Array.isArray(responseHeaders)
   ) {
-    headers["Retry-After"] = String(error.details.retryAfter);
+    const PROTECTED_HEADERS = new Set(["content-type", "x-request-id"]);
+    for (const [key, value] of Object.entries(
+      responseHeaders as Record<string, unknown>
+    )) {
+      if (
+        typeof value === "string" &&
+        !PROTECTED_HEADERS.has(key.toLowerCase())
+      ) {
+        headers[key] = value;
+      }
+    }
+  }
+
+  // Set Retry-After header for 429 rate-limited responses (AC5, RFC 6585)
+  if (error.code === ErrorCode.RATE_LIMITED && bodyDetails.retryAfter != null) {
+    headers["Retry-After"] = String(bodyDetails.retryAfter);
+  }
+
+  // Build body without responseHeaders (transport metadata stays out of response body)
+  const body = error.toApiError(requestId);
+  if (body.error.details) {
+    const { responseHeaders: _, ...clean } = body.error.details;
+    body.error.details = Object.keys(clean).length > 0 ? clean : undefined;
   }
 
   return {

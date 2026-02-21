@@ -19,6 +19,7 @@ import {
   createNoContentResponse,
   type HandlerContext,
 } from "@ai-learning-hub/middleware";
+import { AppError, ErrorCode } from "@ai-learning-hub/types";
 import {
   validateJsonBody,
   validateQueryParams,
@@ -122,23 +123,15 @@ async function apiKeysHandler(ctx: HandlerContext) {
     case "DELETE":
       return handleDelete(ctx);
     default:
-      return {
-        statusCode: 405,
-        headers: {
-          "Content-Type": "application/json",
-          Allow: "POST, GET, DELETE",
-        },
-        body: JSON.stringify({
-          error: {
-            code: "METHOD_NOT_ALLOWED",
-            message: `Method ${method} not allowed`,
-            requestId: ctx.requestId,
-          },
-        }),
-      };
+      throw new AppError(
+        ErrorCode.METHOD_NOT_ALLOWED,
+        `Method ${method} not allowed`,
+        { responseHeaders: { Allow: "POST, GET, DELETE" } }
+      );
   }
 }
 
 export const handler = wrapHandler(apiKeysHandler, {
   requireAuth: true,
+  requiredScope: "keys:manage",
 });

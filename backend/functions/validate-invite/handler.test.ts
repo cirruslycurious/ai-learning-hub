@@ -328,6 +328,37 @@ describe("Validate Invite Handler", () => {
       expect(body.error.code).toBe("RATE_LIMITED");
     });
 
+    it("enforceRateLimit is called before getInviteCode (explicit ordering)", async () => {
+      const callOrder: string[] = [];
+      mockEnforceRateLimit.mockImplementationOnce(async () => {
+        callOrder.push("enforceRateLimit");
+      });
+      mockGetInviteCode.mockImplementationOnce(async () => {
+        callOrder.push("getInviteCode");
+        return {
+          PK: "CODE#ABCD1234",
+          SK: "META",
+          code: "ABCD1234",
+          generatedBy: "user_gen",
+          generatedAt: "2026-01-01T00:00:00Z",
+        };
+      });
+      mockRedeemInviteCode.mockResolvedValueOnce({
+        PK: "CODE#ABCD1234",
+        SK: "META",
+        code: "ABCD1234",
+        generatedBy: "user_gen",
+        generatedAt: "2026-01-01T00:00:00Z",
+        redeemedBy: "user_123",
+      });
+      mockUpdateUserMetadata.mockResolvedValueOnce({});
+
+      const event = createEvent({ code: "ABCD1234" }, "user_123");
+      await handler(event, mockContext);
+
+      expect(callOrder).toEqual(["enforceRateLimit", "getInviteCode"]);
+    });
+
     it("calls enforceRateLimit with source IP and correct config", async () => {
       mockEnforceRateLimit.mockResolvedValueOnce(undefined);
       const inviteCode = {

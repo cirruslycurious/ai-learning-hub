@@ -42,50 +42,50 @@ story_location: _bmad-output/implementation-artifacts
 development_status:
   # Epic 1: Project Foundation & Developer Experience (14 stories)
   epic-1: done
-  1-1-monorepo-scaffold: done  # (no PR in merged list — may predate or different branch)
-  1-2-shared-lambda-layer: done  # (no PR in merged list)
-  1-3-claude-md-progressive-disclosure: done  # (no PR in merged list)
-  1-4-custom-slash-commands: done  # (no PR in merged list)
-  1-5-claude-code-hooks: done  # (no PR in merged list)
-  1-6-github-templates: done  # PR #72
-  1-7-ci-cd-pipeline: done  # PR #94 (+ #96, #98 follow-ups)
-  1-8-dynamodb-s3-infrastructure: done  # PR #100
-  1-9-observability-foundation: done  # PR #102
-  1-10-tool-risk-classification: done  # PR #104 — refactored to safety architecture docs (4 files)
-  1-11-prompt-evaluation-tests: dropped  # Premature optimization, defer to Epic 12 (agentic workflow maturity)
-  1-12-model-selection-guide: dropped  # Defaults work fine, added note to CLAUDE.md
-  1-13-subagent-library: done  # PR #119 — agent system documentation in main
-  1-14-context-management-guide: dropped  # Orchestrator handles it, added note to README
-  epic-1-retrospective: done  # PR #121 (sprint status cleanup)
+  1-1-monorepo-scaffold: done # (no PR in merged list — may predate or different branch)
+  1-2-shared-lambda-layer: done # (no PR in merged list)
+  1-3-claude-md-progressive-disclosure: done # (no PR in merged list)
+  1-4-custom-slash-commands: done # (no PR in merged list)
+  1-5-claude-code-hooks: done # (no PR in merged list)
+  1-6-github-templates: done # PR #72
+  1-7-ci-cd-pipeline: done # PR #94 (+ #96, #98 follow-ups)
+  1-8-dynamodb-s3-infrastructure: done # PR #100
+  1-9-observability-foundation: done # PR #102
+  1-10-tool-risk-classification: done # PR #104 — refactored to safety architecture docs (4 files)
+  1-11-prompt-evaluation-tests: dropped # Premature optimization, defer to Epic 12 (agentic workflow maturity)
+  1-12-model-selection-guide: dropped # Defaults work fine, added note to CLAUDE.md
+  1-13-subagent-library: done # PR #119 — agent system documentation in main
+  1-14-context-management-guide: dropped # Orchestrator handles it, added note to README
+  epic-1-retrospective: done # PR #121 (sprint status cleanup)
 
   # Epic 2: User Authentication & API Keys (9 stories)
   epic-2: done
-  2-1-clerk-jwt-authorizer: done  # PR #123
-  2-2-api-key-authorizer: done  # PR #126
-  2-3-scope-middleware: done  # PR #128
-  2-4-invite-validation-endpoint: done  # PR #132
-  2-5-user-profile: done  # PR #134
-  2-6-api-key-crud: done  # PR #136
-  2-7-rate-limiting: done  # PR #138
-  2-8-auth-error-codes: done  # PR #141
-  2-9-invite-code-generation: done  # PR #143
+  2-1-clerk-jwt-authorizer: done # PR #123
+  2-2-api-key-authorizer: done # PR #126
+  2-3-scope-middleware: done # PR #128
+  2-4-invite-validation-endpoint: done # PR #132
+  2-5-user-profile: done # PR #134
+  2-6-api-key-crud: done # PR #136
+  2-7-rate-limiting: done # PR #138
+  2-8-auth-error-codes: done # PR #141
+  2-9-invite-code-generation: done # PR #143
   epic-2-retrospective: done
 
   # Epic 2.1: Technical Debt Paydown (D1–D5 complete; D6 is an optional post-gate addition)
   # NOTE: Epic 3 coding is already unblocked — D1–D5 satisfied the gate. D6 is a follow-up
   # story that adds deployed-environment smoke testing; it does NOT retroactively block Epic 3.
   epic-2-1-debt: in-progress
-  2-1-d2-backend-coverage-thresholds: done  # PR #147 — 80% thresholds, T6 import enforcement
-  2-1-d3-wrap-handler-mock-dedup: done  # PR #149 — shared mock-wrapper.ts utility
-  2-1-d4-request-scoped-logger: done  # PR #151 — optional Logger param on all DB functions
-  2-1-d1-api-gateway-stack: done  # PR #153 — CDK RestApi, auth routes, conventions doc, route registry, T7 test
-  2-1-d5-e2e-integration-test: done  # PR #158 — architecture enforcement tests (T1–T5), handler integration, Epic 3 gate
-  2-1-d6-deployed-smoke-test: done  # PR #163 — smoke-test script: 14 ACs, tsx runner, client, helpers, route-registry bridge
-  2-1-d7-adversarial-review-fixes: ready-for-dev  # 15 findings from adversarial architecture review: test hardening, ADR-008 gaps, logging, config, frontend foundations
+  2-1-d2-backend-coverage-thresholds: done # PR #147 — 80% thresholds, T6 import enforcement
+  2-1-d3-wrap-handler-mock-dedup: done # PR #149 — shared mock-wrapper.ts utility
+  2-1-d4-request-scoped-logger: done # PR #151 — optional Logger param on all DB functions
+  2-1-d1-api-gateway-stack: done # PR #153 — CDK RestApi, auth routes, conventions doc, route registry, T7 test
+  2-1-d5-e2e-integration-test: done # PR #158 — architecture enforcement tests (T1–T5), handler integration, Epic 3 gate
+  2-1-d6-deployed-smoke-test: done # PR #163 — smoke-test script: 14 ACs, tsx runner, client, helpers, route-registry bridge
+  2-1-d7-adversarial-review-fixes: done # PR #167 — 15 adversarial review fixes: test hardening, METHOD_NOT_ALLOWED, env parameterization, scope enforcement, IAM narrowing, frontend API client
 
   # Epic 3: Save URLs - Core CRUD (11 stories)
   epic-3: in-progress
-  3-1a-save-validation-modules: done  # PR #156 merged 2026-02-19
+  3-1a-save-validation-modules: done # PR #156 merged 2026-02-19
   3-1c-events-shared-package: ready-for-dev
   3-1b-create-save-api: ready-for-dev
   3-2-list-get-saves-api: ready-for-dev

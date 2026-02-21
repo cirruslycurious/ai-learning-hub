@@ -41,7 +41,7 @@ describe("TablesStack", () => {
 
     it("should create users table with correct keys", () => {
       template.hasResourceProperties("AWS::DynamoDB::Table", {
-        TableName: "ai-learning-hub-users",
+        TableName: "dev-ai-learning-hub-users",
         KeySchema: [
           { AttributeName: "PK", KeyType: "HASH" },
           { AttributeName: "SK", KeyType: "RANGE" },
@@ -56,7 +56,7 @@ describe("TablesStack", () => {
 
     it("should create saves table with correct keys", () => {
       template.hasResourceProperties("AWS::DynamoDB::Table", {
-        TableName: "ai-learning-hub-saves",
+        TableName: "dev-ai-learning-hub-saves",
         KeySchema: [
           { AttributeName: "PK", KeyType: "HASH" },
           { AttributeName: "SK", KeyType: "RANGE" },
@@ -66,7 +66,8 @@ describe("TablesStack", () => {
       const tables = template.findResources("AWS::DynamoDB::Table");
       const savesTable = Object.values(tables).find(
         (t) =>
-          (t as CfnResource).Properties.TableName === "ai-learning-hub-saves"
+          (t as CfnResource).Properties.TableName ===
+          "dev-ai-learning-hub-saves"
       ) as CfnResource;
       const attrNames = savesTable.Properties.AttributeDefinitions!.map(
         (attr) => attr.AttributeName
@@ -81,7 +82,7 @@ describe("TablesStack", () => {
 
     it("should create projects table with correct keys", () => {
       template.hasResourceProperties("AWS::DynamoDB::Table", {
-        TableName: "ai-learning-hub-projects",
+        TableName: "dev-ai-learning-hub-projects",
         KeySchema: [
           { AttributeName: "PK", KeyType: "HASH" },
           { AttributeName: "SK", KeyType: "RANGE" },
@@ -91,7 +92,7 @@ describe("TablesStack", () => {
 
     it("should create links table with correct keys", () => {
       template.hasResourceProperties("AWS::DynamoDB::Table", {
-        TableName: "ai-learning-hub-links",
+        TableName: "dev-ai-learning-hub-links",
         KeySchema: [
           { AttributeName: "PK", KeyType: "HASH" },
           { AttributeName: "SK", KeyType: "RANGE" },
@@ -101,7 +102,7 @@ describe("TablesStack", () => {
 
     it("should create content table with correct keys", () => {
       template.hasResourceProperties("AWS::DynamoDB::Table", {
-        TableName: "ai-learning-hub-content",
+        TableName: "dev-ai-learning-hub-content",
         KeySchema: [
           { AttributeName: "PK", KeyType: "HASH" },
           { AttributeName: "SK", KeyType: "RANGE" },
@@ -111,7 +112,7 @@ describe("TablesStack", () => {
 
     it("should create search-index table with correct keys", () => {
       template.hasResourceProperties("AWS::DynamoDB::Table", {
-        TableName: "ai-learning-hub-search-index",
+        TableName: "dev-ai-learning-hub-search-index",
         KeySchema: [
           { AttributeName: "PK", KeyType: "HASH" },
           { AttributeName: "SK", KeyType: "RANGE" },
@@ -121,7 +122,7 @@ describe("TablesStack", () => {
 
     it("should create invite-codes table with correct keys", () => {
       template.hasResourceProperties("AWS::DynamoDB::Table", {
-        TableName: "ai-learning-hub-invite-codes",
+        TableName: "dev-ai-learning-hub-invite-codes",
         KeySchema: [
           { AttributeName: "PK", KeyType: "HASH" },
           { AttributeName: "SK", KeyType: "RANGE" },
@@ -154,7 +155,7 @@ describe("TablesStack", () => {
 
     it("should enable TTL on users table for rate limit counter cleanup", () => {
       template.hasResourceProperties("AWS::DynamoDB::Table", {
-        TableName: "ai-learning-hub-users",
+        TableName: "dev-ai-learning-hub-users",
         TimeToLiveSpecification: {
           AttributeName: "ttl",
           Enabled: true,
@@ -174,13 +175,14 @@ describe("TablesStack", () => {
   describe("Global Secondary Indexes", () => {
     it("should create apiKeyHash-index on users table", () => {
       template.hasResourceProperties("AWS::DynamoDB::Table", {
-        TableName: "ai-learning-hub-users",
+        TableName: "dev-ai-learning-hub-users",
       });
       // Verify GSI details separately
       const tables = template.findResources("AWS::DynamoDB::Table");
       const usersTable = Object.values(tables).find(
         (t) =>
-          (t as CfnResource).Properties.TableName === "ai-learning-hub-users"
+          (t as CfnResource).Properties.TableName ===
+          "dev-ai-learning-hub-users"
       ) as CfnResource;
       const gsi = usersTable.Properties.GlobalSecondaryIndexes?.find(
         (g) => g.IndexName === "apiKeyHash-index"
@@ -191,13 +193,14 @@ describe("TablesStack", () => {
 
     it("should create 3 GSIs on saves table", () => {
       template.hasResourceProperties("AWS::DynamoDB::Table", {
-        TableName: "ai-learning-hub-saves",
+        TableName: "dev-ai-learning-hub-saves",
       });
       // Verify GSI count separately
       const tables = template.findResources("AWS::DynamoDB::Table");
       const savesTable = Object.values(tables).find(
         (t) =>
-          (t as CfnResource).Properties.TableName === "ai-learning-hub-saves"
+          (t as CfnResource).Properties.TableName ===
+          "dev-ai-learning-hub-saves"
       ) as CfnResource;
       expect(savesTable.Properties.GlobalSecondaryIndexes).toHaveLength(3);
 
@@ -212,40 +215,42 @@ describe("TablesStack", () => {
 
     it("should create 2 GSIs on projects table", () => {
       template.hasResourceProperties("AWS::DynamoDB::Table", {
-        TableName: "ai-learning-hub-projects",
+        TableName: "dev-ai-learning-hub-projects",
       });
       // Verify GSI count separately
       const tables = template.findResources("AWS::DynamoDB::Table");
       const projectsTable = Object.values(tables).find(
         (t) =>
-          (t as CfnResource).Properties.TableName === "ai-learning-hub-projects"
+          (t as CfnResource).Properties.TableName ===
+          "dev-ai-learning-hub-projects"
       ) as CfnResource;
       expect(projectsTable.Properties.GlobalSecondaryIndexes).toHaveLength(2);
     });
 
     it("should create 2 GSIs on links table", () => {
       template.hasResourceProperties("AWS::DynamoDB::Table", {
-        TableName: "ai-learning-hub-links",
+        TableName: "dev-ai-learning-hub-links",
       });
       // Verify GSI count separately
       const tables = template.findResources("AWS::DynamoDB::Table");
       const linksTable = Object.values(tables).find(
         (t) =>
-          (t as CfnResource).Properties.TableName === "ai-learning-hub-links"
+          (t as CfnResource).Properties.TableName ===
+          "dev-ai-learning-hub-links"
       ) as CfnResource;
       expect(linksTable.Properties.GlobalSecondaryIndexes).toHaveLength(2);
     });
 
     it("should create 1 GSI on search-index table", () => {
       template.hasResourceProperties("AWS::DynamoDB::Table", {
-        TableName: "ai-learning-hub-search-index",
+        TableName: "dev-ai-learning-hub-search-index",
       });
       // Verify GSI count separately
       const tables = template.findResources("AWS::DynamoDB::Table");
       const searchIndexTable = Object.values(tables).find(
         (t) =>
           (t as CfnResource).Properties.TableName ===
-          "ai-learning-hub-search-index"
+          "dev-ai-learning-hub-search-index"
       ) as CfnResource;
       expect(searchIndexTable.Properties.GlobalSecondaryIndexes).toHaveLength(
         1
@@ -254,14 +259,14 @@ describe("TablesStack", () => {
 
     it("should create 1 GSI on invite-codes table", () => {
       template.hasResourceProperties("AWS::DynamoDB::Table", {
-        TableName: "ai-learning-hub-invite-codes",
+        TableName: "dev-ai-learning-hub-invite-codes",
       });
       // Verify GSI count separately
       const tables = template.findResources("AWS::DynamoDB::Table");
       const inviteCodesTable = Object.values(tables).find(
         (t) =>
           (t as CfnResource).Properties.TableName ===
-          "ai-learning-hub-invite-codes"
+          "dev-ai-learning-hub-invite-codes"
       ) as CfnResource;
       expect(inviteCodesTable.Properties.GlobalSecondaryIndexes).toHaveLength(
         1

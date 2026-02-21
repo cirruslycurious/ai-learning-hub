@@ -152,9 +152,9 @@ export interface ApiKey extends BaseEntity {
  */
 export interface InviteCode {
   code: string;
-  createdBy: string;
-  usedBy?: string;
-  usedAt?: string;
-  createdAt: string;
+  generatedBy: string;
+  redeemedBy?: string;
+  redeemedAt?: string;
+  generatedAt: string;
   expiresAt?: string;
 }

@@ -64,8 +64,19 @@ export class AuthStack extends cdk.Stack {
       }
     );
 
-    // Grant read/write to users table (PutItem for ensureProfile, GetItem for getProfile)
-    usersTable.grantReadWriteData(this.jwtAuthorizerFunction);
+    // Grant least-privilege DynamoDB access to users table
+    // GetItem: profile lookup, PutItem: ensureProfile, UpdateItem: profile updates, Query: GSI lookups
+    this.jwtAuthorizerFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:Query",
+        ],
+        resources: [usersTable.tableArn, `${usersTable.tableArn}/index/*`],
+      })
+    );
 
     // Grant read access to Clerk secret key in SSM Parameter Store
     this.jwtAuthorizerFunction.addToRolePolicy(
@@ -108,7 +119,7 @@ export class AuthStack extends cdk.Stack {
         {
           id: "AwsSolutions-IAM5",
           reason:
-            "Wildcard permissions for DynamoDB table read/write and X-Ray are scoped to specific table ARN by CDK grantReadWriteData",
+            "Wildcard sub-resource permissions for DynamoDB GSI index/* and X-Ray tracing are scoped to specific table ARN",
         },
       ],
       true
@@ -156,8 +167,14 @@ export class AuthStack extends cdk.Stack {
       }
     );
 
-    // Grant read/write to users table (Query GSI for key lookup, GetItem for profile, UpdateItem for lastUsedAt)
-    usersTable.grantReadWriteData(this.apiKeyAuthorizerFunction);
+    // Grant least-privilege DynamoDB access to users table
+    // Query: GSI lookup (apiKeyHash-index), GetItem: profile, UpdateItem: lastUsedAt
+    this.apiKeyAuthorizerFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:UpdateItem"],
+        resources: [usersTable.tableArn, `${usersTable.tableArn}/index/*`],
+      })
+    );
 
     // CDK Nag Suppressions for API Key Authorizer
     NagSuppressions.addResourceSuppressions(
@@ -183,7 +200,7 @@ export class AuthStack extends cdk.Stack {
         {
           id: "AwsSolutions-IAM5",
           reason:
-            "Wildcard permissions for DynamoDB table read/write and X-Ray are scoped to specific table ARN by CDK grantReadWriteData",
+            "Wildcard sub-resource permissions for DynamoDB GSI index/* and X-Ray tracing are scoped to specific table ARN",
         },
       ],
       true
@@ -314,6 +331,8 @@ export class AuthStack extends cdk.Stack {
     );
 
     // Grant read/write to invite-codes table (GetItem for lookup, UpdateItem for redemption)
+    // TODO: Narrow to explicit actions (dynamodb:GetItem + dynamodb:UpdateItem) in a future story.
+    // AC16 only covers authorizer Lambdas; this function is out of scope for D7.
     inviteCodesTable.grantReadWriteData(this.validateInviteFunction);
 
     // Grant least-privilege: only UpdateItem needed for rate limit counter increments (Story 2.7)
@@ -495,6 +514,8 @@ export class AuthStack extends cdk.Stack {
     );
 
     // Grant read/write to invite-codes table (PutItem for create, Query for list via GSI)
+    // TODO: Narrow to explicit actions (dynamodb:PutItem + dynamodb:Query) in a future story.
+    // AC16 only covers authorizer Lambdas; this function is out of scope for D7.
     inviteCodesTable.grantReadWriteData(this.generateInviteFunction);
 
     // Grant least-privilege: only UpdateItem needed for rate limit counter increments

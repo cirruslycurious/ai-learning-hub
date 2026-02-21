@@ -106,6 +106,13 @@ export function wrapHandler<T = unknown>(
       traceId,
     });
 
+    // Log incoming request for observability (D7-AC7)
+    logger.info("Request received", {
+      method: event.httpMethod,
+      path: event.path,
+      queryParams: Object.keys(event.queryStringParameters ?? {}),
+    });
+
     try {
       // Extract auth context
       let auth: AuthContext | null = null;
