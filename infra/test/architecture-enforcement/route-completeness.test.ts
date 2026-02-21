@@ -1,15 +1,21 @@
 /**
  * T2: Route Completeness Tests (Story 2.1-D5, AC5-6)
+ * Hardened handler identity: Story 2.1-D7, Task 1
  *
  * Validates:
- * - AC5: Every route registry entry has matching Resource + Method in templates
+ * - AC5: Every route registry entry has matching Resource + Method in templates,
+ *         AND each Method's Integration.Uri references the CORRECT Lambda for
+ *         the route's handlerRef (not just any Lambda)
  * - AC6: No orphan handler Lambdas — every handler has API Gateway integration
+ *         (deterministic check via function name extraction, not cardinality)
  */
 import { describe, it, expect, beforeAll } from "vitest";
 import { Template } from "aws-cdk-lib/assertions";
 import {
   createTestApiStacks,
   type TestApiStacks,
+  HANDLER_REF_TO_FUNCTION_NAME,
+  extractLambdaFunctionName,
 } from "../helpers/create-test-api-stacks";
 import { ROUTE_REGISTRY } from "../../config/route-registry";
 
@@ -65,14 +71,14 @@ describe("T2: Route Completeness", () => {
     }
 
     /**
-     * Get method→resource mapping from the routes template.
+     * Get method→resource mapping with Lambda function name from the routes template.
+     * Returns Map<resourceLogicalId, Map<httpMethod, functionName>>
      */
-    function getMethodsOnResources(
+    function getMethodDetails(
       template: Template
-    ): Map<string, Set<string>> {
+    ): Map<string, Map<string, string | null>> {
       const methods = template.findResources("AWS::ApiGateway::Method");
-      // Map from resource logical ID → set of HTTP methods
-      const resourceMethods = new Map<string, Set<string>>();
+      const result = new Map<string, Map<string, string | null>>();
 
       for (const [, method] of Object.entries(methods)) {
         const props = (method as { Properties: Record<string, unknown> })
@@ -81,19 +87,23 @@ describe("T2: Route Completeness", () => {
         const resourceRef = props.ResourceId as { Ref?: string };
         const resourceId = resourceRef?.Ref;
 
-        if (resourceId && httpMethod !== "OPTIONS") {
-          const existing = resourceMethods.get(resourceId) ?? new Set();
-          existing.add(httpMethod);
-          resourceMethods.set(resourceId, existing);
-        }
+        if (!resourceId || httpMethod === "OPTIONS") continue;
+
+        const integration = props.Integration as Record<string, unknown>;
+        const uriStr = integration?.Uri ? JSON.stringify(integration.Uri) : "";
+        const functionName = extractLambdaFunctionName(uriStr);
+
+        const existing = result.get(resourceId) ?? new Map();
+        existing.set(httpMethod, functionName);
+        result.set(resourceId, existing);
       }
 
-      return resourceMethods;
+      return result;
     }
 
-    it("each registry route has a matching resource path and method in the routes template", () => {
+    it("each registry route has a matching resource path, method, AND correct handler Lambda", () => {
       const resourcePaths = getResourcePaths(routesTemplate);
-      const resourceMethods = getMethodsOnResources(routesTemplate);
+      const methodDetails = getMethodDetails(routesTemplate);
 
       // Invert: path → logical IDs
       const pathToLogicalIds = new Map<string, string[]>();
@@ -103,69 +113,101 @@ describe("T2: Route Completeness", () => {
         pathToLogicalIds.set(path, existing);
       }
 
-      const missingRoutes: string[] = [];
+      const violations: string[] = [];
 
       for (const route of ROUTE_REGISTRY) {
         const logicalIds = pathToLogicalIds.get(route.path);
         if (!logicalIds || logicalIds.length === 0) {
-          missingRoutes.push(`${route.path} — resource not found`);
+          violations.push(`${route.path} — resource not found`);
           continue;
         }
 
-        for (const method of route.methods) {
-          const hasMethod = logicalIds.some((id) => {
-            const methods = resourceMethods.get(id);
-            return methods?.has(method);
-          });
+        const expectedFunctionName =
+          HANDLER_REF_TO_FUNCTION_NAME[route.handlerRef];
 
-          if (!hasMethod) {
-            missingRoutes.push(
+        for (const method of route.methods) {
+          let found = false;
+          let actualFunctionName: string | null = null;
+
+          for (const id of logicalIds) {
+            const methods = methodDetails.get(id);
+            if (methods?.has(method)) {
+              found = true;
+              actualFunctionName = methods.get(method) ?? null;
+              break;
+            }
+          }
+
+          if (!found) {
+            violations.push(
               `${route.path} ${method} — method not found on resource`
+            );
+          } else if (actualFunctionName !== expectedFunctionName) {
+            violations.push(
+              `${route.path} ${method} — wrong handler: expected ${expectedFunctionName}, got ${actualFunctionName}`
             );
           }
         }
       }
 
-      if (missingRoutes.length > 0) {
-        expect.fail(
-          `Route registry entries missing from CDK templates:\n${missingRoutes.join("\n")}`
-        );
+      if (violations.length > 0) {
+        expect.fail(`Route registry violations:\n${violations.join("\n")}`);
       }
     });
   });
 
   describe("AC6: No orphan handler Lambdas", () => {
-    it("every handler Lambda has at least one API Gateway method integration", () => {
+    it("every handler ref in registry has at least one API Gateway method integration", () => {
       const methods = routesTemplate.findResources("AWS::ApiGateway::Method");
 
-      // Collect all Lambda ARNs referenced in integrations
-      const integratedArns = new Set<string>();
+      // Collect all Lambda function names referenced in integrations
+      const integratedFunctionNames = new Set<string>();
 
       for (const [, method] of Object.entries(methods)) {
         const props = (method as { Properties: Record<string, unknown> })
           .Properties;
-        const integration = props.Integration as Record<string, unknown>;
-        if (!integration) continue;
+        const httpMethod = props.HttpMethod as string;
+        if (httpMethod === "OPTIONS") continue;
 
-        const uri = integration.Uri;
-        if (uri) {
-          // Extract Lambda ARN from Fn::Join or direct reference
-          const uriStr = JSON.stringify(uri);
-          integratedArns.add(uriStr);
+        const integration = props.Integration as Record<string, unknown> | null;
+        if (!integration?.Uri) continue;
+
+        const uriStr = JSON.stringify(integration.Uri);
+        const functionName = extractLambdaFunctionName(uriStr);
+        if (functionName) {
+          integratedFunctionNames.add(functionName);
         }
       }
 
-      // Every handler ref in the registry should have at least one integration
-      const handlerRefs = new Set(ROUTE_REGISTRY.map((r) => r.handlerRef));
+      // Verify every handler ref in the registry has a corresponding integration
+      const orphans: string[] = [];
+      const uniqueHandlerRefs = new Set(
+        ROUTE_REGISTRY.map((r) => r.handlerRef)
+      );
 
-      // We verify that the number of unique handler refs that appear in
-      // integrations matches the total unique handler refs in the registry.
-      // Since each handler Lambda is passed to the stack and used in addMethod(),
-      // if a handler has no route, it wouldn't appear in any integration URI.
-      expect(
-        integratedArns.size,
-        `Expected at least ${handlerRefs.size} unique integrations for ${handlerRefs.size} unique handlers`
-      ).toBeGreaterThanOrEqual(handlerRefs.size);
+      for (const handlerRef of uniqueHandlerRefs) {
+        const expectedFunctionName = HANDLER_REF_TO_FUNCTION_NAME[handlerRef];
+        if (!expectedFunctionName) {
+          orphans.push(
+            `${handlerRef} — no entry in HANDLER_REF_TO_FUNCTION_NAME`
+          );
+          continue;
+        }
+        if (!integratedFunctionNames.has(expectedFunctionName)) {
+          orphans.push(
+            `${handlerRef} (${expectedFunctionName}) — no API Gateway integration found`
+          );
+        }
+      }
+
+      if (orphans.length > 0) {
+        expect.fail(`Orphan handler Lambdas:\n${orphans.join("\n")}`);
+      }
+
+      // Positive assertion
+      expect(integratedFunctionNames.size).toBeGreaterThanOrEqual(
+        uniqueHandlerRefs.size
+      );
     });
   });
 });

@@ -380,6 +380,49 @@ describe("API Keys Handler", () => {
       expect(mockEnforceRateLimit).toHaveBeenCalledTimes(1);
       expect(mockCreateApiKey).toHaveBeenCalledTimes(1);
     });
+
+    it("enforceRateLimit is called before createApiKey (explicit ordering)", async () => {
+      const callOrder: string[] = [];
+      mockEnforceRateLimit.mockImplementationOnce(async () => {
+        callOrder.push("enforceRateLimit");
+      });
+      mockCreateApiKey.mockImplementationOnce(async () => {
+        callOrder.push("createApiKey");
+        return {
+          id: "key_01",
+          name: "Test",
+          key: "raw-key",
+          scopes: ["*"],
+          createdAt: "2026-02-16T12:00:00Z",
+        };
+      });
+
+      const event = createEvent(
+        "POST",
+        { name: "Test", scopes: ["*"] },
+        "user_123"
+      );
+      await handler(event, mockContext);
+
+      expect(callOrder).toEqual(["enforceRateLimit", "createApiKey"]);
+    });
+  });
+
+  describe("Scope enforcement (D7-AC13)", () => {
+    it("returns 403 SCOPE_INSUFFICIENT for API key with insufficient scope", async () => {
+      const event = createMockEvent({
+        method: "POST",
+        path: "/users/api-keys",
+        body: { name: "Test", scopes: ["*"] },
+        userId: "user_123",
+        authMethod: "api-key",
+        scopes: ["saves:read"],
+      });
+
+      const result = await handler(event, createMockContext());
+      assertADR008Error(result, "SCOPE_INSUFFICIENT" as ErrorCode);
+      expect(result.statusCode).toBe(403);
+    });
   });
 
   describe("ADR-008 Error Response Compliance (D5-AC12)", () => {

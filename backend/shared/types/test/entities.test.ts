@@ -184,12 +184,12 @@ describe("Entity Types", () => {
     it("should accept valid invite code shape", () => {
       const inviteCode: InviteCode = {
         code: "ABC123",
-        createdBy: "user_123",
-        createdAt: "2026-02-04T12:00:00.000Z",
+        generatedBy: "user_123",
+        generatedAt: "2026-02-04T12:00:00.000Z",
       };
 
       expect(inviteCode.code).toBe("ABC123");
-      expect(inviteCode.usedBy).toBeUndefined();
+      expect(inviteCode.redeemedBy).toBeUndefined();
     });
   });
 });

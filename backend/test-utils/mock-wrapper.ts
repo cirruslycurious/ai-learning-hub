@@ -314,6 +314,13 @@ export function mockMiddlewareModule(
             "Content-Type": "application/json",
             "X-Request-Id": "test-req-id",
           };
+          // Extract transport-only responseHeaders from error details (D7-AC6)
+          const responseHeaders = err.details?.responseHeaders as
+            | Record<string, string>
+            | undefined;
+          if (responseHeaders && typeof responseHeaders === "object") {
+            Object.assign(headers, responseHeaders);
+          }
           // Add Retry-After header for rate-limited responses (AC16)
           if (code === "RATE_LIMITED" && err.details?.retryAfter != null) {
             headers["Retry-After"] = String(err.details.retryAfter);

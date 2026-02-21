@@ -81,7 +81,7 @@ development_status:
   2-1-d1-api-gateway-stack: done  # PR #153 — CDK RestApi, auth routes, conventions doc, route registry, T7 test
   2-1-d5-e2e-integration-test: done  # PR #158 — architecture enforcement tests (T1–T5), handler integration, Epic 3 gate
   2-1-d6-deployed-smoke-test: done  # PR #163 — smoke-test script: 14 ACs, tsx runner, client, helpers, route-registry bridge
-  2-1-d7-adversarial-review-fixes: ready-for-dev  # 15 findings from adversarial architecture review: test hardening, ADR-008 gaps, logging, config, frontend foundations
+  2-1-d7-adversarial-review-fixes: in-progress  # 15 findings from adversarial architecture review: test hardening, ADR-008 gaps, logging, config, frontend foundations
 
   # Epic 3: Save URLs - Core CRUD (11 stories)
   epic-3: in-progress

@@ -19,9 +19,13 @@ const app = new cdk.App();
 export const awsEnv = getAwsEnv();
 
 // Core Infrastructure Stacks (ADR-006 deployment order: Core -> Auth -> API -> AuthRoutes -> Observability)
+const environmentPrefix = app.node.tryGetContext("environmentPrefix") ?? "dev";
+const stageName = app.node.tryGetContext("stageName") ?? "dev";
+
 const tablesStack = new TablesStack(app, "AiLearningHubTables", {
   env: awsEnv,
   description: "DynamoDB tables for ai-learning-hub (7 tables, 10 GSIs)",
+  environmentPrefix,
 });
 
 const bucketsStack = new BucketsStack(app, "AiLearningHubBuckets", {
@@ -76,6 +80,7 @@ const apiGatewayStack = new ApiGatewayStack(app, "AiLearningHubApiGateway", {
     "AiLearningHub-ApiKeyAuthorizerFunctionArn"
   ),
   webAcl: rateLimitingStack.webAcl,
+  stageName,
 });
 apiGatewayStack.addDependency(rateLimitingStack);
 

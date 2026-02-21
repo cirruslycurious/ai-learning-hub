@@ -5,7 +5,6 @@ import type { APIGatewayProxyResult } from "aws-lambda";
 import {
   AppError,
   ErrorCode,
-  type ApiErrorResponse,
   type ApiResponseMeta,
 } from "@ai-learning-hub/types";
 import { createLogger, type Logger } from "@ai-learning-hub/logging";
@@ -17,19 +16,27 @@ export function createErrorResponse(
   error: AppError,
   requestId: string
 ): APIGatewayProxyResult {
-  const body: ApiErrorResponse = error.toApiError(requestId);
-
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "X-Request-Id": requestId,
   };
 
+  // Extract transport-only headers from details (strip before body serialization)
+  const { responseHeaders, ...bodyDetails } = error.details ?? {};
+  if (responseHeaders && typeof responseHeaders === "object") {
+    Object.assign(headers, responseHeaders);
+  }
+
   // Set Retry-After header for 429 rate-limited responses (AC5, RFC 6585)
-  if (
-    error.code === ErrorCode.RATE_LIMITED &&
-    error.details?.retryAfter != null
-  ) {
-    headers["Retry-After"] = String(error.details.retryAfter);
+  if (error.code === ErrorCode.RATE_LIMITED && bodyDetails.retryAfter != null) {
+    headers["Retry-After"] = String(bodyDetails.retryAfter);
+  }
+
+  // Build body without responseHeaders (transport metadata stays out of response body)
+  const body = error.toApiError(requestId);
+  if (body.error.details) {
+    const { responseHeaders: _, ...clean } = body.error.details;
+    body.error.details = Object.keys(clean).length > 0 ? clean : undefined;
   }
 
   return {

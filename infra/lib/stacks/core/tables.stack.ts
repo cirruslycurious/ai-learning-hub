@@ -2,6 +2,11 @@ import * as cdk from "aws-cdk-lib";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import { Construct } from "constructs";
 
+export interface TablesStackProps extends cdk.StackProps {
+  /** Environment prefix prepended to all table names (e.g., "dev", "staging", "prod"). Defaults to "dev". */
+  environmentPrefix?: string;
+}
+
 export class TablesStack extends cdk.Stack {
   public readonly usersTable: dynamodb.Table;
   public readonly savesTable: dynamodb.Table;
@@ -11,17 +16,15 @@ export class TablesStack extends cdk.Stack {
   public readonly searchIndexTable: dynamodb.Table;
   public readonly inviteCodesTable: dynamodb.Table;
 
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props?: TablesStackProps) {
     super(scope, id, props);
 
-    // NOTE: Table names are currently hardcoded without environment prefix.
-    // This prevents deploying multiple environments (dev, staging, prod) to the same AWS account.
-    // TODO: Add environment prefix support in Epic 2 for multi-environment deployment.
+    const prefix = props?.environmentPrefix ?? "dev";
 
     // Table 1: users
     // PK: USER#<clerkId>, SK: PROFILE or APIKEY#<keyId>
     this.usersTable = new dynamodb.Table(this, "UsersTable", {
-      tableName: "ai-learning-hub-users",
+      tableName: `${prefix}-ai-learning-hub-users`,
       partitionKey: { name: "PK", type: dynamodb.AttributeType.STRING },
       sortKey: { name: "SK", type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -43,7 +46,7 @@ export class TablesStack extends cdk.Stack {
     // Table 2: saves
     // PK: USER#<userId>, SK: SAVE#<saveId>
     this.savesTable = new dynamodb.Table(this, "SavesTable", {
-      tableName: "ai-learning-hub-saves",
+      tableName: `${prefix}-ai-learning-hub-saves`,
       partitionKey: { name: "PK", type: dynamodb.AttributeType.STRING },
       sortKey: { name: "SK", type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -83,7 +86,7 @@ export class TablesStack extends cdk.Stack {
     // Table 3: projects
     // PK: USER#<userId>, SK: PROJECT#<projectId> or FOLDER#<folderId>
     this.projectsTable = new dynamodb.Table(this, "ProjectsTable", {
-      tableName: "ai-learning-hub-projects",
+      tableName: `${prefix}-ai-learning-hub-projects`,
       partitionKey: { name: "PK", type: dynamodb.AttributeType.STRING },
       sortKey: { name: "SK", type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -113,7 +116,7 @@ export class TablesStack extends cdk.Stack {
     // Table 4: links
     // PK: USER#<userId>, SK: LINK#<projectId>#<saveId>
     this.linksTable = new dynamodb.Table(this, "LinksTable", {
-      tableName: "ai-learning-hub-links",
+      tableName: `${prefix}-ai-learning-hub-links`,
       partitionKey: { name: "PK", type: dynamodb.AttributeType.STRING },
       sortKey: { name: "SK", type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -144,7 +147,7 @@ export class TablesStack extends cdk.Stack {
     // PK: CONTENT#<urlHash>, SK: META
     // Global table, not user-partitioned
     this.contentTable = new dynamodb.Table(this, "ContentTable", {
-      tableName: "ai-learning-hub-content",
+      tableName: `${prefix}-ai-learning-hub-content`,
       partitionKey: { name: "PK", type: dynamodb.AttributeType.STRING },
       sortKey: { name: "SK", type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -158,7 +161,7 @@ export class TablesStack extends cdk.Stack {
     // Table 6: search-index
     // PK: USER#<userId>, SK: INDEX#<sourceType>#<sourceId>
     this.searchIndexTable = new dynamodb.Table(this, "SearchIndexTable", {
-      tableName: "ai-learning-hub-search-index",
+      tableName: `${prefix}-ai-learning-hub-search-index`,
       partitionKey: { name: "PK", type: dynamodb.AttributeType.STRING },
       sortKey: { name: "SK", type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -180,7 +183,7 @@ export class TablesStack extends cdk.Stack {
     // Table 7: invite-codes
     // PK: CODE#<code>, SK: META
     this.inviteCodesTable = new dynamodb.Table(this, "InviteCodesTable", {
-      tableName: "ai-learning-hub-invite-codes",
+      tableName: `${prefix}-ai-learning-hub-invite-codes`,
       partitionKey: { name: "PK", type: dynamodb.AttributeType.STRING },
       sortKey: { name: "SK", type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,

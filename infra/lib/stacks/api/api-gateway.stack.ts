@@ -30,6 +30,8 @@ export interface ApiGatewayStackProps extends cdk.StackProps {
   apiKeyAuthorizerFunctionArn: string;
   /** WAF WebACL (from RateLimitingStack) */
   webAcl: wafv2.CfnWebACL;
+  /** API Gateway deployment stage name (e.g., "dev", "staging", "prod"). Defaults to "dev". */
+  stageName?: string;
 }
 
 export class ApiGatewayStack extends cdk.Stack {
@@ -43,8 +45,12 @@ export class ApiGatewayStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: ApiGatewayStackProps) {
     super(scope, id, props);
 
-    const { jwtAuthorizerFunctionArn, apiKeyAuthorizerFunctionArn, webAcl } =
-      props;
+    const {
+      jwtAuthorizerFunctionArn,
+      apiKeyAuthorizerFunctionArn,
+      webAcl,
+      stageName = "dev",
+    } = props;
 
     // Import authorizer Lambdas by ARN to avoid CDK cross-stack permission
     // grants. When real Lambda constructs are passed across stacks, CDK
@@ -67,7 +73,7 @@ export class ApiGatewayStack extends cdk.Stack {
       restApiName: "ai-learning-hub-api",
       description: "AI Learning Hub REST API (Epic 2.1-D1)",
       deployOptions: {
-        stageName: "dev",
+        stageName,
         throttlingRateLimit: 100,
         throttlingBurstLimit: 200,
         tracingEnabled: true,

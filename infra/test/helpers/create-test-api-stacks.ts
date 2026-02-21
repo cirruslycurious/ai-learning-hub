@@ -16,6 +16,34 @@ import { ApiGatewayStack } from "../../lib/stacks/api/api-gateway.stack";
 import { AuthRoutesStack } from "../../lib/stacks/api/auth-routes.stack";
 import { getAwsEnv } from "../../config/aws-env";
 
+/**
+ * Maps route registry handler refs to Lambda function names used in the test setup.
+ * This is the single source of truth for which function name corresponds to
+ * which handlerRef. Used by T2/T4 to verify correct handler wiring.
+ *
+ * DO NOT use fuzzy substring matching on CDK logical IDs — CDK appends hash
+ * suffixes that may change across versions. Instead, match on the Lambda
+ * function name embedded in the Integration.Uri ARN.
+ */
+export const HANDLER_REF_TO_FUNCTION_NAME: Record<string, string> = {
+  validateInviteFunction: "ValidateInviteFn",
+  usersMeFunction: "UsersMeFn",
+  apiKeysFunction: "ApiKeysFn",
+  generateInviteFunction: "GenerateInviteFn",
+};
+
+/**
+ * Extract the Lambda function name from a CDK Integration.Uri JSON string.
+ * Integration URIs contain the Lambda ARN in the pattern:
+ *   arn:aws:lambda:REGION:ACCOUNT:function:FUNCTION_NAME
+ *
+ * @returns The function name or null if not found
+ */
+export function extractLambdaFunctionName(uriJson: string): string | null {
+  const match = uriJson.match(/:function:([^/"\s,}]+)/);
+  return match ? match[1] : null;
+}
+
 export interface TestApiStacks {
   app: App;
   apiGatewayStack: ApiGatewayStack;

@@ -18,9 +18,18 @@ import {
   type TableConfig,
 } from "./helpers.js";
 
+function requireEnv(name: string, testFallback: string): string {
+  const value = process.env[name];
+  if (value) return value;
+  if (process.env.NODE_ENV === "test") return testFallback;
+  throw new Error(`${name} environment variable is required`);
+}
+
 export const INVITE_CODES_TABLE_CONFIG: TableConfig = {
-  tableName:
-    process.env.INVITE_CODES_TABLE_NAME ?? "ai-learning-hub-invite-codes",
+  tableName: requireEnv(
+    "INVITE_CODES_TABLE_NAME",
+    "ai-learning-hub-invite-codes"
+  ),
   partitionKey: "PK",
   sortKey: "SK",
 };

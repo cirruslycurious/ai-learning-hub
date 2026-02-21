@@ -79,20 +79,11 @@ async function usersMeHandler(ctx: HandlerContext) {
     case "PATCH":
       return handlePatch(ctx);
     default:
-      return {
-        statusCode: 405,
-        headers: {
-          "Content-Type": "application/json",
-          Allow: "GET, PATCH",
-        },
-        body: JSON.stringify({
-          error: {
-            code: "METHOD_NOT_ALLOWED",
-            message: `Method ${method} not allowed`,
-            requestId: ctx.requestId,
-          },
-        }),
-      };
+      throw new AppError(
+        ErrorCode.METHOD_NOT_ALLOWED,
+        `Method ${method} not allowed`,
+        { responseHeaders: { Allow: "GET, PATCH" } }
+      );
   }
 }
 
