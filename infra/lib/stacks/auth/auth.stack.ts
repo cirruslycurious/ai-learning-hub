@@ -331,6 +331,8 @@ export class AuthStack extends cdk.Stack {
     );
 
     // Grant read/write to invite-codes table (GetItem for lookup, UpdateItem for redemption)
+    // TODO: Narrow to explicit actions (dynamodb:GetItem + dynamodb:UpdateItem) in a future story.
+    // AC16 only covers authorizer Lambdas; this function is out of scope for D7.
     inviteCodesTable.grantReadWriteData(this.validateInviteFunction);
 
     // Grant least-privilege: only UpdateItem needed for rate limit counter increments (Story 2.7)
@@ -512,6 +514,8 @@ export class AuthStack extends cdk.Stack {
     );
 
     // Grant read/write to invite-codes table (PutItem for create, Query for list via GSI)
+    // TODO: Narrow to explicit actions (dynamodb:PutItem + dynamodb:Query) in a future story.
+    // AC16 only covers authorizer Lambdas; this function is out of scope for D7.
     inviteCodesTable.grantReadWriteData(this.generateInviteFunction);
 
     // Grant least-privilege: only UpdateItem needed for rate limit counter increments

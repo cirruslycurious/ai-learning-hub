@@ -23,7 +23,7 @@ function requireEnv(name: string, testFallback: string): string {
 }
 
 export const USERS_TABLE_CONFIG: TableConfig = {
-  tableName: requireEnv("USERS_TABLE_NAME", "ai-learning-hub-users"),
+  tableName: requireEnv("USERS_TABLE_NAME", "dev-ai-learning-hub-users"),
   partitionKey: "PK",
   sortKey: "SK",
 };

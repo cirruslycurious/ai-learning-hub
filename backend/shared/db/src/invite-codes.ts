@@ -28,7 +28,7 @@ function requireEnv(name: string, testFallback: string): string {
 export const INVITE_CODES_TABLE_CONFIG: TableConfig = {
   tableName: requireEnv(
     "INVITE_CODES_TABLE_NAME",
-    "ai-learning-hub-invite-codes"
+    "dev-ai-learning-hub-invite-codes"
   ),
   partitionKey: "PK",
   sortKey: "SK",

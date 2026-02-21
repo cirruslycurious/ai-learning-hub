@@ -285,14 +285,12 @@ describe("Invite Codes Handler", () => {
   });
 
   describe("Method routing", () => {
-    it("returns 405 for unsupported HTTP method (PUT)", async () => {
+    it("returns 405 for unsupported HTTP method (PUT) (ADR-008 compliant with Allow header)", async () => {
       const event = createEvent("GET", "user_123");
       event.httpMethod = "PUT";
       const result = await handler(event, mockContext);
-      const body = JSON.parse(result.body);
 
-      expect(result.statusCode).toBe(405);
-      expect(body.error.code).toBe("METHOD_NOT_ALLOWED");
+      assertADR008Error(result, ErrorCode.METHOD_NOT_ALLOWED);
       expect(result.headers?.Allow).toBe("POST, GET");
     });
   });

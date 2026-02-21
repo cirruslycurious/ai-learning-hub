@@ -104,14 +104,9 @@ describe("ApiClient", () => {
     });
 
     await expect(client.get("/users/me")).rejects.toThrow(ApiError);
+  });
 
-    try {
-      await client.get("/users/me");
-    } catch {
-      // Re-setup fetch for this call
-    }
-
-    // Verify error shape from first call
+  it("ApiError contains correct code, statusCode, and requestId", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 401,
@@ -123,14 +118,12 @@ describe("ApiClient", () => {
         },
       }),
     });
-    try {
-      await client.get("/users/me");
-    } catch (err) {
-      const apiErr = err as ApiError;
-      expect(apiErr.code).toBe("UNAUTHORIZED");
-      expect(apiErr.statusCode).toBe(401);
-      expect(apiErr.requestId).toBe("req-123");
-    }
+
+    await expect(client.get("/users/me")).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+      statusCode: 401,
+      requestId: "req-123",
+    });
   });
 
   it("sends Authorization header with token", async () => {

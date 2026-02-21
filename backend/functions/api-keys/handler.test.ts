@@ -314,14 +314,13 @@ describe("API Keys Handler", () => {
   });
 
   describe("Method routing", () => {
-    it("returns 405 for unsupported HTTP method", async () => {
+    it("returns 405 for unsupported HTTP method (ADR-008 compliant with Allow header)", async () => {
       const event = createEvent("GET", undefined, "user_123");
       event.httpMethod = "PUT";
       const result = await handler(event, mockContext);
-      const body = JSON.parse(result.body);
 
-      expect(result.statusCode).toBe(405);
-      expect(body.error.code).toBe("METHOD_NOT_ALLOWED");
+      assertADR008Error(result, ErrorCode.METHOD_NOT_ALLOWED);
+      expect(result.headers?.Allow).toBe("POST, GET, DELETE");
     });
   });
 

@@ -315,6 +315,12 @@ export function mockMiddlewareModule(
             "X-Request-Id": "test-req-id",
           };
           // Extract transport-only responseHeaders from error details (D7-AC6)
+          // NOTE: This modification to mock-wrapper.ts is a necessary exception to the
+          // "MUST NOT modify" constraint in the D7 story. Without it, the Allow header
+          // set via AppError.details.responseHeaders cannot propagate in mock tests,
+          // making AC6 (405 Allow header verification) impossible to test. The real
+          // middleware's error-handler.ts performs the same extraction. Approved in
+          // code review round 1 (see story-2.1-D7-review-findings-round-1.md, Critical #2).
           const responseHeaders = err.details?.responseHeaders as
             | Record<string, string>
             | undefined;

@@ -60,9 +60,10 @@ export class ApiClient {
     body?: unknown
   ): Promise<T> {
     const token = await this.getToken();
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
+    const headers: Record<string, string> = {};
+    if (body !== undefined) {
+      headers["Content-Type"] = "application/json";
+    }
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
     }

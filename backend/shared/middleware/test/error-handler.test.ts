@@ -71,6 +71,74 @@ describe("Error Handler", () => {
       expect(response.statusCode).toBe(404);
       expect(response.headers?.["Retry-After"]).toBeUndefined();
     });
+
+    it("should include responseHeaders in HTTP headers (e.g., Allow for 405)", () => {
+      const error = new AppError(
+        ErrorCode.METHOD_NOT_ALLOWED,
+        "Method PUT not allowed",
+        { responseHeaders: { Allow: "GET, POST" } }
+      );
+      const response = createErrorResponse(error, "req-405");
+
+      expect(response.statusCode).toBe(405);
+      expect(response.headers?.["Allow"]).toBe("GET, POST");
+      // responseHeaders must NOT leak into the response body
+      const body = JSON.parse(response.body);
+      expect(body.error.details).toBeUndefined();
+    });
+
+    it("should not allow responseHeaders to override Content-Type or X-Request-Id", () => {
+      const error = new AppError(
+        ErrorCode.METHOD_NOT_ALLOWED,
+        "Method PUT not allowed",
+        {
+          responseHeaders: {
+            "Content-Type": "text/html",
+            "X-Request-Id": "attacker-id",
+            Allow: "GET, POST",
+          },
+        }
+      );
+      const response = createErrorResponse(error, "req-protected");
+
+      // Protected headers must not be overridden
+      expect(response.headers?.["Content-Type"]).toBe("application/json");
+      expect(response.headers?.["X-Request-Id"]).toBe("req-protected");
+      // Non-protected headers should still be set
+      expect(response.headers?.["Allow"]).toBe("GET, POST");
+    });
+
+    it("should ignore non-string values in responseHeaders", () => {
+      const error = new AppError(
+        ErrorCode.METHOD_NOT_ALLOWED,
+        "Method PUT not allowed",
+        {
+          responseHeaders: {
+            Allow: "GET",
+            "X-Bad-Number": 42,
+            "X-Bad-Object": { nested: true },
+          },
+        }
+      );
+      const response = createErrorResponse(error, "req-types");
+
+      expect(response.headers?.["Allow"]).toBe("GET");
+      expect(response.headers?.["X-Bad-Number"]).toBeUndefined();
+      expect(response.headers?.["X-Bad-Object"]).toBeUndefined();
+    });
+
+    it("should handle responseHeaders being an array (not a plain object) gracefully", () => {
+      const error = new AppError(
+        ErrorCode.METHOD_NOT_ALLOWED,
+        "Method PUT not allowed",
+        { responseHeaders: ["Allow: GET"] }
+      );
+      const response = createErrorResponse(error, "req-array");
+
+      expect(response.statusCode).toBe(405);
+      // Array should be ignored, not crash
+      expect(response.headers?.["Allow"]).toBeUndefined();
+    });
   });
 
   describe("normalizeError", () => {

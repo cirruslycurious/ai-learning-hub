@@ -22,9 +22,25 @@ export function createErrorResponse(
   };
 
   // Extract transport-only headers from details (strip before body serialization)
+  // Only plain objects with string values are accepted. Security-critical headers
+  // (Content-Type, X-Request-Id) cannot be overridden to prevent header injection.
   const { responseHeaders, ...bodyDetails } = error.details ?? {};
-  if (responseHeaders && typeof responseHeaders === "object") {
-    Object.assign(headers, responseHeaders);
+  if (
+    responseHeaders &&
+    typeof responseHeaders === "object" &&
+    !Array.isArray(responseHeaders)
+  ) {
+    const PROTECTED_HEADERS = new Set(["content-type", "x-request-id"]);
+    for (const [key, value] of Object.entries(
+      responseHeaders as Record<string, unknown>
+    )) {
+      if (
+        typeof value === "string" &&
+        !PROTECTED_HEADERS.has(key.toLowerCase())
+      ) {
+        headers[key] = value;
+      }
+    }
   }
 
   // Set Retry-After header for 429 rate-limited responses (AC5, RFC 6585)
