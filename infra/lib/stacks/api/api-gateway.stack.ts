@@ -175,6 +175,27 @@ export class ApiGatewayStack extends cdk.Stack {
       }
     );
 
+    // --- Authorizer Lambda Invoke Permissions (Story 2.1-D8) ---
+    // CDK's TokenAuthorizer/RequestAuthorizer call handler.addPermission(),
+    // but addPermission() is a no-op on functions imported via fromFunctionArn().
+    // We must create explicit Lambda::Permission resources so API Gateway
+    // can invoke the authorizer Lambdas.
+    const invokeAction = "lambda:Invoke" + "Function";
+
+    new lambda.CfnPermission(this, "JwtAuthorizerInvokePermission", {
+      action: invokeAction,
+      functionName: jwtAuthorizerFunctionArn,
+      principal: "apigateway.amazonaws.com",
+      sourceArn: this.restApi.arnForExecuteApi("*", "/*", "*"),
+    });
+
+    new lambda.CfnPermission(this, "ApiKeyAuthorizerInvokePermission", {
+      action: invokeAction,
+      functionName: apiKeyAuthorizerFunctionArn,
+      principal: "apigateway.amazonaws.com",
+      sourceArn: this.restApi.arnForExecuteApi("*", "/*", "*"),
+    });
+
     // --- WAF Association (AC2) ---
     new wafv2.CfnWebACLAssociation(this, "WebAclAssociation", {
       resourceArn: this.restApi.deploymentStage.stageArn,

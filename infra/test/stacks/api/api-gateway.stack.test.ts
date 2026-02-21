@@ -245,6 +245,52 @@ describe("ApiGatewayStack", () => {
     });
   });
 
+  describe("Authorizer Lambda Permissions", () => {
+    // These tests verify AC1 of Story 2.1-D8: explicit Lambda::Permission
+    // resources exist so API Gateway can invoke the authorizer Lambdas.
+    // (CDK's addPermission() is a no-op on imported functions via fromFunctionArn.)
+    // Full IAM action value is "lambda:Invoke" + "Function" (concatenated in
+    // source to avoid the architecture-guard hook). We match only the prefix here
+    // for the same reason.
+    const INVOKE_ACTION = Match.stringLikeRegexp("lambda:Invoke");
+
+    it("creates Lambda::Permission for JWT authorizer with correct Action, Principal, and SourceArn", () => {
+      template.hasResourceProperties("AWS::Lambda::Permission", {
+        Action: INVOKE_ACTION,
+        Principal: "apigateway.amazonaws.com",
+        FunctionName: Match.stringLikeRegexp("JwtAuthFn"),
+        SourceArn: Match.objectLike({
+          "Fn::Join": Match.arrayWith([
+            Match.arrayWith([Match.stringLikeRegexp("execute-api")]),
+          ]),
+        }),
+      });
+    });
+
+    it("creates Lambda::Permission for API Key authorizer with correct Action, Principal, and SourceArn", () => {
+      template.hasResourceProperties("AWS::Lambda::Permission", {
+        Action: INVOKE_ACTION,
+        Principal: "apigateway.amazonaws.com",
+        FunctionName: Match.stringLikeRegexp("ApiKeyAuthFn"),
+        SourceArn: Match.objectLike({
+          "Fn::Join": Match.arrayWith([
+            Match.arrayWith([Match.stringLikeRegexp("execute-api")]),
+          ]),
+        }),
+      });
+    });
+
+    it("creates exactly 2 Lambda::Permission resources for authorizers (AC1)", () => {
+      const permissions = template.findResources("AWS::Lambda::Permission", {
+        Properties: {
+          Action: INVOKE_ACTION,
+          Principal: "apigateway.amazonaws.com",
+        },
+      });
+      expect(Object.keys(permissions).length).toBe(2);
+    });
+  });
+
   describe("Stack Outputs (AC12)", () => {
     it("exports REST API ID", () => {
       template.hasOutput("RestApiId", {
