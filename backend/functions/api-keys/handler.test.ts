@@ -419,7 +419,7 @@ describe("API Keys Handler", () => {
       });
 
       const result = await handler(event, createMockContext());
-      assertADR008Error(result, "SCOPE_INSUFFICIENT" as ErrorCode);
+      assertADR008Error(result, ErrorCode.SCOPE_INSUFFICIENT);
       expect(result.statusCode).toBe(403);
     });
   });

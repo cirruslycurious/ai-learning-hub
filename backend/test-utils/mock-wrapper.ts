@@ -324,8 +324,20 @@ export function mockMiddlewareModule(
           const responseHeaders = err.details?.responseHeaders as
             | Record<string, string>
             | undefined;
-          if (responseHeaders && typeof responseHeaders === "object") {
-            Object.assign(headers, responseHeaders);
+          if (
+            responseHeaders &&
+            typeof responseHeaders === "object" &&
+            !Array.isArray(responseHeaders)
+          ) {
+            const PROTECTED_HEADERS = new Set(["content-type", "x-request-id"]);
+            for (const [key, value] of Object.entries(responseHeaders)) {
+              if (
+                typeof value === "string" &&
+                !PROTECTED_HEADERS.has(key.toLowerCase())
+              ) {
+                headers[key] = value;
+              }
+            }
           }
           // Add Retry-After header for rate-limited responses (AC16)
           if (code === "RATE_LIMITED" && err.details?.retryAfter != null) {
