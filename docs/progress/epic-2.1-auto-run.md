@@ -68,10 +68,16 @@ stories:
     }
   "2.1-D7":
     {
-      status: in-progress,
+      status: done,
       issue: 166,
+      pr: 167,
       branch: story-2-1-d7-adversarial-architecture-review-fixes,
+      commit: 400d885,
+      coverage: 80,
+      review_rounds: 2,
       startedAt: "2026-02-21T14:13:29Z",
+      completedAt: "2026-02-21T17:57:00Z",
+      duration: "~3h 44m",
     }
 ---
 
@@ -81,14 +87,14 @@ stories:
 
 **How duration is captured:** When the epic orchestrator runs a story, Phase 2.1 records `startedAt` (ISO timestamp) and Phase 2.6 records `completedAt` and computes `duration` (e.g. `"31m"`, `"1h 12m"`). So duration is derived from those timestamps. D2 and D3 were run with full tracking; D4, D1, and D5 were completed without recording timestamps, so their duration is shown as "—" and placeholder `startedAt`/`completedAt` are used so the duration-tracker validator passes.
 
-| Story  | Status         | PR   | Coverage | Review Rounds | Duration |
-| ------ | -------------- | ---- | -------- | ------------- | -------- |
-| 2.1-D2 | ✅ Complete    | #147 | 99%      | 2             | 31m      |
-| 2.1-D3 | ✅ Complete    | #149 | 99%      | 2             | ~45m     |
-| 2.1-D4 | ✅ Complete    | #151 | 99%      | 1             | -        |
-| 2.1-D1 | ✅ Complete    | #153 | 100%     | 2             | -        |
-| 2.1-D5 | ✅ Complete    | #158 | 99%      | 1             | -        |
-| 2.1-D7 | 🔄 In Progress | -    | -        | -             | -        |
+| Story  | Status      | PR   | Coverage | Review Rounds | Duration |
+| ------ | ----------- | ---- | -------- | ------------- | -------- |
+| 2.1-D2 | ✅ Complete | #147 | 99%      | 2             | 31m      |
+| 2.1-D3 | ✅ Complete | #149 | 99%      | 2             | ~45m     |
+| 2.1-D4 | ✅ Complete | #151 | 99%      | 1             | -        |
+| 2.1-D1 | ✅ Complete | #153 | 100%     | 2             | -        |
+| 2.1-D5 | ✅ Complete | #158 | 99%      | 1             | -        |
+| 2.1-D7 | ✅ Complete | #167 | 80%+     | 2             | ~3h 44m  |
 
 ## Activity Log
 
@@ -125,3 +131,9 @@ stories:
 - Epic 2.1 complete — all 5 stories done (D2, D3, D4, D1, D5). Epic 3 gate validated.
 - [14:13] Story 2.1-D7: Epic 2.1 reopened for D7 (Adversarial Architecture Review Fixes)
 - [14:13] Story 2.1-D7: Issue #166 created, branch story-2-1-d7-adversarial-architecture-review-fixes created, starting implementation
+- Story 2.1-D7: Tasks 1-6 complete (architecture test hardening, error handling, METHOD_NOT_ALLOWED migration)
+- Story 2.1-D7: Tasks 7-14 complete (env prefix, stage name, rate-limit ordering, scope enforcement, type alignment, IAM narrowing, frontend API client)
+- Story 2.1-D7: Task 15 verify gate passed (1347 tests, tsc clean, lint 0 errors, cdk synth clean)
+- Story 2.1-D7: Review round 1 — 2 Critical, 5 Important, 5 Minor → all critical/important fixed
+- Story 2.1-D7: Review round 2 — 0 Critical, 1 Important, 4 Minor → Important fixed (mock-wrapper PROTECTED_HEADERS)
+- Story 2.1-D7: Committed, pushed, PR #167 created. 40 files changed, +1316/-218 lines, 1352 tests passing
