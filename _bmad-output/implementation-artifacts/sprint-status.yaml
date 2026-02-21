@@ -71,13 +71,17 @@ development_status:
   2-9-invite-code-generation: done  # PR #143
   epic-2-retrospective: done
 
-  # Epic 2.1: Technical Debt Paydown (5 tasks — gate for Epic 3; complete)
-  epic-2-1-debt: done
+  # Epic 2.1: Technical Debt Paydown (D1–D5 complete; D6 is an optional post-gate addition)
+  # NOTE: Epic 3 coding is already unblocked — D1–D5 satisfied the gate. D6 is a follow-up
+  # story that adds deployed-environment smoke testing; it does NOT retroactively block Epic 3.
+  epic-2-1-debt: in-progress
   2-1-d2-backend-coverage-thresholds: done  # PR #147 — 80% thresholds, T6 import enforcement
   2-1-d3-wrap-handler-mock-dedup: done  # PR #149 — shared mock-wrapper.ts utility
   2-1-d4-request-scoped-logger: done  # PR #151 — optional Logger param on all DB functions
   2-1-d1-api-gateway-stack: done  # PR #153 — CDK RestApi, auth routes, conventions doc, route registry, T7 test
   2-1-d5-e2e-integration-test: done  # PR #158 — architecture enforcement tests (T1–T5), handler integration, Epic 3 gate
+  2-1-d6-deployed-smoke-test: done  # PR #163 — smoke-test script: 14 ACs, tsx runner, client, helpers, route-registry bridge
+  2-1-d7-adversarial-review-fixes: ready-for-dev  # 15 findings from adversarial architecture review: test hardening, ADR-008 gaps, logging, config, frontend foundations
 
   # Epic 3: Save URLs - Core CRUD (11 stories)
   epic-3: in-progress

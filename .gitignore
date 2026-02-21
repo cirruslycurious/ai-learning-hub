@@ -17,6 +17,7 @@ infra/.env
 .env.local
 .env.*.local
 *.env
+.env.smoke
 
 # IDE
 .idea/
