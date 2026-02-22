@@ -13,7 +13,8 @@
     "backend/shared/logging",
     "backend/shared/validation",
     "backend/shared/db",
-    "backend/shared/middleware"
+    "backend/shared/middleware",
+    "backend/shared/events"
   ],
   "scripts": {
     "test": "vitest run && npm run test --workspaces --if-present",
