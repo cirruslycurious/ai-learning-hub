@@ -260,6 +260,28 @@ describe("AuthStack", () => {
     });
   });
 
+  describe("ALLOW_DEV_AUTH_HEADER CDK environment audit (D9, AC7)", () => {
+    it("no Lambda has ALLOW_DEV_AUTH_HEADER in environment variables", () => {
+      const functions = template.findResources("AWS::Lambda::Function");
+      const violations: string[] = [];
+
+      for (const [logicalId, fn] of Object.entries(functions)) {
+        const envVars = fn.Properties?.Environment?.Variables ?? {};
+        if ("ALLOW_DEV_AUTH_HEADER" in envVars) {
+          violations.push(logicalId);
+        }
+      }
+
+      if (violations.length > 0) {
+        expect.fail(
+          `Lambdas with ALLOW_DEV_AUTH_HEADER (production auth bypass risk):\n${violations.map((v) => `  - ${v}`).join("\n")}\n\n` +
+            "If this env var is needed for a dev stage, gate it behind a CDK context flag " +
+            "and update this test to allow it only for stage === 'dev'."
+        );
+      }
+    });
+  });
+
   describe("Validate Invite Lambda", () => {
     it("creates all Lambdas with INVITE_CODES_TABLE_NAME environment variable", () => {
       // All 6 Lambdas need INVITE_CODES_TABLE_NAME because they bundle code

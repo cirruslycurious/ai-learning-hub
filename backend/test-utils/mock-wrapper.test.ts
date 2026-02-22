@@ -354,5 +354,77 @@ describe("mockMiddlewareModule", () => {
         })
       );
     });
+
+    it("strips protected headers from error responseHeaders (D9, AC11)", async () => {
+      const mod = mockMiddlewareModule();
+      const innerHandler = vi.fn().mockRejectedValue(
+        Object.assign(new Error("Bad request"), {
+          code: "VALIDATION_ERROR",
+          statusCode: 400,
+          details: {
+            responseHeaders: {
+              "Content-Type": "text/html",
+              "X-Request-Id": "attacker-id",
+              Allow: "GET, POST",
+            },
+          },
+        })
+      );
+      const wrapped = mod.wrapHandler(innerHandler, {});
+
+      const event = createMockEvent({ userId: "user_123" });
+      const result = await wrapped(event, createMockContext());
+
+      expect(result.statusCode).toBe(400);
+      // Protected headers must not be overridden
+      expect(result.headers["Content-Type"]).toBe("application/json");
+      expect(result.headers["X-Request-Id"]).toBe("test-req-id");
+      // Non-protected headers pass through
+      expect(result.headers["Allow"]).toBe("GET, POST");
+    });
+
+    it("includes error details (minus responseHeaders) in body (D9, AC12)", async () => {
+      const mod = mockMiddlewareModule();
+      const innerHandler = vi.fn().mockRejectedValue(
+        Object.assign(new Error("Insufficient scope"), {
+          code: "SCOPE_INSUFFICIENT",
+          statusCode: 403,
+          details: {
+            requiredScope: "keys:manage",
+            responseHeaders: { Allow: "GET" },
+          },
+        })
+      );
+      const wrapped = mod.wrapHandler(innerHandler, {});
+
+      const event = createMockEvent({ userId: "user_123" });
+      const result = await wrapped(event, createMockContext());
+
+      expect(result.statusCode).toBe(403);
+      const body = JSON.parse(result.body);
+      expect(body.error.code).toBe("SCOPE_INSUFFICIENT");
+      expect(body.error.details).toEqual({ requiredScope: "keys:manage" });
+      // responseHeaders must not leak into body
+      expect(body.error.details.responseHeaders).toBeUndefined();
+    });
+
+    it("omits details field from body when error has no details", async () => {
+      const mod = mockMiddlewareModule();
+      const innerHandler = vi.fn().mockRejectedValue(
+        Object.assign(new Error("Not found"), {
+          code: "NOT_FOUND",
+          statusCode: 404,
+        })
+      );
+      const wrapped = mod.wrapHandler(innerHandler, {});
+
+      const event = createMockEvent({ userId: "user_123" });
+      const result = await wrapped(event, createMockContext());
+
+      expect(result.statusCode).toBe(404);
+      const body = JSON.parse(result.body);
+      expect(body.error.code).toBe("NOT_FOUND");
+      expect(body.error.details).toBeUndefined();
+    });
   });
 });

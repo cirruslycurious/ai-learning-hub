@@ -343,12 +343,21 @@ export function mockMiddlewareModule(
           if (code === "RATE_LIMITED" && err.details?.retryAfter != null) {
             headers["Retry-After"] = String(err.details.retryAfter);
           }
+          // Include details (minus responseHeaders) in body to match production
+          // error-handler.ts behavior (D9, AC12)
+          const { responseHeaders: _, ...bodyDetails } = err.details ?? {};
+          const errorBody: Record<string, unknown> = {
+            code,
+            message,
+            requestId: "test-req-id",
+          };
+          if (Object.keys(bodyDetails).length > 0) {
+            errorBody.details = bodyDetails;
+          }
           return {
             statusCode,
             headers,
-            body: JSON.stringify({
-              error: { code, message, requestId: "test-req-id" },
-            }),
+            body: JSON.stringify({ error: errorBody }),
           };
         }
       };

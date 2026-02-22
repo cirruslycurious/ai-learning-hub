@@ -11,6 +11,7 @@ scope:
     "2.1-D7",
     "2.1-D8",
     "2.1-D10",
+    "2.1-D9",
   ]
 started: 2026-02-17T00:24:04Z
 last_updated: 2026-02-22T00:00:00Z
@@ -114,6 +115,18 @@ stories:
       startedAt: "2026-02-22T00:00:00Z",
       completedAt: "2026-02-22T09:45:00Z",
     }
+  "2.1-D9":
+    {
+      status: done,
+      issue: 174,
+      pr: 175,
+      branch: story-2-1-d9-foundations-hardening,
+      commit: 48f605a,
+      coverage: 98,
+      review_rounds: 1,
+      startedAt: "2026-02-22T14:00:00Z",
+      completedAt: "2026-02-22T14:30:00Z",
+    }
 ---
 
 <!-- Human-readable display below (generated from frontmatter) -->
@@ -132,6 +145,7 @@ stories:
 | 2.1-D7  | ✅ Complete | #167 | 80%+     | 2             | ~3h 44m  |
 | 2.1-D8  | ✅ Complete | #169 | 100%     | 2             | ~65m     |
 | 2.1-D10 | ✅ Complete | #172 | 97%      | 2             | -        |
+| 2.1-D9  | ✅ Complete | #175 | 98%      | 1             | ~30m     |
 
 ## Activity Log
 
@@ -192,3 +206,10 @@ stories:
 - Story 2.1-D10: Review round 2 — 0 Critical, 0 Important, 2 Minor (Approved)
 - Story 2.1-D10: Pushed, PR #172 created. CI green (all checks passed). Awaiting merge approval
 - Story 2.1-D10: PR #172 squash-merged (8ceaa7d), marked done
+- [14:00] Story 2.1-D9: Epic 2.1 reopened for D9 (Foundations Hardening — Adversarial Review Remediation)
+- [14:00] Story 2.1-D9: Issue #174 created, branch story-2-1-d9-foundations-hardening created, starting implementation
+- [14:00] Story 2.1-D9: AC4/AC5 (JWT fallback) already done by D10, implementing remaining 12 ACs
+- Story 2.1-D9: All 12 ACs implemented (AC1-3, AC6-12, AC14). 16 files changed, +573/-39 lines
+- Story 2.1-D9: Quality gate passed (1,398 tests, lint clean, type-check clean)
+- Story 2.1-D9: Review round 1 — 1 Critical, 5 Important, 4 Minor → all critical/important fixed
+- Story 2.1-D9: Committed, pushed, PR #175 created

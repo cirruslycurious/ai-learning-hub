@@ -11,16 +11,44 @@ import * as path from "node:path";
 
 const PROJECT_ROOT = path.resolve(__dirname, "../..");
 
-/** Known vitest config paths to scan */
-const VITEST_CONFIG_PATHS = [
-  "backend/vitest.config.ts",
-  "backend/shared/db/vitest.config.ts",
-  "backend/shared/logging/vitest.config.ts",
-  "backend/shared/middleware/vitest.config.ts",
-  "backend/shared/validation/vitest.config.ts",
-  "backend/shared/types/vitest.config.ts",
-  "infra/vitest.config.ts",
-];
+/**
+ * Self-discovering vitest config scan (D9, AC3).
+ * Discovers vitest configs via glob patterns instead of a static list,
+ * so new packages automatically get coverage threshold enforcement.
+ */
+function discoverVitestConfigs(): string[] {
+  const configs: string[] = [];
+
+  // Scan backend/shared/*/vitest.config.ts
+  const sharedDir = path.join(PROJECT_ROOT, "backend/shared");
+  if (fs.existsSync(sharedDir)) {
+    for (const entry of fs.readdirSync(sharedDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const configPath = path.join(
+        "backend/shared",
+        entry.name,
+        "vitest.config.ts"
+      );
+      if (fs.existsSync(path.join(PROJECT_ROOT, configPath))) {
+        configs.push(configPath);
+      }
+    }
+  }
+
+  // Top-level configs
+  for (const configPath of [
+    "backend/vitest.config.ts",
+    "infra/vitest.config.ts",
+  ]) {
+    if (fs.existsSync(path.join(PROJECT_ROOT, configPath))) {
+      configs.push(configPath);
+    }
+  }
+
+  return configs.sort();
+}
+
+const VITEST_CONFIG_PATHS = discoverVitestConfigs();
 
 const REQUIRED_METRICS = ["lines", "functions", "branches", "statements"];
 const MIN_THRESHOLD = 80;
@@ -63,7 +91,11 @@ function parseThresholds(
 }
 
 describe("Quality Gate Self-Test (AC18)", () => {
-  it("all expected vitest config files exist", () => {
+  it("discovers at least 7 vitest config files via glob scan", () => {
+    expect(VITEST_CONFIG_PATHS.length).toBeGreaterThanOrEqual(7);
+  });
+
+  it("all discovered vitest config files exist", () => {
     const missing: string[] = [];
 
     for (const configPath of VITEST_CONFIG_PATHS) {
