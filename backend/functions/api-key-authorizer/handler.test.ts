@@ -78,12 +78,14 @@ import {
   ensureProfile,
 } from "@ai-learning-hub/db";
 import { verifyToken } from "@clerk/backend";
+import { getClerkSecretKey } from "@ai-learning-hub/middleware";
 
 const mockGetApiKeyByHash = vi.mocked(getApiKeyByHash);
 const mockGetProfile = vi.mocked(getProfile);
 const mockUpdateApiKeyLastUsed = vi.mocked(updateApiKeyLastUsed);
 const mockEnsureProfile = vi.mocked(ensureProfile);
 const mockVerifyToken = vi.mocked(verifyToken);
+const mockGetClerkSecretKey = vi.mocked(getClerkSecretKey);
 
 function createEventWithHeaders(
   headers: Record<string, string>
@@ -138,50 +140,7 @@ function createEvent(
   apiKey?: string,
   headerName = "x-api-key"
 ): APIGatewayRequestAuthorizerEvent {
-  return {
-    type: "REQUEST",
-    methodArn:
-      "arn:aws:execute-api:us-east-1:123456789:api-id/stage/GET/resource",
-    headers: apiKey ? { [headerName]: apiKey } : {},
-    multiValueHeaders: {},
-    pathParameters: null,
-    queryStringParameters: null,
-    multiValueQueryStringParameters: null,
-    stageVariables: null,
-    path: "/resource",
-    requestContext: {
-      accountId: "123456789",
-      apiId: "api-id",
-      authorizer: undefined,
-      httpMethod: "GET",
-      identity: {
-        accessKey: null,
-        accountId: null,
-        apiKey: null,
-        apiKeyId: null,
-        caller: null,
-        clientCert: null,
-        cognitoAuthenticationProvider: null,
-        cognitoAuthenticationType: null,
-        cognitoIdentityId: null,
-        cognitoIdentityPoolId: null,
-        principalOrgId: null,
-        sourceIp: "127.0.0.1",
-        user: null,
-        userAgent: "test",
-        userArn: null,
-      },
-      path: "/resource",
-      protocol: "HTTP/1.1",
-      requestId: "req-123",
-      requestTimeEpoch: Date.now(),
-      resourceId: "resource-id",
-      resourcePath: "/resource",
-      stage: "dev",
-    },
-    resource: "/resource",
-    httpMethod: "GET",
-  };
+  return createEventWithHeaders(apiKey ? { [headerName]: apiKey } : {});
 }
 
 const mockContext = {} as Context;
@@ -805,13 +764,81 @@ describe("API Key Authorizer Handler", () => {
       await expect(handler(event, mockContext)).rejects.toThrow("Unauthorized");
     });
 
-    it("Authorization header without Bearer prefix → throws Unauthorized", async () => {
-      mockVerifyToken.mockRejectedValueOnce(new Error("Invalid token"));
-
+    it("Authorization header without Bearer prefix → throws Unauthorized without calling verifyToken", async () => {
       const event = createEventWithHeaders({
         Authorization: "Basic some-credentials",
       });
       await expect(handler(event, mockContext)).rejects.toThrow("Unauthorized");
+      // verifyToken should NOT be called since Bearer prefix is missing
+      expect(mockVerifyToken).not.toHaveBeenCalled();
+    });
+
+    it("getClerkSecretKey failure → throws Unauthorized", async () => {
+      mockGetClerkSecretKey.mockRejectedValueOnce(
+        new Error("SSM parameter not found")
+      );
+
+      const event = createEventWithHeaders({
+        Authorization: "Bearer valid-token",
+      });
+      await expect(handler(event, mockContext)).rejects.toThrow("Unauthorized");
+      expect(mockVerifyToken).not.toHaveBeenCalled();
+    });
+
+    it("ensureProfile failure → throws Unauthorized", async () => {
+      mockVerifyToken.mockResolvedValueOnce({
+        sub: "user_ensure_fail",
+        publicMetadata: { inviteValidated: true },
+      } as never);
+      mockGetProfile.mockResolvedValueOnce(null);
+      mockEnsureProfile.mockRejectedValueOnce(
+        new Error("DynamoDB write failed")
+      );
+
+      const event = createEventWithHeaders({
+        Authorization: "Bearer ensure-fail-token",
+      });
+      await expect(handler(event, mockContext)).rejects.toThrow("Unauthorized");
+    });
+
+    it("ensureProfile succeeds but second getProfile returns null → throws Unauthorized", async () => {
+      mockVerifyToken.mockResolvedValueOnce({
+        sub: "user_profile_inconsistency",
+        publicMetadata: { inviteValidated: true },
+      } as never);
+      // First getProfile returns null
+      mockGetProfile.mockResolvedValueOnce(null);
+      mockEnsureProfile.mockResolvedValueOnce(undefined);
+      // Second getProfile also returns null (profile inconsistency)
+      mockGetProfile.mockResolvedValueOnce(null);
+
+      const event = createEventWithHeaders({
+        Authorization: "Bearer inconsistency-token",
+      });
+      await expect(handler(event, mockContext)).rejects.toThrow("Unauthorized");
+    });
+
+    it("uses publicMetadata.role as fallback when profile.role is falsy", async () => {
+      mockVerifyToken.mockResolvedValueOnce({
+        sub: "user_metadata_role",
+        publicMetadata: { inviteValidated: true, role: "analyst" },
+      } as never);
+      mockGetProfile.mockResolvedValueOnce({
+        PK: "USER#user_metadata_role",
+        SK: "PROFILE",
+        userId: "user_metadata_role",
+        role: "",
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+      });
+
+      const event = createEventWithHeaders({
+        Authorization: "Bearer metadata-role-token",
+      });
+      const result = await handler(event, mockContext);
+
+      expect(result.policyDocument.Statement[0].Effect).toBe("Allow");
+      expect(result.context?.role).toBe("analyst");
     });
   });
 

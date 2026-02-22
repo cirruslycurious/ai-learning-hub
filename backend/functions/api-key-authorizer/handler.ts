@@ -156,12 +156,12 @@ export async function handler(
     ? event.headers?.[authHeaderKey]
     : undefined;
 
-  if (!authHeaderValue) {
-    logger.warn("No x-api-key or Authorization header");
+  if (!authHeaderValue || !/^Bearer\s+/i.test(authHeaderValue)) {
+    logger.warn("No x-api-key or valid Bearer Authorization header");
     throw new Error("Unauthorized");
   }
 
-  // Strip "Bearer " prefix
+  // Strip "Bearer " prefix (validated above)
   const token = authHeaderValue.replace(/^Bearer\s+/i, "");
 
   try {
@@ -202,7 +202,7 @@ export async function handler(
       return deny(clerkId, "SUSPENDED_ACCOUNT");
     }
 
-    const role = profile.role || "user";
+    const role = profile.role || (publicMetadata.role as string) || "user";
 
     logger.info("JWT auth successful (fallback)", { clerkId, role });
 
