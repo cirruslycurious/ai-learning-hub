@@ -111,23 +111,38 @@ describe("AuthStack", () => {
   });
 
   describe("API Key Authorizer Lambda", () => {
-    it("creates Lambdas with USERS_TABLE_NAME but without CLERK_SECRET_KEY_PARAM (API Key authorizer, Users Me, API Keys, Generate Invite)", () => {
+    it("creates Lambdas with USERS_TABLE_NAME but without CLERK_SECRET_KEY_PARAM (Users Me, API Keys, Generate Invite)", () => {
       const lambdas = template.findResources("AWS::Lambda::Function");
-      const nonJwtLambdas = Object.entries(lambdas).filter(([, resource]) => {
+      const nonClerkLambdas = Object.entries(lambdas).filter(([, resource]) => {
         const envVars = resource.Properties?.Environment?.Variables ?? {};
         return envVars.USERS_TABLE_NAME && !envVars.CLERK_SECRET_KEY_PARAM;
       });
-      expect(nonJwtLambdas).toHaveLength(4);
+      // 3 Lambdas: Users Me, API Keys, Generate Invite
+      expect(nonClerkLambdas).toHaveLength(3);
     });
 
-    it("creates Lambdas with both USERS_TABLE_NAME and CLERK_SECRET_KEY_PARAM (JWT authorizer + validate-invite)", () => {
-      // Both JWT authorizer and validate-invite have USERS_TABLE_NAME and CLERK_SECRET_KEY_PARAM
+    it("creates Lambdas with both USERS_TABLE_NAME and CLERK_SECRET_KEY_PARAM (JWT authorizer + validate-invite + API Key authorizer)", () => {
+      // JWT authorizer, validate-invite, and API Key authorizer (JWT fallback) have both
       const lambdas = template.findResources("AWS::Lambda::Function");
       const clerkLambdas = Object.entries(lambdas).filter(([, resource]) => {
         const envVars = resource.Properties?.Environment?.Variables ?? {};
         return envVars.USERS_TABLE_NAME && envVars.CLERK_SECRET_KEY_PARAM;
       });
-      expect(clerkLambdas).toHaveLength(2);
+      expect(clerkLambdas).toHaveLength(3);
+    });
+
+    it("API Key authorizer has ssm:GetParameter permission for Clerk secret (AC9)", () => {
+      // Verify that at least one IAM policy statement grants ssm:GetParameter
+      // This covers both jwt-authorizer and api-key-authorizer (JWT fallback)
+      const policies = template.findResources("AWS::IAM::Policy");
+      const ssmPolicies = Object.values(policies).filter((resource) => {
+        const statements = resource.Properties?.PolicyDocument?.Statement ?? [];
+        return statements.some(
+          (s: Record<string, unknown>) => s.Action === "ssm:GetParameter"
+        );
+      });
+      // JWT authorizer, validate-invite, and API Key authorizer each have ssm:GetParameter
+      expect(ssmPolicies.length).toBeGreaterThanOrEqual(3);
     });
   });
 
