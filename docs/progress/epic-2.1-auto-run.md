@@ -1,9 +1,19 @@
 ---
 epic_id: Epic-2.1
 status: in-progress
-scope: ["2.1-D2", "2.1-D3", "2.1-D4", "2.1-D1", "2.1-D5", "2.1-D7", "2.1-D8"]
+scope:
+  [
+    "2.1-D2",
+    "2.1-D3",
+    "2.1-D4",
+    "2.1-D1",
+    "2.1-D5",
+    "2.1-D7",
+    "2.1-D8",
+    "2.1-D10",
+  ]
 started: 2026-02-17T00:24:04Z
-last_updated: 2026-02-21T18:30:00Z
+last_updated: 2026-02-22T00:00:00Z
 stories:
   "2.1-D2":
     {
@@ -92,6 +102,18 @@ stories:
       completedAt: "2026-02-21T19:35:00Z",
       duration: "~65m",
     }
+  "2.1-D10":
+    {
+      status: done,
+      issue: 171,
+      pr: 172,
+      branch: story-2-1-d10-add-jwt-fallback-to-api-key-authorizer,
+      commit: 8ceaa7d,
+      coverage: 97,
+      review_rounds: 2,
+      startedAt: "2026-02-22T00:00:00Z",
+      completedAt: "2026-02-22T09:45:00Z",
+    }
 ---
 
 <!-- Human-readable display below (generated from frontmatter) -->
@@ -100,15 +122,16 @@ stories:
 
 **How duration is captured:** When the epic orchestrator runs a story, Phase 2.1 records `startedAt` (ISO timestamp) and Phase 2.6 records `completedAt` and computes `duration` (e.g. `"31m"`, `"1h 12m"`). So duration is derived from those timestamps. D2 and D3 were run with full tracking; D4, D1, and D5 were completed without recording timestamps, so their duration is shown as "—" and placeholder `startedAt`/`completedAt` are used so the duration-tracker validator passes.
 
-| Story  | Status      | PR   | Coverage | Review Rounds | Duration |
-| ------ | ----------- | ---- | -------- | ------------- | -------- |
-| 2.1-D2 | ✅ Complete | #147 | 99%      | 2             | 31m      |
-| 2.1-D3 | ✅ Complete | #149 | 99%      | 2             | ~45m     |
-| 2.1-D4 | ✅ Complete | #151 | 99%      | 1             | -        |
-| 2.1-D1 | ✅ Complete | #153 | 100%     | 2             | -        |
-| 2.1-D5 | ✅ Complete | #158 | 99%      | 1             | -        |
-| 2.1-D7 | ✅ Complete | #167 | 80%+     | 2             | ~3h 44m  |
-| 2.1-D8 | ✅ Complete | #169 | 100%     | 2             | ~65m     |
+| Story   | Status      | PR   | Coverage | Review Rounds | Duration |
+| ------- | ----------- | ---- | -------- | ------------- | -------- |
+| 2.1-D2  | ✅ Complete | #147 | 99%      | 2             | 31m      |
+| 2.1-D3  | ✅ Complete | #149 | 99%      | 2             | ~45m     |
+| 2.1-D4  | ✅ Complete | #151 | 99%      | 1             | -        |
+| 2.1-D1  | ✅ Complete | #153 | 100%     | 2             | -        |
+| 2.1-D5  | ✅ Complete | #158 | 99%      | 1             | -        |
+| 2.1-D7  | ✅ Complete | #167 | 80%+     | 2             | ~3h 44m  |
+| 2.1-D8  | ✅ Complete | #169 | 100%     | 2             | ~65m     |
+| 2.1-D10 | ✅ Complete | #172 | 97%      | 2             | -        |
 
 ## Activity Log
 
@@ -161,3 +184,11 @@ stories:
 - Story 2.1-D8: Committed, pushed, PR #169 created. CI green (all checks passed)
 - [19:35] Story 2.1-D8: PR #169 squash-merged, marked done
 - [18:30] Story 2.1-D8: Issue #168 created, branch story-2-1-d8-fix-authorizer-lambda-invoke-permissions created, starting implementation
+- Story 2.1-D10: Epic 2.1 reopened for D10 (Add JWT Fallback to API Key Authorizer)
+- Story 2.1-D10: Issue #171 created, branch story-2-1-d10-add-jwt-fallback-to-api-key-authorizer created, starting implementation
+- Story 2.1-D10: TDD — 15 new tests (7 fail), then JWT fallback implementation (all pass), CDK infra updated
+- Story 2.1-D10: Quality gate passed (208 backend tests 97.83% coverage, 483 infra tests, lint/tsc/CDK synth clean)
+- Story 2.1-D10: Review round 1 — 0 Critical, 4 Important, 5 Minor → all fixed by fixer
+- Story 2.1-D10: Review round 2 — 0 Critical, 0 Important, 2 Minor (Approved)
+- Story 2.1-D10: Pushed, PR #172 created. CI green (all checks passed). Awaiting merge approval
+- Story 2.1-D10: PR #172 squash-merged (8ceaa7d), marked done
