@@ -67,11 +67,17 @@ export class SmokeClient {
     const ms = Date.now() - start;
 
     let body: unknown;
-    const contentType = res.headers.get("content-type") ?? "";
-    if (contentType.includes("application/json")) {
-      body = await res.json();
+    // 204 No Content has no body; guard against empty-body parsing errors
+    if (res.status === 204) {
+      body = "";
     } else {
-      body = await res.text();
+      const contentType = res.headers.get("content-type") ?? "";
+      if (contentType.includes("application/json")) {
+        const text = await res.text();
+        body = text ? JSON.parse(text) : "";
+      } else {
+        body = await res.text();
+      }
     }
 
     return { status: res.status, body, headers: res.headers, ms };

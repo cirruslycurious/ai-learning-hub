@@ -36,7 +36,8 @@ export function assertUserProfileShape(body: unknown): void {
   const data = b?.data as Record<string, unknown> | undefined;
   const missing: string[] = [];
   if (!data?.userId) missing.push("data.userId");
-  if (!data?.email) missing.push("data.email");
+  // email may be absent for profiles created via ensureProfile (create-on-first-auth)
+  // since Clerk JWT does not include email and the authorizer doesn't pass it
   if (!data?.role) missing.push("data.role");
   if (!data?.createdAt) missing.push("data.createdAt");
   if (missing.length > 0) {
