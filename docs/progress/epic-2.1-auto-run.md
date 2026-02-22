@@ -11,6 +11,7 @@ scope:
     "2.1-D7",
     "2.1-D8",
     "2.1-D10",
+    "2.1-D9",
   ]
 started: 2026-02-17T00:24:04Z
 last_updated: 2026-02-22T00:00:00Z
@@ -114,6 +115,13 @@ stories:
       startedAt: "2026-02-22T00:00:00Z",
       completedAt: "2026-02-22T09:45:00Z",
     }
+  "2.1-D9":
+    {
+      status: in-progress,
+      issue: 174,
+      branch: story-2-1-d9-foundations-hardening,
+      startedAt: "2026-02-22T14:00:00Z",
+    }
 ---
 
 <!-- Human-readable display below (generated from frontmatter) -->
@@ -122,16 +130,17 @@ stories:
 
 **How duration is captured:** When the epic orchestrator runs a story, Phase 2.1 records `startedAt` (ISO timestamp) and Phase 2.6 records `completedAt` and computes `duration` (e.g. `"31m"`, `"1h 12m"`). So duration is derived from those timestamps. D2 and D3 were run with full tracking; D4, D1, and D5 were completed without recording timestamps, so their duration is shown as "—" and placeholder `startedAt`/`completedAt` are used so the duration-tracker validator passes.
 
-| Story   | Status      | PR   | Coverage | Review Rounds | Duration |
-| ------- | ----------- | ---- | -------- | ------------- | -------- |
-| 2.1-D2  | ✅ Complete | #147 | 99%      | 2             | 31m      |
-| 2.1-D3  | ✅ Complete | #149 | 99%      | 2             | ~45m     |
-| 2.1-D4  | ✅ Complete | #151 | 99%      | 1             | -        |
-| 2.1-D1  | ✅ Complete | #153 | 100%     | 2             | -        |
-| 2.1-D5  | ✅ Complete | #158 | 99%      | 1             | -        |
-| 2.1-D7  | ✅ Complete | #167 | 80%+     | 2             | ~3h 44m  |
-| 2.1-D8  | ✅ Complete | #169 | 100%     | 2             | ~65m     |
-| 2.1-D10 | ✅ Complete | #172 | 97%      | 2             | -        |
+| Story   | Status         | PR   | Coverage | Review Rounds | Duration |
+| ------- | -------------- | ---- | -------- | ------------- | -------- |
+| 2.1-D2  | ✅ Complete    | #147 | 99%      | 2             | 31m      |
+| 2.1-D3  | ✅ Complete    | #149 | 99%      | 2             | ~45m     |
+| 2.1-D4  | ✅ Complete    | #151 | 99%      | 1             | -        |
+| 2.1-D1  | ✅ Complete    | #153 | 100%     | 2             | -        |
+| 2.1-D5  | ✅ Complete    | #158 | 99%      | 1             | -        |
+| 2.1-D7  | ✅ Complete    | #167 | 80%+     | 2             | ~3h 44m  |
+| 2.1-D8  | ✅ Complete    | #169 | 100%     | 2             | ~65m     |
+| 2.1-D10 | ✅ Complete    | #172 | 97%      | 2             | -        |
+| 2.1-D9  | 🔄 In Progress | -    | -        | -             | -        |
 
 ## Activity Log
 
@@ -192,3 +201,6 @@ stories:
 - Story 2.1-D10: Review round 2 — 0 Critical, 0 Important, 2 Minor (Approved)
 - Story 2.1-D10: Pushed, PR #172 created. CI green (all checks passed). Awaiting merge approval
 - Story 2.1-D10: PR #172 squash-merged (8ceaa7d), marked done
+- [14:00] Story 2.1-D9: Epic 2.1 reopened for D9 (Foundations Hardening — Adversarial Review Remediation)
+- [14:00] Story 2.1-D9: Issue #174 created, branch story-2-1-d9-foundations-hardening created, starting implementation
+- [14:00] Story 2.1-D9: AC4/AC5 (JWT fallback) already done by D10, implementing remaining 12 ACs
