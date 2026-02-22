@@ -8,6 +8,7 @@
     { "path": "./backend/shared/logging" },
     { "path": "./backend/shared/validation" },
     { "path": "./backend/shared/db" },
-    { "path": "./backend/shared/middleware" }
+    { "path": "./backend/shared/middleware" },
+    { "path": "./backend/shared/events" }
   ]
 }
