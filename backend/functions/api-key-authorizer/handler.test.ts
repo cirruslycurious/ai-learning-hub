@@ -14,12 +14,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { APIGatewayRequestAuthorizerEvent, Context } from "aws-lambda";
 
+// Mock @clerk/backend
+vi.mock("@clerk/backend", () => ({
+  verifyToken: vi.fn(),
+}));
+
 // Mock @ai-learning-hub/db
 vi.mock("@ai-learning-hub/db", () => ({
   getDefaultClient: vi.fn(() => ({})),
   getApiKeyByHash: vi.fn(),
   getProfile: vi.fn(),
   updateApiKeyLastUsed: vi.fn(),
+  ensureProfile: vi.fn(),
 }));
 
 // Mock @ai-learning-hub/logging
@@ -61,6 +67,7 @@ vi.mock("@ai-learning-hub/middleware", () => ({
     },
     context: { errorCode },
   }),
+  getClerkSecretKey: vi.fn().mockResolvedValue("test-clerk-secret-key"),
 }));
 
 import { handler } from "./handler.js";
@@ -68,21 +75,26 @@ import {
   getApiKeyByHash,
   getProfile,
   updateApiKeyLastUsed,
+  ensureProfile,
 } from "@ai-learning-hub/db";
+import { verifyToken } from "@clerk/backend";
+import { getClerkSecretKey } from "@ai-learning-hub/middleware";
 
 const mockGetApiKeyByHash = vi.mocked(getApiKeyByHash);
 const mockGetProfile = vi.mocked(getProfile);
 const mockUpdateApiKeyLastUsed = vi.mocked(updateApiKeyLastUsed);
+const mockEnsureProfile = vi.mocked(ensureProfile);
+const mockVerifyToken = vi.mocked(verifyToken);
+const mockGetClerkSecretKey = vi.mocked(getClerkSecretKey);
 
-function createEvent(
-  apiKey?: string,
-  headerName = "x-api-key"
+function createEventWithHeaders(
+  headers: Record<string, string>
 ): APIGatewayRequestAuthorizerEvent {
   return {
     type: "REQUEST",
     methodArn:
       "arn:aws:execute-api:us-east-1:123456789:api-id/stage/GET/resource",
-    headers: apiKey ? { [headerName]: apiKey } : {},
+    headers,
     multiValueHeaders: {},
     pathParameters: null,
     queryStringParameters: null,
@@ -122,6 +134,13 @@ function createEvent(
     resource: "/resource",
     httpMethod: "GET",
   };
+}
+
+function createEvent(
+  apiKey?: string,
+  headerName = "x-api-key"
+): APIGatewayRequestAuthorizerEvent {
+  return createEventWithHeaders(apiKey ? { [headerName]: apiKey } : {});
 }
 
 const mockContext = {} as Context;
@@ -609,6 +628,304 @@ describe("API Key Authorizer Handler", () => {
       const hash1 = mockGetApiKeyByHash.mock.calls[0][1];
       const hash2 = mockGetApiKeyByHash.mock.calls[1][1];
       expect(hash1).toBe(hash2);
+    });
+  });
+
+  describe("JWT Fallback (no x-api-key)", () => {
+    const validJwtProfile = {
+      PK: "USER#user_clerk_jwt",
+      SK: "PROFILE",
+      userId: "user_clerk_jwt",
+      role: "user",
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-01T00:00:00Z",
+    };
+
+    it("AC1: valid JWT with no API key → returns Allow with authMethod jwt", async () => {
+      mockVerifyToken.mockResolvedValueOnce({
+        sub: "user_clerk_jwt",
+        publicMetadata: { inviteValidated: true },
+      } as never);
+      mockGetProfile.mockResolvedValueOnce(validJwtProfile);
+
+      const event = createEventWithHeaders({
+        Authorization: "Bearer valid-jwt-token",
+      });
+      const result = await handler(event, mockContext);
+
+      expect(result.policyDocument.Statement[0].Effect).toBe("Allow");
+      expect(result.principalId).toBe("user_clerk_jwt");
+      expect(result.context).toEqual({
+        userId: "user_clerk_jwt",
+        role: "user",
+        authMethod: "jwt",
+      });
+    });
+
+    it("AC4: JWT without inviteValidated → returns Deny INVITE_REQUIRED", async () => {
+      mockVerifyToken.mockResolvedValueOnce({
+        sub: "user_no_invite",
+        publicMetadata: { inviteValidated: false },
+      } as never);
+
+      const event = createEventWithHeaders({
+        Authorization: "Bearer no-invite-token",
+      });
+      const result = await handler(event, mockContext);
+
+      expect(result.policyDocument.Statement[0].Effect).toBe("Deny");
+      expect(result.context?.errorCode).toBe("INVITE_REQUIRED");
+    });
+
+    it("AC4: JWT with missing publicMetadata → returns Deny INVITE_REQUIRED", async () => {
+      mockVerifyToken.mockResolvedValueOnce({
+        sub: "user_no_metadata",
+        publicMetadata: {},
+      } as never);
+
+      const event = createEventWithHeaders({
+        Authorization: "Bearer no-metadata-token",
+      });
+      const result = await handler(event, mockContext);
+
+      expect(result.policyDocument.Statement[0].Effect).toBe("Deny");
+      expect(result.context?.errorCode).toBe("INVITE_REQUIRED");
+    });
+
+    it("AC5: JWT for suspended user → returns Deny SUSPENDED_ACCOUNT", async () => {
+      mockVerifyToken.mockResolvedValueOnce({
+        sub: "user_suspended",
+        publicMetadata: { inviteValidated: true },
+      } as never);
+      mockGetProfile.mockResolvedValueOnce({
+        PK: "USER#user_suspended",
+        SK: "PROFILE",
+        userId: "user_suspended",
+        role: "user",
+        suspendedAt: "2026-01-15T00:00:00Z",
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-15T00:00:00Z",
+      });
+
+      const event = createEventWithHeaders({
+        Authorization: "Bearer suspended-token",
+      });
+      const result = await handler(event, mockContext);
+
+      expect(result.policyDocument.Statement[0].Effect).toBe("Deny");
+      expect(result.context?.errorCode).toBe("SUSPENDED_ACCOUNT");
+    });
+
+    it("AC6: JWT for first-time user → calls ensureProfile, returns Allow", async () => {
+      mockVerifyToken.mockResolvedValueOnce({
+        sub: "user_new",
+        publicMetadata: { inviteValidated: true, email: "new@example.com" },
+      } as never);
+      // First getProfile returns null (no profile yet)
+      mockGetProfile.mockResolvedValueOnce(null);
+      mockEnsureProfile.mockResolvedValueOnce(undefined);
+      // Second getProfile returns created profile
+      mockGetProfile.mockResolvedValueOnce({
+        PK: "USER#user_new",
+        SK: "PROFILE",
+        userId: "user_new",
+        role: "user",
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+      });
+
+      const event = createEventWithHeaders({
+        Authorization: "Bearer new-user-token",
+      });
+      const result = await handler(event, mockContext);
+
+      expect(mockEnsureProfile).toHaveBeenCalledWith(
+        expect.anything(),
+        "user_new",
+        expect.objectContaining({ inviteValidated: true }),
+        expect.anything()
+      );
+      expect(result.policyDocument.Statement[0].Effect).toBe("Allow");
+      expect(result.context?.userId).toBe("user_new");
+      expect(result.context?.authMethod).toBe("jwt");
+    });
+
+    it("AC3: expired/invalid JWT → throws Unauthorized", async () => {
+      mockVerifyToken.mockRejectedValueOnce(new Error("Token expired"));
+
+      const event = createEventWithHeaders({
+        Authorization: "Bearer expired-token",
+      });
+      await expect(handler(event, mockContext)).rejects.toThrow("Unauthorized");
+    });
+
+    it("no Authorization header and no API key → throws Unauthorized", async () => {
+      const event = createEventWithHeaders({});
+      await expect(handler(event, mockContext)).rejects.toThrow("Unauthorized");
+    });
+
+    it("Authorization header without Bearer prefix → throws Unauthorized without calling verifyToken", async () => {
+      const event = createEventWithHeaders({
+        Authorization: "Basic some-credentials",
+      });
+      await expect(handler(event, mockContext)).rejects.toThrow("Unauthorized");
+      // verifyToken should NOT be called since Bearer prefix is missing
+      expect(mockVerifyToken).not.toHaveBeenCalled();
+    });
+
+    it("getClerkSecretKey failure → throws Unauthorized", async () => {
+      mockGetClerkSecretKey.mockRejectedValueOnce(
+        new Error("SSM parameter not found")
+      );
+
+      const event = createEventWithHeaders({
+        Authorization: "Bearer valid-token",
+      });
+      await expect(handler(event, mockContext)).rejects.toThrow("Unauthorized");
+      expect(mockVerifyToken).not.toHaveBeenCalled();
+    });
+
+    it("ensureProfile failure → throws Unauthorized", async () => {
+      mockVerifyToken.mockResolvedValueOnce({
+        sub: "user_ensure_fail",
+        publicMetadata: { inviteValidated: true },
+      } as never);
+      mockGetProfile.mockResolvedValueOnce(null);
+      mockEnsureProfile.mockRejectedValueOnce(
+        new Error("DynamoDB write failed")
+      );
+
+      const event = createEventWithHeaders({
+        Authorization: "Bearer ensure-fail-token",
+      });
+      await expect(handler(event, mockContext)).rejects.toThrow("Unauthorized");
+    });
+
+    it("ensureProfile succeeds but second getProfile returns null → throws Unauthorized", async () => {
+      mockVerifyToken.mockResolvedValueOnce({
+        sub: "user_profile_inconsistency",
+        publicMetadata: { inviteValidated: true },
+      } as never);
+      // First getProfile returns null
+      mockGetProfile.mockResolvedValueOnce(null);
+      mockEnsureProfile.mockResolvedValueOnce(undefined);
+      // Second getProfile also returns null (profile inconsistency)
+      mockGetProfile.mockResolvedValueOnce(null);
+
+      const event = createEventWithHeaders({
+        Authorization: "Bearer inconsistency-token",
+      });
+      await expect(handler(event, mockContext)).rejects.toThrow("Unauthorized");
+    });
+
+    it("uses publicMetadata.role as fallback when profile.role is falsy", async () => {
+      mockVerifyToken.mockResolvedValueOnce({
+        sub: "user_metadata_role",
+        publicMetadata: { inviteValidated: true, role: "analyst" },
+      } as never);
+      mockGetProfile.mockResolvedValueOnce({
+        PK: "USER#user_metadata_role",
+        SK: "PROFILE",
+        userId: "user_metadata_role",
+        role: "",
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+      });
+
+      const event = createEventWithHeaders({
+        Authorization: "Bearer metadata-role-token",
+      });
+      const result = await handler(event, mockContext);
+
+      expect(result.policyDocument.Statement[0].Effect).toBe("Allow");
+      expect(result.context?.role).toBe("analyst");
+    });
+  });
+
+  describe("Auth method priority", () => {
+    it("AC2: both x-api-key and Authorization present → uses API key path", async () => {
+      mockGetApiKeyByHash.mockResolvedValueOnce({
+        PK: "USER#clerk_123",
+        SK: "APIKEY#key_abc",
+        userId: "clerk_123",
+        keyId: "key_abc",
+        keyHash: "hash",
+        name: "My Key",
+        scopes: ["*"],
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+      });
+      mockGetProfile.mockResolvedValueOnce({
+        PK: "USER#clerk_123",
+        SK: "PROFILE",
+        userId: "clerk_123",
+        role: "user",
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+      });
+      mockUpdateApiKeyLastUsed.mockResolvedValueOnce(undefined);
+
+      const event = createEventWithHeaders({
+        "x-api-key": "valid-api-key",
+        Authorization: "Bearer some-jwt-token",
+      });
+      const result = await handler(event, mockContext);
+
+      expect(result.policyDocument.Statement[0].Effect).toBe("Allow");
+      expect(result.context?.authMethod).toBe("api-key");
+      expect(result.context?.isApiKey).toBe("true");
+      // verifyToken should NOT have been called
+      expect(mockVerifyToken).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("JWT fallback context shape", () => {
+    it("JWT path context does NOT include isApiKey, apiKeyId, scopes", async () => {
+      mockVerifyToken.mockResolvedValueOnce({
+        sub: "user_jwt_shape",
+        publicMetadata: { inviteValidated: true },
+      } as never);
+      mockGetProfile.mockResolvedValueOnce({
+        PK: "USER#user_jwt_shape",
+        SK: "PROFILE",
+        userId: "user_jwt_shape",
+        role: "analyst",
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+      });
+
+      const event = createEventWithHeaders({
+        Authorization: "Bearer jwt-shape-test",
+      });
+      const result = await handler(event, mockContext);
+
+      expect(result.context?.authMethod).toBe("jwt");
+      expect(result.context).not.toHaveProperty("isApiKey");
+      expect(result.context).not.toHaveProperty("apiKeyId");
+      expect(result.context).not.toHaveProperty("scopes");
+    });
+
+    it("JWT path context includes authMethod jwt (not api-key)", async () => {
+      mockVerifyToken.mockResolvedValueOnce({
+        sub: "user_method_check",
+        publicMetadata: { inviteValidated: true },
+      } as never);
+      mockGetProfile.mockResolvedValueOnce({
+        PK: "USER#user_method_check",
+        SK: "PROFILE",
+        userId: "user_method_check",
+        role: "user",
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+      });
+
+      const event = createEventWithHeaders({
+        Authorization: "Bearer method-check-token",
+      });
+      const result = await handler(event, mockContext);
+
+      expect(result.context?.authMethod).toBe("jwt");
+      expect(result.context?.authMethod).not.toBe("api-key");
     });
   });
 });

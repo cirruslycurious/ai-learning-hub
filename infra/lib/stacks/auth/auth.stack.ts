@@ -157,6 +157,7 @@ export class AuthStack extends cdk.Stack {
         memorySize: 256,
         timeout: cdk.Duration.seconds(10),
         environment: {
+          CLERK_SECRET_KEY_PARAM: CLERK_SECRET_KEY_PARAM,
           USERS_TABLE_NAME: usersTable.tableName,
           INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
         },
@@ -170,11 +171,34 @@ export class AuthStack extends cdk.Stack {
     );
 
     // Grant least-privilege DynamoDB access to users table
-    // Query: GSI lookup (apiKeyHash-index), GetItem: profile, UpdateItem: lastUsedAt
+    // Query: GSI lookup (apiKeyHash-index), GetItem: profile, UpdateItem: lastUsedAt,
+    // PutItem: ensureProfile for JWT fallback create-on-first-auth (Story 2.1-D10)
     this.apiKeyAuthorizerFunction.addToRolePolicy(
       new iam.PolicyStatement({
-        actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:UpdateItem"],
+        actions: [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:Query",
+          "dynamodb:UpdateItem",
+        ],
         resources: [usersTable.tableArn, `${usersTable.tableArn}/index/*`],
+      })
+    );
+
+    // Grant read access to Clerk secret key in SSM Parameter Store (JWT fallback, Story 2.1-D10)
+    this.apiKeyAuthorizerFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["ssm:GetParameter"],
+        resources: [
+          cdk.Arn.format(
+            {
+              service: "ssm",
+              resource: "parameter",
+              resourceName: CLERK_SECRET_KEY_PARAM.replace(/^\//, ""),
+            },
+            this
+          ),
+        ],
       })
     );
 

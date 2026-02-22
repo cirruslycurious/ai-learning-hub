@@ -111,23 +111,90 @@ describe("AuthStack", () => {
   });
 
   describe("API Key Authorizer Lambda", () => {
-    it("creates Lambdas with USERS_TABLE_NAME but without CLERK_SECRET_KEY_PARAM (API Key authorizer, Users Me, API Keys, Generate Invite)", () => {
+    it("creates Lambdas with USERS_TABLE_NAME but without CLERK_SECRET_KEY_PARAM (Users Me, API Keys, Generate Invite)", () => {
       const lambdas = template.findResources("AWS::Lambda::Function");
-      const nonJwtLambdas = Object.entries(lambdas).filter(([, resource]) => {
+      const nonClerkLambdas = Object.entries(lambdas).filter(([, resource]) => {
         const envVars = resource.Properties?.Environment?.Variables ?? {};
         return envVars.USERS_TABLE_NAME && !envVars.CLERK_SECRET_KEY_PARAM;
       });
-      expect(nonJwtLambdas).toHaveLength(4);
+      // 3 Lambdas: Users Me, API Keys, Generate Invite
+      expect(nonClerkLambdas).toHaveLength(3);
     });
 
-    it("creates Lambdas with both USERS_TABLE_NAME and CLERK_SECRET_KEY_PARAM (JWT authorizer + validate-invite)", () => {
-      // Both JWT authorizer and validate-invite have USERS_TABLE_NAME and CLERK_SECRET_KEY_PARAM
+    it("creates Lambdas with both USERS_TABLE_NAME and CLERK_SECRET_KEY_PARAM (JWT authorizer + validate-invite + API Key authorizer)", () => {
+      // JWT authorizer, validate-invite, and API Key authorizer (JWT fallback) have both
       const lambdas = template.findResources("AWS::Lambda::Function");
       const clerkLambdas = Object.entries(lambdas).filter(([, resource]) => {
         const envVars = resource.Properties?.Environment?.Variables ?? {};
         return envVars.USERS_TABLE_NAME && envVars.CLERK_SECRET_KEY_PARAM;
       });
-      expect(clerkLambdas).toHaveLength(2);
+      expect(clerkLambdas).toHaveLength(3);
+    });
+
+    it("API Key authorizer has ssm:GetParameter permission for Clerk secret (AC9)", () => {
+      // Find the api-key-authorizer Lambda by its code entry path
+      const lambdas = template.findResources("AWS::Lambda::Function");
+      const apiKeyAuthEntry = Object.entries(lambdas).find(([, resource]) => {
+        const envVars = resource.Properties?.Environment?.Variables ?? {};
+        // Step 1: Confirm at least one Lambda has CLERK_SECRET_KEY_PARAM
+        // Step 2 (below): Find IAM policies attached specifically to ApiKeyAuthorizer role
+        return envVars.CLERK_SECRET_KEY_PARAM && envVars.USERS_TABLE_NAME;
+      });
+      expect(apiKeyAuthEntry).toBeDefined();
+
+      // Find IAM policies that grant ssm:GetParameter and are attached to a role
+      // that references the api-key-authorizer Lambda
+      const policies = template.findResources("AWS::IAM::Policy");
+      const ssmPoliciesForApiKeyAuth = Object.values(policies).filter(
+        (resource) => {
+          const statements =
+            resource.Properties?.PolicyDocument?.Statement ?? [];
+          const hasSsm = statements.some(
+            (s: Record<string, unknown>) => s.Action === "ssm:GetParameter"
+          );
+          // Check if the policy is attached to a role that references the api-key-authorizer
+          const roles = resource.Properties?.Roles ?? [];
+          const attachedToApiKeyAuth = roles.some(
+            (r: Record<string, unknown>) => {
+              const ref = r.Ref ?? "";
+              return (
+                typeof ref === "string" && ref.includes("ApiKeyAuthorizer")
+              );
+            }
+          );
+          return hasSsm && attachedToApiKeyAuth;
+        }
+      );
+      expect(ssmPoliciesForApiKeyAuth.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("API Key authorizer has dynamodb:PutItem permission for ensureProfile (AC7)", () => {
+      // Find IAM policies granting PutItem that are attached to the api-key-authorizer's role
+      const policies = template.findResources("AWS::IAM::Policy");
+      const putItemPoliciesForApiKeyAuth = Object.values(policies).filter(
+        (resource) => {
+          const statements =
+            resource.Properties?.PolicyDocument?.Statement ?? [];
+          const hasPutItem = statements.some((s: Record<string, unknown>) => {
+            const actions = s.Action;
+            if (Array.isArray(actions)) {
+              return actions.includes("dynamodb:PutItem");
+            }
+            return actions === "dynamodb:PutItem";
+          });
+          const roles = resource.Properties?.Roles ?? [];
+          const attachedToApiKeyAuth = roles.some(
+            (r: Record<string, unknown>) => {
+              const ref = r.Ref ?? "";
+              return (
+                typeof ref === "string" && ref.includes("ApiKeyAuthorizer")
+              );
+            }
+          );
+          return hasPutItem && attachedToApiKeyAuth;
+        }
+      );
+      expect(putItemPoliciesForApiKeyAuth.length).toBeGreaterThanOrEqual(1);
     });
   });
 
