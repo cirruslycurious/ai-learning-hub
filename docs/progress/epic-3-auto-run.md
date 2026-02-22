@@ -3,7 +3,7 @@ epic_id: Epic-3
 status: in-progress
 scope: ["3.1a", "3.1c", "3.1b"]
 started: "2026-02-19T16:50:32Z"
-last_updated: "2026-02-22T22:04:14Z"
+last_updated: "2026-02-22T22:45:00Z"
 stories:
   "3.1a":
     status: done
@@ -25,21 +25,25 @@ stories:
     completedAt: "2026-02-22T14:20:00Z"
     duration: "32m"
   "3.1b":
-    status: in-progress
+    status: done
     issue: 181
+    pr: 182
     branch: story-3-1b-create-save-api
+    review_rounds: 1
     startedAt: "2026-02-22T22:04:14Z"
+    completedAt: "2026-02-22T22:45:00Z"
+    duration: "41m"
 ---
 
 <!-- Human-readable display below (generated from frontmatter) -->
 
 # Epic 3 Auto-Run Progress
 
-| Story | Status         | PR   | Coverage | Review Rounds | Duration |
-| ----- | -------------- | ---- | -------- | ------------- | -------- |
-| 3.1a  | ✅ Complete    | #156 | -        | -             | 51m      |
-| 3.1c  | ✅ Complete    | #177 | 97%      | 2             | 32m      |
-| 3.1b  | 🔄 In Progress | -    | -        | -             | -        |
+| Story | Status      | PR   | Coverage | Review Rounds | Duration |
+| ----- | ----------- | ---- | -------- | ------------- | -------- |
+| 3.1a  | ✅ Complete | #156 | -        | -             | 51m      |
+| 3.1c  | ✅ Complete | #177 | 97%      | 2             | 32m      |
+| 3.1b  | ✅ Complete | #182 | -        | 1             | 41m      |
 
 ## Activity Log
 
@@ -58,3 +62,10 @@ stories:
 - [00:32] Story 3.1c: PR #177 merged, marked done
 - [00:00] Story 3.1b: Added to scope, Issue #181 created, branch created
 - [00:01] Story 3.1b: Implementation starting
+- [00:20] Story 3.1b: Implementation complete (24 handler tests + 5 transact tests)
+- [00:25] Story 3.1b: Quality gates passed (lint, build, tests, CDK synth)
+- [00:30] Story 3.1b: Review Round 1 — 3 HIGH, 4 MEDIUM findings
+- [00:35] Story 3.1b: Fixes applied (X-Request-Id, requiredScope, narrow catch, type safety)
+- [00:38] Story 3.1b: Architecture enforcement tests updated for multi-route-stack topology
+- [00:40] Story 3.1b: All 1488 tests passing, CDK synth green
+- [00:41] Story 3.1b: PR #182 created, marked done
