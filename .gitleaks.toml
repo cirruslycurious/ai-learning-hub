@@ -222,5 +222,6 @@ paths = [
   # Review findings docs that reference placeholder AWS account IDs (000000000000, 123456789012)
   '''docs/temp/''',
   '''docs/research/''',
+  '''docs/progress/story-2.1-D8-review-findings''',
   '''\.claude/docs/orchestrator-safety\.md''',
 ]

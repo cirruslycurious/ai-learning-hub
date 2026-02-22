@@ -1,8 +1,8 @@
 # Epic 2.1 Completion Report
 
 **Status:** Complete
-**Stories Completed:** 5/5
-**Date:** 2026-02-19
+**Stories Completed:** 7/7 (5 original + D7 adversarial fixes + D8 authorizer permissions)
+**Date:** 2026-02-21 (D8 addendum)
 
 ## Story Summary
 
@@ -13,12 +13,14 @@
 | 2.1-D4 | Request-Scoped Logger in DB Layer     | ✅ Complete | #151 | 99%      | 1             | -              | -        |
 | 2.1-D1 | API Gateway + Conventions             | ✅ Complete | #153 | 100%     | 2             | 17             | -        |
 | 2.1-D5 | Architecture Enforcement Tests        | ✅ Complete | #158 | 99%      | 1             | 7              | -        |
+| 2.1-D7 | Adversarial Architecture Review Fixes | ✅ Complete | #167 | 80%+     | 2             | 6              | ~3h 44m  |
+| 2.1-D8 | Fix Authorizer Lambda Invoke Perms    | ✅ Complete | #169 | 100%     | 2             | 1              | ~65m     |
 
 ## Metrics
 
-- **Test pass rate:** 100% (1333+ tests across all workspaces)
-- **Review convergence:** 1–2 rounds per story
-- **Common issue categories:** CDK topology (circular deps, fromFunctionArn patterns), mock fidelity (mock vs real middleware divergence), regex robustness, error message clarity
+- **Test pass rate:** 100% (1,355+ tests across all workspaces)
+- **Review convergence:** 1–2 rounds per story (average: 1.7 rounds)
+- **Common issue categories:** CDK topology (circular deps, fromFunctionArn patterns), mock fidelity (mock vs real middleware divergence), regex robustness, error message clarity, test assertion completeness (SourceArn)
 
 ## Key Deliverables
 
@@ -52,13 +54,24 @@
 - AC13–16: 11 handler integration tests (auth, scope, rate limiting)
 - Meta-tests: quality gate self-test (8), DB logger signature (3), mock-wrapper (26)
 
+### D7: Adversarial Architecture Review Fixes
+
+- 15 findings addressed: handler identity validation, ADR-008 contract gaps, request logging, config discipline, type alignment, IAM narrowing, frontend API client
+- 40 files changed, +1316/-218 lines
+
+### D8: Fix Authorizer Lambda Invoke Permissions
+
+- Added 2 explicit `CfnPermission` L1 resources for JWT and API Key authorizer Lambdas
+- CDK's `addPermission()` is a no-op on imported functions (`fromFunctionArn()`) — permissions must be added manually
+- 3 regression-prevention test assertions (Action, Principal, FunctionName, SourceArn, exact count)
+
 ## Blockers
 
 None
 
 ## Next Steps
 
-- [x] All 5 stories implemented and merged
+- [x] All 7 stories implemented and merged
 - [x] Epic 3 coding may begin — all architecture enforcement gates pass (validated below)
 
 ### Epic 3 gate validation (what was checked)

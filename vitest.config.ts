@@ -6,18 +6,22 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
-      thresholds: {
-        lines: 80,
-        functions: 80,
-        branches: 80,
-        statements: 80,
-      },
+      // No thresholds at root level — root tests are meta-tests (hooks, CI,
+      // eslint rules) with no traditional source files to cover.
+      // Each workspace enforces its own 80% coverage thresholds.
       exclude: [
         "node_modules/**",
         "dist/**",
         "**/*.config.{js,ts}",
         "**/*.d.ts",
         "test/**",
+        "scripts/**",
+        "coverage/**",
+        "frontend/**",
+        "backend/**",
+        "infra/**",
+        ".claude/**",
+        "test-venv/**",
       ],
     },
   },

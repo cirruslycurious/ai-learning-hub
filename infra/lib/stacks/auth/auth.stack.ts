@@ -54,6 +54,7 @@ export class AuthStack extends cdk.Stack {
         environment: {
           CLERK_SECRET_KEY_PARAM: CLERK_SECRET_KEY_PARAM,
           USERS_TABLE_NAME: usersTable.tableName,
+          INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
         },
         bundling: {
           minify: true,
@@ -157,6 +158,7 @@ export class AuthStack extends cdk.Stack {
         timeout: cdk.Duration.seconds(10),
         environment: {
           USERS_TABLE_NAME: usersTable.tableName,
+          INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
         },
         bundling: {
           minify: true,
@@ -238,6 +240,7 @@ export class AuthStack extends cdk.Stack {
         timeout: cdk.Duration.seconds(10),
         environment: {
           USERS_TABLE_NAME: usersTable.tableName,
+          INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
         },
         bundling: {
           minify: true,
@@ -422,6 +425,7 @@ export class AuthStack extends cdk.Stack {
         timeout: cdk.Duration.seconds(10),
         environment: {
           USERS_TABLE_NAME: usersTable.tableName,
+          INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
         },
         bundling: {
           minify: true,
