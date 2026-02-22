@@ -1,5 +1,7 @@
 # AI Learning Hub
 
+<!-- render-refresh: 2026-02-22 -->
+
 A save-to-build learning workbench for AI practitioners, built in the open with AI coding agents using the BMAD methodology.
 
 [![CI](https://github.com/cirruslycurious/ai-learning-hub/actions/workflows/ci.yml/badge.svg)](https://github.com/cirruslycurious/ai-learning-hub/actions/workflows/ci.yml)
