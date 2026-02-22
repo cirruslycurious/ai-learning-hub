@@ -10,6 +10,8 @@ import { AuthStack } from "../lib/stacks/auth/auth.stack";
 import { RateLimitingStack } from "../lib/stacks/api/rate-limiting.stack";
 import { ApiGatewayStack } from "../lib/stacks/api/api-gateway.stack";
 import { AuthRoutesStack } from "../lib/stacks/api/auth-routes.stack";
+import { EventsStack } from "../lib/stacks/core/events.stack";
+import { SavesRoutesStack } from "../lib/stacks/api/saves-routes.stack";
 
 const app = new cdk.App();
 
@@ -104,6 +106,28 @@ const authRoutesStack = new AuthRoutesStack(app, "AiLearningHubAuthRoutes", {
 authRoutesStack.addDependency(apiGatewayStack);
 authRoutesStack.addDependency(authStack);
 
+// Events Stack - EventBridge bus for async domain events (ADR-006: Core tier)
+const eventsStack = new EventsStack(app, "AiLearningHubEvents", {
+  env: awsEnv,
+  description:
+    "EventBridge event bus for ai-learning-hub (async domain events)",
+});
+
+// Saves Routes Stack - Epic 3 save CRUD routes (ADR-006: after ApiGateway + Events)
+const savesRoutesStack = new SavesRoutesStack(app, "AiLearningHubSavesRoutes", {
+  env: awsEnv,
+  description: "Save CRUD routes for ai-learning-hub (Epic 3: POST /saves)",
+  restApiId: apiGatewayStack.restApi.restApiId,
+  rootResourceId: apiGatewayStack.restApi.restApiRootResourceId,
+  apiKeyAuthorizer: apiGatewayStack.apiKeyAuthorizer,
+  savesTable: tablesStack.savesTable,
+  usersTable: tablesStack.usersTable,
+  eventBus: eventsStack.eventBus,
+});
+savesRoutesStack.addDependency(apiGatewayStack);
+savesRoutesStack.addDependency(tablesStack);
+savesRoutesStack.addDependency(eventsStack);
+
 // Export stack instances for future cross-stack references (avoids unused variable lint errors)
 export {
   tablesStack,
@@ -113,6 +137,8 @@ export {
   rateLimitingStack,
   apiGatewayStack,
   authRoutesStack,
+  eventsStack,
+  savesRoutesStack,
 };
 
 cdk.Tags.of(app).add("Project", "ai-learning-hub");

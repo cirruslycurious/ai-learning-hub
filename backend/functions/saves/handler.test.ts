@@ -225,7 +225,7 @@ describe("Saves Create Handler", () => {
       expect(body.error.message).toBe("URL already saved");
       expect(body.error.requestId).toBeDefined();
       // X-Request-Id header on 409 responses (ADR-008 compliance)
-      expect(result.headers["X-Request-Id"]).toBe("test-req-id");
+      expect(result.headers?.["X-Request-Id"]).toBe("test-req-id");
       // existingSave is a SIBLING of error
       expect(body.existingSave).toBeDefined();
       expect(body.existingSave.saveId).toBe("existing");
@@ -269,7 +269,7 @@ describe("Saves Create Handler", () => {
       expect(body.error.code).toBe("DUPLICATE_SAVE");
       expect(body.existingSave.saveId).toBe("existing");
       // X-Request-Id header on Layer 2 409 responses (ADR-008 compliance)
-      expect(result.headers["X-Request-Id"]).toBe("test-req-id");
+      expect(result.headers?.["X-Request-Id"]).toBe("test-req-id");
     });
   });
 

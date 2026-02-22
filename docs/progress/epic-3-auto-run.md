@@ -1,9 +1,9 @@
 ---
 epic_id: Epic-3
 status: in-progress
-scope: ["3.1a", "3.1c"]
+scope: ["3.1a", "3.1c", "3.1b"]
 started: "2026-02-19T16:50:32Z"
-last_updated: "2026-02-22T14:20:00Z"
+last_updated: "2026-02-22T22:04:14Z"
 stories:
   "3.1a":
     status: done
@@ -24,16 +24,22 @@ stories:
     startedAt: "2026-02-22T13:48:00Z"
     completedAt: "2026-02-22T14:20:00Z"
     duration: "32m"
+  "3.1b":
+    status: in-progress
+    issue: 181
+    branch: story-3-1b-create-save-api
+    startedAt: "2026-02-22T22:04:14Z"
 ---
 
 <!-- Human-readable display below (generated from frontmatter) -->
 
 # Epic 3 Auto-Run Progress
 
-| Story | Status      | PR   | Coverage | Review Rounds | Duration |
-| ----- | ----------- | ---- | -------- | ------------- | -------- |
-| 3.1a  | ✅ Complete | #156 | -        | -             | 51m      |
-| 3.1c  | ✅ Complete | #177 | 97%      | 2             | 32m      |
+| Story | Status         | PR   | Coverage | Review Rounds | Duration |
+| ----- | -------------- | ---- | -------- | ------------- | -------- |
+| 3.1a  | ✅ Complete    | #156 | -        | -             | 51m      |
+| 3.1c  | ✅ Complete    | #177 | 97%      | 2             | 32m      |
+| 3.1b  | 🔄 In Progress | -    | -        | -             | -        |
 
 ## Activity Log
 
@@ -50,3 +56,5 @@ stories:
 - [00:25] Story 3.1c: Review Round 2 — PASS (0 findings)
 - [00:28] Story 3.1c: PR #177 created, CI green
 - [00:32] Story 3.1c: PR #177 merged, marked done
+- [00:00] Story 3.1b: Added to scope, Issue #181 created, branch created
+- [00:01] Story 3.1b: Implementation starting

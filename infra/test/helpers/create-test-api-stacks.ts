@@ -9,11 +9,14 @@
  * Story 2.1-D5, Task 1
  */
 import { App, Stack } from "aws-cdk-lib";
+import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
+import * as events from "aws-cdk-lib/aws-events";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as wafv2 from "aws-cdk-lib/aws-wafv2";
 import { Template } from "aws-cdk-lib/assertions";
 import { ApiGatewayStack } from "../../lib/stacks/api/api-gateway.stack";
 import { AuthRoutesStack } from "../../lib/stacks/api/auth-routes.stack";
+import { SavesRoutesStack } from "../../lib/stacks/api/saves-routes.stack";
 import { getAwsEnv } from "../../config/aws-env";
 
 /**
@@ -30,26 +33,72 @@ export const HANDLER_REF_TO_FUNCTION_NAME: Record<string, string> = {
   usersMeFunction: "UsersMeFn",
   apiKeysFunction: "ApiKeysFn",
   generateInviteFunction: "GenerateInviteFn",
+  savesCreateFunction: "ai-learning-hub-saves-create",
 };
 
 /**
  * Extract the Lambda function name from a CDK Integration.Uri JSON string.
- * Integration URIs contain the Lambda ARN in the pattern:
- *   arn:aws:lambda:REGION:ACCOUNT:function:FUNCTION_NAME
+ *
+ * Two patterns exist:
+ * 1. Cross-stack imported functions: URI contains a literal ARN with `:function:NAME`
+ * 2. Same-stack functions: URI uses `Fn::GetAtt` referencing a logical ID.
+ *    In this case, pass a logicalIdToFunctionName map (built from the template's
+ *    Lambda resources) to resolve the logical ID to a function name.
  *
  * @returns The function name or null if not found
  */
-export function extractLambdaFunctionName(uriJson: string): string | null {
-  const match = uriJson.match(/:function:([^/"\s,}]+)/);
-  return match ? match[1] : null;
+export function extractLambdaFunctionName(
+  uriJson: string,
+  logicalIdToFunctionName?: Map<string, string>
+): string | null {
+  // Pattern 1: Literal function name in ARN
+  const arnMatch = uriJson.match(/:function:([^/"\s,}]+)/);
+  if (arnMatch) return arnMatch[1];
+
+  // Pattern 2: Fn::GetAtt referencing a Lambda logical ID
+  if (logicalIdToFunctionName) {
+    const getAttMatch = uriJson.match(
+      /"Fn::GetAtt":\s*\[\s*"([^"]+)"\s*,\s*"Arn"\s*\]/
+    );
+    if (getAttMatch) {
+      const logicalId = getAttMatch[1];
+      return logicalIdToFunctionName.get(logicalId) ?? null;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Build a map from Lambda function logical IDs to their FunctionName property.
+ * Used to resolve Fn::GetAtt references in Integration.Uri for same-stack Lambdas.
+ */
+export function buildLambdaFunctionNameMap(
+  template: Template
+): Map<string, string> {
+  const functions = template.findResources("AWS::Lambda::Function");
+  const map = new Map<string, string>();
+  for (const [logicalId, resource] of Object.entries(functions)) {
+    const props = (resource as { Properties: Record<string, unknown> })
+      .Properties;
+    const functionName = props.FunctionName as string | undefined;
+    if (functionName) {
+      map.set(logicalId, functionName);
+    }
+  }
+  return map;
 }
 
 export interface TestApiStacks {
   app: App;
   apiGatewayStack: ApiGatewayStack;
   authRoutesStack: AuthRoutesStack;
+  savesRoutesStack: SavesRoutesStack;
   apiGwTemplate: Template;
   routesTemplate: Template;
+  savesRoutesTemplate: Template;
+  /** All route templates combined for searching across all route stacks */
+  allRouteTemplates: Template[];
 }
 
 /**
@@ -113,15 +162,42 @@ export function createTestApiStacks(): TestApiStacks {
     generateInviteFunction: importFn(depsStack, "GenerateInviteFn"),
   });
 
+  // DynamoDB tables and EventBridge bus for SavesRoutesStack
+  const savesTable = new dynamodb.Table(depsStack, "SavesTable", {
+    partitionKey: { name: "PK", type: dynamodb.AttributeType.STRING },
+    sortKey: { name: "SK", type: dynamodb.AttributeType.STRING },
+  });
+  const usersTable = new dynamodb.Table(depsStack, "UsersTable", {
+    partitionKey: { name: "PK", type: dynamodb.AttributeType.STRING },
+    sortKey: { name: "SK", type: dynamodb.AttributeType.STRING },
+  });
+  const eventBus = new events.EventBus(depsStack, "EventBus", {
+    eventBusName: "arch-test-events",
+  });
+
+  const savesRoutesStack = new SavesRoutesStack(app, "ArchTestSavesRoutes", {
+    env: awsEnv,
+    restApiId: apiGatewayStack.restApi.restApiId,
+    rootResourceId: apiGatewayStack.restApi.restApiRootResourceId,
+    apiKeyAuthorizer: apiGatewayStack.apiKeyAuthorizer,
+    savesTable,
+    usersTable,
+    eventBus,
+  });
+
   const apiGwTemplate = Template.fromStack(apiGatewayStack);
   const routesTemplate = Template.fromStack(authRoutesStack);
+  const savesRoutesTemplate = Template.fromStack(savesRoutesStack);
 
   const result: TestApiStacks = {
     app,
     apiGatewayStack,
     authRoutesStack,
+    savesRoutesStack,
     apiGwTemplate,
     routesTemplate,
+    savesRoutesTemplate,
+    allRouteTemplates: [routesTemplate, savesRoutesTemplate],
   };
 
   cached = result;

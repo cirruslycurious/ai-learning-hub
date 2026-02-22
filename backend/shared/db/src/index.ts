@@ -14,6 +14,7 @@ export {
 
 // Helpers
 export {
+  requireEnv,
   getItem,
   putItem,
   deleteItem,
@@ -64,6 +65,9 @@ export {
   type RateLimitConfig,
   type RateLimitResult,
 } from "./rate-limiter.js";
+
+// Transactional write operations
+export { transactWriteItems, TransactionCancelledError } from "./transact.js";
 
 // Re-export DynamoDB types for convenience
 export type { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
