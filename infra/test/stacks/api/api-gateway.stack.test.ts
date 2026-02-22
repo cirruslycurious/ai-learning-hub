@@ -254,27 +254,36 @@ describe("ApiGatewayStack", () => {
     // for the same reason.
     const INVOKE_ACTION = Match.stringLikeRegexp("lambda:Invoke");
 
-    it("creates Lambda::Permission for JWT authorizer with correct Action, Principal, and SourceArn", () => {
+    it("creates Lambda::Permission for JWT authorizer with correct Action, Principal, and SourceArn (authorizer ARN)", () => {
       template.hasResourceProperties("AWS::Lambda::Permission", {
         Action: INVOKE_ACTION,
         Principal: "apigateway.amazonaws.com",
         FunctionName: Match.stringLikeRegexp("JwtAuthFn"),
+        // SourceArn must use the authorizer ARN (/authorizers/{id}), NOT
+        // arnForExecuteApi (*/*/*). API Gateway uses the authorizer ARN
+        // as the source when invoking the Lambda.
         SourceArn: Match.objectLike({
           "Fn::Join": Match.arrayWith([
-            Match.arrayWith([Match.stringLikeRegexp("execute-api")]),
+            Match.arrayWith([
+              Match.stringLikeRegexp("execute-api"),
+              Match.stringLikeRegexp("/authorizers/"),
+            ]),
           ]),
         }),
       });
     });
 
-    it("creates Lambda::Permission for API Key authorizer with correct Action, Principal, and SourceArn", () => {
+    it("creates Lambda::Permission for API Key authorizer with correct Action, Principal, and SourceArn (authorizer ARN)", () => {
       template.hasResourceProperties("AWS::Lambda::Permission", {
         Action: INVOKE_ACTION,
         Principal: "apigateway.amazonaws.com",
         FunctionName: Match.stringLikeRegexp("ApiKeyAuthFn"),
         SourceArn: Match.objectLike({
           "Fn::Join": Match.arrayWith([
-            Match.arrayWith([Match.stringLikeRegexp("execute-api")]),
+            Match.arrayWith([
+              Match.stringLikeRegexp("execute-api"),
+              Match.stringLikeRegexp("/authorizers/"),
+            ]),
           ]),
         }),
       });

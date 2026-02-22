@@ -194,13 +194,16 @@ describe("AuthStack", () => {
   });
 
   describe("Validate Invite Lambda", () => {
-    it("creates Lambdas with INVITE_CODES_TABLE_NAME environment variable (validate-invite + generate-invite)", () => {
+    it("creates all Lambdas with INVITE_CODES_TABLE_NAME environment variable", () => {
+      // All 6 Lambdas need INVITE_CODES_TABLE_NAME because they bundle code
+      // that imports the invite-codes DB module, which requires the env var
+      // at module initialization time (D7 fail-fast pattern).
       const lambdas = template.findResources("AWS::Lambda::Function");
       const inviteCodeLambdas = Object.values(lambdas).filter((resource) => {
         const envVars = resource.Properties?.Environment?.Variables ?? {};
         return envVars.INVITE_CODES_TABLE_NAME;
       });
-      expect(inviteCodeLambdas).toHaveLength(2);
+      expect(inviteCodeLambdas).toHaveLength(6);
     });
   });
 });

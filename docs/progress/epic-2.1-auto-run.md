@@ -81,10 +81,16 @@ stories:
     }
   "2.1-D8":
     {
-      status: in-progress,
+      status: done,
       issue: 168,
+      pr: 169,
       branch: story-2-1-d8-fix-authorizer-lambda-invoke-permissions,
+      commit: 9d88bd3,
+      coverage: 100,
+      review_rounds: 2,
       startedAt: "2026-02-21T18:30:00Z",
+      completedAt: "2026-02-21T19:35:00Z",
+      duration: "~65m",
     }
 ---
 
@@ -94,15 +100,15 @@ stories:
 
 **How duration is captured:** When the epic orchestrator runs a story, Phase 2.1 records `startedAt` (ISO timestamp) and Phase 2.6 records `completedAt` and computes `duration` (e.g. `"31m"`, `"1h 12m"`). So duration is derived from those timestamps. D2 and D3 were run with full tracking; D4, D1, and D5 were completed without recording timestamps, so their duration is shown as "—" and placeholder `startedAt`/`completedAt` are used so the duration-tracker validator passes.
 
-| Story  | Status         | PR   | Coverage | Review Rounds | Duration |
-| ------ | -------------- | ---- | -------- | ------------- | -------- |
-| 2.1-D2 | ✅ Complete    | #147 | 99%      | 2             | 31m      |
-| 2.1-D3 | ✅ Complete    | #149 | 99%      | 2             | ~45m     |
-| 2.1-D4 | ✅ Complete    | #151 | 99%      | 1             | -        |
-| 2.1-D1 | ✅ Complete    | #153 | 100%     | 2             | -        |
-| 2.1-D5 | ✅ Complete    | #158 | 99%      | 1             | -        |
-| 2.1-D7 | ✅ Complete    | #167 | 80%+     | 2             | ~3h 44m  |
-| 2.1-D8 | 🔄 In Progress | -    | -        | -             | -        |
+| Story  | Status      | PR   | Coverage | Review Rounds | Duration |
+| ------ | ----------- | ---- | -------- | ------------- | -------- |
+| 2.1-D2 | ✅ Complete | #147 | 99%      | 2             | 31m      |
+| 2.1-D3 | ✅ Complete | #149 | 99%      | 2             | ~45m     |
+| 2.1-D4 | ✅ Complete | #151 | 99%      | 1             | -        |
+| 2.1-D1 | ✅ Complete | #153 | 100%     | 2             | -        |
+| 2.1-D5 | ✅ Complete | #158 | 99%      | 1             | -        |
+| 2.1-D7 | ✅ Complete | #167 | 80%+     | 2             | ~3h 44m  |
+| 2.1-D8 | ✅ Complete | #169 | 100%     | 2             | ~65m     |
 
 ## Activity Log
 
@@ -146,4 +152,12 @@ stories:
 - Story 2.1-D7: Review round 2 — 0 Critical, 1 Important, 4 Minor → Important fixed (mock-wrapper PROTECTED_HEADERS)
 - Story 2.1-D7: Committed, pushed, PR #167 created. 40 files changed, +1316/-218 lines, 1352 tests passing
 - [18:30] Story 2.1-D8: Epic 2.1 reopened for D8 (Fix Authorizer Lambda Invoke Permissions)
+- [18:30] Story 2.1-D8: Issue #168 created, branch created, implementation started
+- Story 2.1-D8: TDD — wrote 3 failing tests first, then added 2 CfnPermission L1 resources
+- Story 2.1-D8: Quality gate passed (1,355 tests, lint clean, type-check clean, CDK synth clean)
+- Story 2.1-D8: Review round 1 — 0 Critical, 1 Important (SourceArn assertion), 3 Minor
+- Story 2.1-D8: Fixer addressed SourceArn assertion, improved comments, exact count assertion
+- Story 2.1-D8: Review round 2 — 0 Critical, 0 Important, 0 Minor (Approved)
+- Story 2.1-D8: Committed, pushed, PR #169 created. CI green (all checks passed)
+- [19:35] Story 2.1-D8: PR #169 squash-merged, marked done
 - [18:30] Story 2.1-D8: Issue #168 created, branch story-2-1-d8-fix-authorizer-lambda-invoke-permissions created, starting implementation

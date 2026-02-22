@@ -180,20 +180,26 @@ export class ApiGatewayStack extends cdk.Stack {
     // but addPermission() is a no-op on functions imported via fromFunctionArn().
     // We must create explicit Lambda::Permission resources so API Gateway
     // can invoke the authorizer Lambdas.
+    //
+    // IMPORTANT: The sourceArn must use the authorizer's own ARN
+    // (arn:...:{apiId}/authorizers/{authorizerId}), NOT arnForExecuteApi()
+    // which generates arn:...:{apiId}/*/*/*  (stage/method/path). API Gateway
+    // uses the authorizer ARN as the source when invoking the Lambda, and
+    // the 3-segment wildcard pattern doesn't match the 2-segment authorizer path.
     const invokeAction = "lambda:Invoke" + "Function";
 
     new lambda.CfnPermission(this, "JwtAuthorizerInvokePermission", {
       action: invokeAction,
       functionName: jwtAuthorizerFunctionArn,
       principal: "apigateway.amazonaws.com",
-      sourceArn: this.restApi.arnForExecuteApi("*", "/*", "*"),
+      sourceArn: this.jwtAuthorizer.authorizerArn,
     });
 
     new lambda.CfnPermission(this, "ApiKeyAuthorizerInvokePermission", {
       action: invokeAction,
       functionName: apiKeyAuthorizerFunctionArn,
       principal: "apigateway.amazonaws.com",
-      sourceArn: this.restApi.arnForExecuteApi("*", "/*", "*"),
+      sourceArn: this.apiKeyAuthorizer.authorizerArn,
     });
 
     // --- WAF Association (AC2) ---
