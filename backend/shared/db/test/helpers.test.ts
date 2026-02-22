@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 import { ConditionalCheckFailedException } from "@aws-sdk/client-dynamodb";
 import {
   getItem,
@@ -6,6 +6,7 @@ import {
   deleteItem,
   queryItems,
   updateItem,
+  requireEnv,
   type TableConfig,
 } from "../src/helpers.js";
 import { AppError, ErrorCode } from "@ai-learning-hub/types";
@@ -21,6 +22,44 @@ const tableConfig: TableConfig = {
   partitionKey: "PK",
   sortKey: "SK",
 };
+
+describe("requireEnv (D9, AC10)", () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  it("returns env var value when set", () => {
+    process.env.TEST_VAR_D9 = "real-value";
+    expect(requireEnv("TEST_VAR_D9", "fallback")).toBe("real-value");
+    delete process.env.TEST_VAR_D9;
+  });
+
+  it("returns empty string when env var is set to empty string (Unix semantics)", () => {
+    process.env.TEST_VAR_D9 = "";
+    expect(requireEnv("TEST_VAR_D9", "fallback")).toBe("");
+    delete process.env.TEST_VAR_D9;
+  });
+
+  it("returns test fallback when env var missing and NODE_ENV=test", () => {
+    delete process.env.TEST_VAR_D9;
+    process.env.NODE_ENV = "test";
+    expect(requireEnv("TEST_VAR_D9", "fallback-value")).toBe("fallback-value");
+  });
+
+  it("throws when env var missing and NODE_ENV=production", () => {
+    delete process.env.TEST_VAR_D9;
+    process.env.NODE_ENV = "production";
+    expect(() => requireEnv("TEST_VAR_D9", "fallback")).toThrow(
+      "TEST_VAR_D9 environment variable is required"
+    );
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
+  });
+});
 
 describe("DynamoDB Helpers", () => {
   beforeEach(() => {

@@ -175,6 +175,40 @@ export function wrapHandler<T = unknown>(
 
       // Return result (auto-wrap if needed)
       if (isApiGatewayResult(result)) {
+        // ADR-008 pass-through normalization (D9, AC9):
+        // For 4xx/5xx responses, ensure the body conforms to ADR-008 format.
+        if (result.statusCode >= 400) {
+          try {
+            const parsed = JSON.parse(result.body);
+            if (!parsed?.error?.code || !parsed?.error?.message) {
+              logger.warn("Non-ADR-008 error response detected, normalizing", {
+                statusCode: result.statusCode,
+              });
+              return {
+                ...result,
+                body: JSON.stringify({
+                  error: {
+                    code: "INTERNAL_ERROR",
+                    message: parsed?.message || "Unknown error",
+                    requestId,
+                  },
+                }),
+              };
+            }
+          } catch {
+            logger.warn("Non-JSON error response detected, normalizing");
+            return {
+              ...result,
+              body: JSON.stringify({
+                error: {
+                  code: "INTERNAL_ERROR",
+                  message: "Unknown error",
+                  requestId,
+                },
+              }),
+            };
+          }
+        }
         return result;
       }
 

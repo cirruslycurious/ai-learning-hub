@@ -293,5 +293,79 @@ describe("Handler Wrapper", () => {
 
       expect(result.headers?.["X-Request-Id"]).toBe("custom-request-id");
     });
+
+    describe("ADR-008 pass-through normalization (D9, AC9)", () => {
+      it("normalizes non-2xx pass-through with non-JSON body", async () => {
+        const handler = wrapHandler(async () => ({
+          statusCode: 400,
+          headers: {},
+          body: "bad request",
+        }));
+
+        const event = createMockEvent();
+        const result = await handler(event, mockContext);
+
+        expect(result.statusCode).toBe(400);
+        const body = JSON.parse(result.body);
+        expect(body.error.code).toBe("INTERNAL_ERROR");
+        expect(body.error.message).toBe("Unknown error");
+        expect(body.error.requestId).toBeDefined();
+      });
+
+      it("normalizes non-2xx pass-through with non-ADR-008 JSON body", async () => {
+        const handler = wrapHandler(async () => ({
+          statusCode: 422,
+          headers: {},
+          body: JSON.stringify({ message: "Validation failed" }),
+        }));
+
+        const event = createMockEvent();
+        const result = await handler(event, mockContext);
+
+        expect(result.statusCode).toBe(422);
+        const body = JSON.parse(result.body);
+        expect(body.error.code).toBe("INTERNAL_ERROR");
+        expect(body.error.message).toBe("Validation failed");
+        expect(body.error.requestId).toBeDefined();
+      });
+
+      it("passes through non-2xx response with valid ADR-008 body", async () => {
+        const adr008Body = {
+          error: {
+            code: "NOT_FOUND",
+            message: "Resource not found",
+            requestId: "test-id",
+          },
+        };
+        const handler = wrapHandler(async () => ({
+          statusCode: 404,
+          headers: {},
+          body: JSON.stringify(adr008Body),
+        }));
+
+        const event = createMockEvent();
+        const result = await handler(event, mockContext);
+
+        expect(result.statusCode).toBe(404);
+        const body = JSON.parse(result.body);
+        expect(body.error.code).toBe("NOT_FOUND");
+        expect(body.error.message).toBe("Resource not found");
+      });
+
+      it("does not normalize 2xx pass-through responses", async () => {
+        const customBody = JSON.stringify({ custom: true });
+        const handler = wrapHandler(async () => ({
+          statusCode: 200,
+          headers: { "X-Custom": "header" },
+          body: customBody,
+        }));
+
+        const event = createMockEvent();
+        const result = await handler(event, mockContext);
+
+        expect(result.statusCode).toBe(200);
+        expect(result.body).toBe(customBody);
+      });
+    });
   });
 });

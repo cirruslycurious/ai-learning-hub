@@ -28,50 +28,51 @@ describe("T2: Route Completeness", () => {
     routesTemplate = stacks.routesTemplate;
   });
 
-  describe("AC5: Every registry route has matching Resource + Method", () => {
-    /**
-     * Extract all resource paths from the routes template by resolving
-     * the Resource tree (ParentId → path segment chain).
-     */
-    function getResourcePaths(template: Template): Map<string, string> {
-      const resources = template.findResources("AWS::ApiGateway::Resource");
-      const logicalIdToPath = new Map<string, string>();
+  /**
+   * Extract all resource paths from the routes template by resolving
+   * the Resource tree (ParentId -> path segment chain).
+   * Shared by AC5 and AC6b tests.
+   */
+  function getResourcePaths(template: Template): Map<string, string> {
+    const resources = template.findResources("AWS::ApiGateway::Resource");
+    const logicalIdToPath = new Map<string, string>();
 
-      // Build parent-child map
-      const parentMap = new Map<string, string>();
-      const partMap = new Map<string, string>();
+    // Build parent-child map
+    const parentMap = new Map<string, string>();
+    const partMap = new Map<string, string>();
 
-      for (const [logicalId, resource] of Object.entries(resources)) {
-        const props = (resource as { Properties: Record<string, unknown> })
-          .Properties;
-        const pathPart = props.PathPart as string;
-        partMap.set(logicalId, pathPart);
+    for (const [logicalId, resource] of Object.entries(resources)) {
+      const props = (resource as { Properties: Record<string, unknown> })
+        .Properties;
+      const pathPart = props.PathPart as string;
+      partMap.set(logicalId, pathPart);
 
-        const parentRef = props.ParentId as { Ref?: string } | undefined;
-        if (parentRef?.Ref) {
-          parentMap.set(logicalId, parentRef.Ref);
-        }
+      const parentRef = props.ParentId as { Ref?: string } | undefined;
+      if (parentRef?.Ref) {
+        parentMap.set(logicalId, parentRef.Ref);
       }
-
-      // Resolve full paths
-      function resolvePath(logicalId: string): string {
-        const part = partMap.get(logicalId) ?? "";
-        const parent = parentMap.get(logicalId);
-        if (parent && partMap.has(parent)) {
-          return resolvePath(parent) + "/" + part;
-        }
-        return "/" + part;
-      }
-
-      for (const logicalId of partMap.keys()) {
-        logicalIdToPath.set(logicalId, resolvePath(logicalId));
-      }
-
-      return logicalIdToPath;
     }
 
+    // Resolve full paths
+    function resolvePath(logicalId: string): string {
+      const part = partMap.get(logicalId) ?? "";
+      const parent = parentMap.get(logicalId);
+      if (parent && partMap.has(parent)) {
+        return resolvePath(parent) + "/" + part;
+      }
+      return "/" + part;
+    }
+
+    for (const logicalId of partMap.keys()) {
+      logicalIdToPath.set(logicalId, resolvePath(logicalId));
+    }
+
+    return logicalIdToPath;
+  }
+
+  describe("AC5: Every registry route has matching Resource + Method", () => {
     /**
-     * Get method→resource mapping with Lambda function name from the routes template.
+     * Get method->resource mapping with Lambda function name from the routes template.
      * Returns Map<resourceLogicalId, Map<httpMethod, functionName>>
      */
     function getMethodDetails(
@@ -105,7 +106,7 @@ describe("T2: Route Completeness", () => {
       const resourcePaths = getResourcePaths(routesTemplate);
       const methodDetails = getMethodDetails(routesTemplate);
 
-      // Invert: path → logical IDs
+      // Invert: path -> logical IDs
       const pathToLogicalIds = new Map<string, string[]>();
       for (const [logicalId, path] of resourcePaths) {
         const existing = pathToLogicalIds.get(path) ?? [];
@@ -152,6 +153,41 @@ describe("T2: Route Completeness", () => {
 
       if (violations.length > 0) {
         expect.fail(`Route registry violations:\n${violations.join("\n")}`);
+      }
+    });
+  });
+
+  describe("AC6b: No unregistered routes in CDK (reverse-direction)", () => {
+    it("every non-OPTIONS CDK method has a matching ROUTE_REGISTRY entry", () => {
+      const methods = routesTemplate.findResources("AWS::ApiGateway::Method");
+      const resourcePaths = getResourcePaths(routesTemplate);
+      const unregistered: string[] = [];
+
+      for (const [, method] of Object.entries(methods)) {
+        const props = (method as { Properties: Record<string, unknown> })
+          .Properties;
+        const httpMethod = props.HttpMethod as string;
+        if (httpMethod === "OPTIONS") continue;
+
+        const resourceRef = props.ResourceId as { Ref?: string };
+        const resourceId = resourceRef?.Ref;
+        if (!resourceId) continue;
+
+        const path = resourcePaths.get(resourceId);
+        if (!path) continue;
+
+        const registryMatch = ROUTE_REGISTRY.find(
+          (r) => r.path === path && r.methods.includes(httpMethod)
+        );
+        if (!registryMatch) {
+          unregistered.push(`${httpMethod} ${path}`);
+        }
+      }
+
+      if (unregistered.length > 0) {
+        expect.fail(
+          `Routes exist in CDK but not in ROUTE_REGISTRY:\n${unregistered.map((r) => `  - ${r}`).join("\n")}`
+        );
       }
     });
   });

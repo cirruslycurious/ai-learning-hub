@@ -22,6 +22,7 @@ const EXEMPT_FUNCTIONS = new Set([
   "toPublicInviteCode",
   "getWindowKey",
   "getCounterTTL",
+  "requireEnv",
 ]);
 
 /**

@@ -206,6 +206,181 @@ describe("T6: Shared Library Import Enforcement", () => {
   });
 });
 
+describe("T6b: wrapHandler usage enforcement", () => {
+  const HANDLER_EXPORT_PATTERN =
+    /export\s+(const|let)\s+handler\s*=\s*wrapHandler\s*\(/;
+  const AUTHORIZER_DIR_PATTERN = /-authorizer$/;
+
+  it("every API handler uses wrapHandler", () => {
+    const handlerDirs = fs
+      .readdirSync(FUNCTIONS_DIR, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && !AUTHORIZER_DIR_PATTERN.test(d.name));
+
+    const violations: string[] = [];
+    for (const dir of handlerDirs) {
+      const handlerPath = path.join(FUNCTIONS_DIR, dir.name, "handler.ts");
+      if (!fs.existsSync(handlerPath)) continue;
+      const content = fs.readFileSync(handlerPath, "utf-8");
+      if (!HANDLER_EXPORT_PATTERN.test(content)) {
+        violations.push(relPath(handlerPath));
+      }
+    }
+
+    if (violations.length > 0) {
+      expect.fail(
+        `Handlers bypass wrapHandler (ADR-008 non-compliant):\n${violations.map((v) => `  ${v}`).join("\n")}`
+      );
+    }
+  });
+
+  it("should detect a handler that bypasses wrapHandler (negative test)", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "t6b-"));
+    const handlerPath = path.join(tmpDir, "handler.ts");
+    fs.writeFileSync(
+      handlerPath,
+      "export const handler = async (event: any) => ({ statusCode: 200 });\n"
+    );
+
+    const content = fs.readFileSync(handlerPath, "utf-8");
+    expect(HANDLER_EXPORT_PATTERN.test(content)).toBe(false);
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+});
+
+describe("T6c: Dynamic import and console destructuring enforcement", () => {
+  it("should not have dynamic import() of @aws-sdk in handlers", () => {
+    const handlerFiles = findHandlerFiles(FUNCTIONS_DIR);
+    const dynamicImportPattern = /import\s*\(\s*["']@aws-sdk\//;
+
+    const violations: Violation[] = [];
+    for (const file of handlerFiles) {
+      const content = fs.readFileSync(file, "utf-8");
+      const lines = content.split("\n");
+      let inBlockComment = false;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmed = line.trim();
+
+        if (inBlockComment) {
+          if (trimmed.includes("*/")) inBlockComment = false;
+          continue;
+        }
+        if (trimmed.startsWith("/*")) {
+          if (!trimmed.includes("*/")) inBlockComment = true;
+          continue;
+        }
+        if (trimmed.startsWith("//") || trimmed.startsWith("*")) continue;
+
+        if (dynamicImportPattern.test(line)) {
+          violations.push({
+            file: relPath(file),
+            line: i + 1,
+            content: trimmed,
+            rule: "No dynamic import() of @aws-sdk — use @ai-learning-hub/db",
+          });
+        }
+      }
+    }
+
+    if (violations.length > 0) {
+      const messages = violations.map(
+        (v) => `  ${v.file}:${v.line} — ${v.content}`
+      );
+      expect.fail(
+        `Dynamic @aws-sdk imports found:\n${messages.join("\n")}\n\nUse @ai-learning-hub/db instead.`
+      );
+    }
+  });
+
+  it("should not have console destructuring in handlers", () => {
+    const handlerFiles = findHandlerFiles(FUNCTIONS_DIR);
+    const consoleDestructurePattern = /const\s*\{[^}]*\}\s*=\s*console/;
+    const consoleAliasPattern = /=\s*console\.\w+\s*[;,]/;
+
+    const violations: Violation[] = [];
+    for (const file of handlerFiles) {
+      const content = fs.readFileSync(file, "utf-8");
+      const lines = content.split("\n");
+      let inBlockComment = false;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmed = line.trim();
+
+        if (inBlockComment) {
+          if (trimmed.includes("*/")) inBlockComment = false;
+          continue;
+        }
+        if (trimmed.startsWith("/*")) {
+          if (!trimmed.includes("*/")) inBlockComment = true;
+          continue;
+        }
+        if (trimmed.startsWith("//") || trimmed.startsWith("*")) continue;
+
+        if (consoleDestructurePattern.test(line)) {
+          violations.push({
+            file: relPath(file),
+            line: i + 1,
+            content: trimmed,
+            rule: "No console destructuring — use @ai-learning-hub/logging",
+          });
+        }
+        if (consoleAliasPattern.test(line)) {
+          violations.push({
+            file: relPath(file),
+            line: i + 1,
+            content: trimmed,
+            rule: "No console aliasing — use @ai-learning-hub/logging",
+          });
+        }
+      }
+    }
+
+    if (violations.length > 0) {
+      const messages = violations.map(
+        (v) => `  ${v.file}:${v.line} — ${v.content}`
+      );
+      expect.fail(
+        `Console destructuring/aliasing found:\n${messages.join("\n")}\n\nUse @ai-learning-hub/logging instead.`
+      );
+    }
+  });
+});
+
+describe("T6c: Dynamic import / console destructure detection (negative tests)", () => {
+  const tmpDir2 = fs.mkdtempSync(path.join(os.tmpdir(), "t6c-scanner-"));
+
+  afterAll(() => {
+    fs.rmSync(tmpDir2, { recursive: true, force: true });
+  });
+
+  it("should detect dynamic import of @aws-sdk", () => {
+    const filePath = path.join(tmpDir2, "dynamic-import.ts");
+    fs.writeFileSync(
+      filePath,
+      'const mod = await import("@aws-sdk/client-dynamodb");\n'
+    );
+    const content = fs.readFileSync(filePath, "utf-8");
+    expect(/import\s*\(\s*["']@aws-sdk\//.test(content)).toBe(true);
+  });
+
+  it("should detect console destructuring", () => {
+    const filePath = path.join(tmpDir2, "console-destruct.ts");
+    fs.writeFileSync(filePath, "const { log, error } = console;\n");
+    const content = fs.readFileSync(filePath, "utf-8");
+    expect(/const\s*\{[^}]*\}\s*=\s*console/.test(content)).toBe(true);
+  });
+
+  it("should detect console aliasing", () => {
+    const filePath = path.join(tmpDir2, "console-alias.ts");
+    fs.writeFileSync(filePath, "const myLog = console.log;\n");
+    const content = fs.readFileSync(filePath, "utf-8");
+    expect(/=\s*console\.\w+\s*[;,]/.test(content)).toBe(true);
+  });
+});
+
 describe("T6: Scanner detection verification (negative tests)", () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "t6-scanner-"));
 

@@ -20,6 +20,7 @@ vi.mock("../src/helpers.js", () => ({
   putItem: vi.fn(),
   queryItems: vi.fn(),
   updateItem: vi.fn(),
+  requireEnv: (name: string, fallback: string) => process.env[name] ?? fallback,
 }));
 
 // Mock the logging module

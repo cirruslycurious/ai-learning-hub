@@ -23,6 +23,19 @@ import {
 import { createLogger, type Logger } from "@ai-learning-hub/logging";
 
 /**
+ * Require an environment variable, with optional test fallback.
+ * Extracted from users.ts and invite-codes.ts to avoid duplication (D9, AC10).
+ */
+export function requireEnv(name: string, testFallback: string): string {
+  const value = process.env[name];
+  // Use !== undefined so empty string env vars are treated as "set" (correct Unix semantics).
+  // An empty string is a valid (albeit unusual) env var value and should be returned as-is.
+  if (value !== undefined) return value;
+  if (process.env.NODE_ENV === "test") return testFallback;
+  throw new Error(`${name} environment variable is required`);
+}
+
+/**
  * Table configuration
  */
 export interface TableConfig {

@@ -37,6 +37,7 @@ vi.mock("../src/helpers.js", () => ({
   updateItem: (...args: unknown[]) => mockUpdateItem(...args),
   putItem: (...args: unknown[]) => mockPutItem(...args),
   queryItems: (...args: unknown[]) => mockQueryItems(...args),
+  requireEnv: (name: string, fallback: string) => process.env[name] ?? fallback,
 }));
 
 const mockClient = {} as DynamoDBDocumentClient;
