@@ -136,9 +136,8 @@ describe("AuthStack", () => {
       const lambdas = template.findResources("AWS::Lambda::Function");
       const apiKeyAuthEntry = Object.entries(lambdas).find(([, resource]) => {
         const envVars = resource.Properties?.Environment?.Variables ?? {};
-        // api-key-authorizer has both CLERK_SECRET_KEY_PARAM and INVITE_CODES_TABLE_NAME
-        // but is not the jwt-authorizer or validate-invite (all 3 have CLERK_SECRET_KEY_PARAM)
-        // We identify it by checking the logical ID contains "ApiKeyAuthorizer"
+        // Step 1: Confirm at least one Lambda has CLERK_SECRET_KEY_PARAM
+        // Step 2 (below): Find IAM policies attached specifically to ApiKeyAuthorizer role
         return envVars.CLERK_SECRET_KEY_PARAM && envVars.USERS_TABLE_NAME;
       });
       expect(apiKeyAuthEntry).toBeDefined();
@@ -146,7 +145,6 @@ describe("AuthStack", () => {
       // Find IAM policies that grant ssm:GetParameter and are attached to a role
       // that references the api-key-authorizer Lambda
       const policies = template.findResources("AWS::IAM::Policy");
-      const apiKeyAuthLogicalId = apiKeyAuthEntry![0];
       const ssmPoliciesForApiKeyAuth = Object.values(policies).filter(
         (resource) => {
           const statements =
