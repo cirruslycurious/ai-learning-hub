@@ -12,9 +12,10 @@ scope:
     "2.1-D8",
     "2.1-D10",
     "2.1-D9",
+    "2.1-D11",
   ]
 started: 2026-02-17T00:24:04Z
-last_updated: 2026-02-22T00:00:00Z
+last_updated: 2026-02-22T20:30:00Z
 stories:
   "2.1-D2":
     {
@@ -127,6 +128,20 @@ stories:
       startedAt: "2026-02-22T14:00:00Z",
       completedAt: "2026-02-22T14:30:00Z",
     }
+  "2.1-D11":
+    {
+      status: done,
+      issue: null,
+      pr: null,
+      branch: null,
+      commit: null,
+      coverage: null,
+      review_rounds: 0,
+      startedAt: "2026-02-22T20:06:00Z",
+      completedAt: "2026-02-22T20:30:00Z",
+      duration: "~24m",
+      notes: "Ops-only story (AWS CLI). No code changes. Deleted 14 orphaned DynamoDB tables, destroyed all CDK stacks, redeployed from scratch. CI pipeline fully green.",
+    }
 ---
 
 <!-- Human-readable display below (generated from frontmatter) -->
@@ -146,6 +161,7 @@ stories:
 | 2.1-D8  | ✅ Complete | #169 | 100%     | 2             | ~65m     |
 | 2.1-D10 | ✅ Complete | #172 | 97%      | 2             | -        |
 | 2.1-D9  | ✅ Complete | #175 | 98%      | 1             | ~30m     |
+| 2.1-D11 | ✅ Complete | N/A  | N/A      | 0             | ~24m     |
 
 ## Activity Log
 
@@ -213,3 +229,13 @@ stories:
 - Story 2.1-D9: Quality gate passed (1,398 tests, lint clean, type-check clean)
 - Story 2.1-D9: Review round 1 — 1 Critical, 5 Important, 4 Minor → all critical/important fixed
 - Story 2.1-D9: Committed, pushed, PR #175 created
+- [20:06] Story 2.1-D11: Starting ops story (Fix Deploy — Delete Orphaned DynamoDB Tables)
+- [20:06] Story 2.1-D11: Diagnosis — AiLearningHubTables stack in UPDATE_ROLLBACK_COMPLETE, 14 DynamoDB tables (7 old + 7 orphaned dev-\*)
+- [20:08] Story 2.1-D11: Deleted 7 orphaned dev-\* tables (blocking deploy)
+- [20:10] Story 2.1-D11: First deploy attempt failed — cross-stack export conflict (TablesStack exports consumed by AuthStack)
+- [20:12] Story 2.1-D11: Nuclear option — destroyed all 7 CDK stacks, deleted all 14 RETAIN tables
+- [20:18] Story 2.1-D11: Clean state verified (0 tables, only CDKToolkit stack)
+- [20:19] Story 2.1-D11: cdk deploy --all from scratch — all 7 stacks CREATE_COMPLETE
+- [20:22] Story 2.1-D11: 7 dev-ai-learning-hub-\* tables created successfully
+- [20:25] Story 2.1-D11: CI re-run — all 10 stages green (including Deploy to Dev + E2E Tests)
+- [20:30] Story 2.1-D11: Marked done. No code changes needed — pure AWS CLI operations
