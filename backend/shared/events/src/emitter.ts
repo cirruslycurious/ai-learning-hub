@@ -55,6 +55,8 @@ export function emitEvent<TDetailType extends string, TDetail extends object>(
         logger.warn("EventBridge PutEvents failed (non-fatal)", {
           detailType: entry.detailType,
           error: err instanceof Error ? err.message : String(err),
+          errorName: err instanceof Error ? err.name : undefined,
+          errorStack: err instanceof Error ? err.stack : undefined,
         });
       } catch {
         // logger itself failed — nothing safe to do here

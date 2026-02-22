@@ -106,6 +106,8 @@ describe("emitEvent", () => {
       {
         detailType: "SaveCreated",
         error: "throttled",
+        errorName: "Error",
+        errorStack: expect.stringContaining("throttled"),
       }
     );
   });
@@ -163,6 +165,8 @@ describe("emitEvent", () => {
       {
         detailType: "SaveCreated",
         error: "string error",
+        errorName: undefined,
+        errorStack: undefined,
       }
     );
   });

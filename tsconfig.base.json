@@ -16,7 +16,8 @@
       "@ai-learning-hub/logging": ["backend/shared/logging/src/index.ts"],
       "@ai-learning-hub/validation": ["backend/shared/validation/src/index.ts"],
       "@ai-learning-hub/db": ["backend/shared/db/src/index.ts"],
-      "@ai-learning-hub/middleware": ["backend/shared/middleware/src/index.ts"]
+      "@ai-learning-hub/middleware": ["backend/shared/middleware/src/index.ts"],
+      "@ai-learning-hub/events": ["backend/shared/events/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "dist", "cdk.out", "build"]
