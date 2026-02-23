@@ -245,7 +245,7 @@ describe("Saves List Handler — GET /saves", () => {
       });
       const result = await handler(event, mockContext);
 
-      expect(result.statusCode).toBe(401);
+      assertADR008Error(result, ErrorCode.UNAUTHORIZED, 401);
     });
   });
 
@@ -706,14 +706,14 @@ describe("Saves List Handler — GET /saves", () => {
       const event = createListEvent({ limit: "101" });
       const result = await handler(event, mockContext);
 
-      expect(result.statusCode).toBe(400);
+      assertADR008Error(result, ErrorCode.VALIDATION_ERROR, 400);
     });
 
     it("returns 400 when limit is 0", async () => {
       const event = createListEvent({ limit: "0" });
       const result = await handler(event, mockContext);
 
-      expect(result.statusCode).toBe(400);
+      assertADR008Error(result, ErrorCode.VALIDATION_ERROR, 400);
     });
   });
 

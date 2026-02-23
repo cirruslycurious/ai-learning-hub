@@ -271,7 +271,7 @@ describe("Saves Create Handler", () => {
       expect(result.headers?.["X-Request-Id"]).toBe("test-req-id");
     });
 
-    it("strips deletedAt from 409 existingSave response (Story 3.1.3 AC2)", async () => {
+    it("strips deletedAt from 409 existingSave response (shared toPublicSave)", async () => {
       // Simulate a save item that has a deletedAt field (edge case)
       const existingSave = {
         PK: "USER#user_123",
