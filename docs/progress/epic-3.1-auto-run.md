@@ -1,6 +1,6 @@
 ---
 epic_id: Epic-3.1
-status: in-progress
+status: done
 scope: ["3.1.1", "3.1.2", "3.1.3"]
 started: "2026-02-23T00:00:00Z"
 last_updated: "2026-02-23T18:02:00Z"
@@ -32,10 +32,15 @@ stories:
     }
   "3.1.3":
     {
-      status: in-progress,
+      status: done,
       issue: 197,
+      pr: 198,
       branch: story-3-1-3-handler-test-consolidation,
+      commit: b54cdc7,
       startedAt: "2026-02-23T18:02:00Z",
+      completedAt: "2026-02-23T21:52:00Z",
+      reviewRounds: 1,
+      reviewResult: APPROVE,
     }
 ---
 
@@ -43,11 +48,11 @@ stories:
 
 # Epic 3.1 Auto-Run Progress
 
-| Story | Status         | PR   | Review Rounds | Result  |
-| ----- | -------------- | ---- | ------------- | ------- |
-| 3.1.1 | Done           | #194 | 1             | APPROVE |
-| 3.1.2 | Done           | #196 | 1             | APPROVE |
-| 3.1.3 | 🔄 In Progress | -    | -             | -       |
+| Story | Status | PR   | Review Rounds | Result  |
+| ----- | ------ | ---- | ------------- | ------- |
+| 3.1.1 | Done   | #194 | 1             | APPROVE |
+| 3.1.2 | Done   | #196 | 1             | APPROVE |
+| 3.1.3 | Done   | #198 | 1             | APPROVE |
 
 ## Activity Log
 
@@ -61,3 +66,6 @@ stories:
 - [17:10] Story 3.1.2 complete (2/2 stories done in this scope)
 - [18:01] Epic 3.1 auto-run resumed — adding Story 3.1.3 to scope
 - [18:02] Story 3.1.3: Issue #197 created, branch created, implementation starting
+- [21:52] Story 3.1.3: All quality gates passed, review approved (Round 1), PR #198 ready
+- [21:52] Story 3.1.3 complete (3/3 stories done in this scope)
+- [21:52] Epic 3.1 auto-run complete — all 3 stories done
