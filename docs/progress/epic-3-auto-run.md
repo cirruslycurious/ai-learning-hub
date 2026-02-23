@@ -1,9 +1,9 @@
 ---
 epic_id: Epic-3
 status: in-progress
-scope: ["3.1a", "3.1c", "3.1b"]
+scope: ["3.1a", "3.1c", "3.1b", "3.2"]
 started: "2026-02-19T16:50:32Z"
-last_updated: "2026-02-22T22:45:00Z"
+last_updated: "2026-02-23T00:00:00Z"
 stories:
   "3.1a":
     status: done
@@ -33,17 +33,23 @@ stories:
     startedAt: "2026-02-22T22:04:14Z"
     completedAt: "2026-02-22T22:45:00Z"
     duration: "41m"
+  "3.2":
+    status: in-progress
+    issue: 185
+    branch: story-3-2-list-get-saves-api
+    startedAt: "2026-02-23T00:00:00Z"
 ---
 
 <!-- Human-readable display below (generated from frontmatter) -->
 
 # Epic 3 Auto-Run Progress
 
-| Story | Status      | PR   | Coverage | Review Rounds | Duration |
-| ----- | ----------- | ---- | -------- | ------------- | -------- |
-| 3.1a  | ✅ Complete | #156 | -        | -             | 51m      |
-| 3.1c  | ✅ Complete | #177 | 97%      | 2             | 32m      |
-| 3.1b  | ✅ Complete | #182 | -        | 1             | 41m      |
+| Story | Status         | PR   | Coverage | Review Rounds | Duration |
+| ----- | -------------- | ---- | -------- | ------------- | -------- |
+| 3.1a  | ✅ Complete    | #156 | -        | -             | 51m      |
+| 3.1c  | ✅ Complete    | #177 | 97%      | 2             | 32m      |
+| 3.1b  | ✅ Complete    | #182 | -        | 1             | 41m      |
+| 3.2   | 🔄 In Progress | -    | -        | -             | -        |
 
 ## Activity Log
 
@@ -69,3 +75,5 @@ stories:
 - [00:38] Story 3.1b: Architecture enforcement tests updated for multi-route-stack topology
 - [00:40] Story 3.1b: All 1488 tests passing, CDK synth green
 - [00:41] Story 3.1b: PR #182 created, marked done
+- [00:00] Story 3.2: Added to scope, Issue #185 created, branch created
+- [00:01] Story 3.2: Implementation starting

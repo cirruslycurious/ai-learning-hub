@@ -28,6 +28,8 @@ export {
   type BaseEntity,
   type User,
   type Save,
+  type SaveItem,
+  type PublicSave,
   ContentType,
   TutorialStatus,
   type Project,

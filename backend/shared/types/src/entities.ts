@@ -44,6 +44,17 @@ export interface Save extends BaseEntity {
 }
 
 /**
+ * DynamoDB item shape for the saves table.
+ * Extends Save with internal partition/sort keys.
+ */
+export type SaveItem = Save & { PK: string; SK: string };
+
+/**
+ * Public API shape for a save — DynamoDB keys and soft-delete marker stripped.
+ */
+export type PublicSave = Omit<SaveItem, "PK" | "SK" | "deletedAt">;
+
+/**
  * Content types for saved URLs (Epic 3)
  */
 export enum ContentType {

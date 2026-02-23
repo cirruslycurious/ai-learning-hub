@@ -34,6 +34,8 @@ export interface SavesRoutesStackProps extends cdk.StackProps {
 
 export class SavesRoutesStack extends cdk.Stack {
   public readonly savesCreateFunction: lambda.IFunction;
+  public readonly savesListFunction: lambda.IFunction;
+  public readonly savesGetFunction: lambda.IFunction;
 
   constructor(scope: Construct, id: string, props: SavesRoutesStackProps) {
     super(scope, id, props);
@@ -116,12 +118,99 @@ export class SavesRoutesStack extends cdk.Stack {
       })
     );
 
-    // Wire /saves POST route
+    // saves-list — GET /saves (Story 3.2)
+    const savesListFunction = new nodejs.NodejsFunction(
+      this,
+      "SavesListFunction",
+      {
+        functionName: "ai-learning-hub-saves-list",
+        entry: path.join(
+          process.cwd(),
+          "..",
+          "backend/functions/saves-list/handler.ts"
+        ),
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_LATEST,
+        memorySize: 256,
+        timeout: cdk.Duration.seconds(10),
+        tracing: lambda.Tracing.ACTIVE,
+        environment: {
+          SAVES_TABLE_NAME: savesTable.tableName,
+          NODE_OPTIONS: "--enable-source-maps",
+        },
+        bundling: {
+          minify: true,
+          sourceMap: true,
+          externalModules: [
+            "@aws-sdk/client-dynamodb",
+            "@aws-sdk/lib-dynamodb",
+          ],
+        },
+      }
+    );
+    savesTable.grantReadData(savesListFunction);
+    this.savesListFunction = savesListFunction;
+
+    // saves-get — GET /saves/:saveId (Story 3.2)
+    const savesGetFunction = new nodejs.NodejsFunction(
+      this,
+      "SavesGetFunction",
+      {
+        functionName: "ai-learning-hub-saves-get",
+        entry: path.join(
+          process.cwd(),
+          "..",
+          "backend/functions/saves-get/handler.ts"
+        ),
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_LATEST,
+        memorySize: 256,
+        timeout: cdk.Duration.seconds(10),
+        tracing: lambda.Tracing.ACTIVE,
+        environment: {
+          SAVES_TABLE_NAME: savesTable.tableName,
+          NODE_OPTIONS: "--enable-source-maps",
+        },
+        bundling: {
+          minify: true,
+          sourceMap: true,
+          externalModules: [
+            "@aws-sdk/client-dynamodb",
+            "@aws-sdk/lib-dynamodb",
+          ],
+        },
+      }
+    );
+    // grantReadWriteData for updateItem (lastAccessedAt)
+    savesTable.grantReadWriteData(savesGetFunction);
+    this.savesGetFunction = savesGetFunction;
+
+    // Wire /saves routes
     const savesResource = restApi.root.addResource("saves");
     savesResource.addCorsPreflight(corsOptions);
     savesResource.addMethod(
       "POST",
       new apigateway.LambdaIntegration(this.savesCreateFunction),
+      {
+        authorizer: apiKeyAuthorizer,
+        authorizationType: apigateway.AuthorizationType.CUSTOM,
+      }
+    );
+    savesResource.addMethod(
+      "GET",
+      new apigateway.LambdaIntegration(savesListFunction),
+      {
+        authorizer: apiKeyAuthorizer,
+        authorizationType: apigateway.AuthorizationType.CUSTOM,
+      }
+    );
+
+    // Wire /saves/{saveId} route
+    const saveByIdResource = savesResource.addResource("{saveId}");
+    saveByIdResource.addCorsPreflight(corsOptions);
+    saveByIdResource.addMethod(
+      "GET",
+      new apigateway.LambdaIntegration(savesGetFunction),
       {
         authorizer: apiKeyAuthorizer,
         authorizationType: apigateway.AuthorizationType.CUSTOM,
@@ -137,25 +226,37 @@ export class SavesRoutesStack extends cdk.Stack {
       },
     ]);
 
+    const nagSuppressions = [
+      {
+        id: "AwsSolutions-IAM4",
+        reason:
+          "Lambda basic execution role (CloudWatch Logs, X-Ray) is managed by CDK construct",
+      },
+      {
+        id: "AwsSolutions-IAM5",
+        reason:
+          "DynamoDB table grants include index ARNs with wildcards, which is standard CDK behavior",
+      },
+      {
+        id: "AwsSolutions-L1",
+        reason:
+          "Using NODEJS_LATEST which resolves to the latest stable Node.js runtime supported by CDK",
+      },
+    ];
+
     NagSuppressions.addResourceSuppressions(
       this.savesCreateFunction,
-      [
-        {
-          id: "AwsSolutions-IAM4",
-          reason:
-            "Lambda basic execution role (CloudWatch Logs, X-Ray) is managed by CDK construct",
-        },
-        {
-          id: "AwsSolutions-IAM5",
-          reason:
-            "DynamoDB table grants include index ARNs with wildcards, which is standard CDK behavior",
-        },
-        {
-          id: "AwsSolutions-L1",
-          reason:
-            "Using NODEJS_LATEST which resolves to the latest stable Node.js runtime supported by CDK",
-        },
-      ],
+      nagSuppressions,
+      true
+    );
+    NagSuppressions.addResourceSuppressions(
+      savesListFunction,
+      nagSuppressions,
+      true
+    );
+    NagSuppressions.addResourceSuppressions(
+      savesGetFunction,
+      nagSuppressions,
       true
     );
   }

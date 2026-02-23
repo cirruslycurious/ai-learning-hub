@@ -51,14 +51,25 @@ export async function getItem<T>(
   client: DynamoDBDocumentClient,
   config: TableConfig,
   key: Record<string, unknown>,
+  options?: { consistentRead?: boolean } | Logger,
   logger?: Logger
 ): Promise<T | null> {
-  const log = logger ?? createLogger();
+  // Support both (key, logger) and (key, options, logger) signatures
+  let opts: { consistentRead?: boolean } = {};
+  let log: Logger;
+  if (options && typeof options === "object" && "info" in options) {
+    // Called as getItem(client, config, key, logger)
+    log = options as Logger;
+  } else {
+    opts = (options as { consistentRead?: boolean }) ?? {};
+    log = logger ?? createLogger();
+  }
   const startTime = Date.now();
 
   const input: GetCommandInput = {
     TableName: config.tableName,
     Key: key,
+    ...(opts.consistentRead && { ConsistentRead: true }),
   };
 
   try {
@@ -158,6 +169,7 @@ export interface QueryParams {
   cursor?: string;
   scanIndexForward?: boolean;
   indexName?: string;
+  consistentRead?: boolean;
 }
 
 /**
@@ -205,6 +217,7 @@ export async function queryItems<T>(
     ...(params.scanIndexForward !== undefined && {
       ScanIndexForward: params.scanIndexForward,
     }),
+    ...(params.consistentRead && { ConsistentRead: true }),
     ...(params.indexName && { IndexName: params.indexName }),
     ...(params.cursor && {
       ExclusiveStartKey: decodeCursor(params.cursor),
