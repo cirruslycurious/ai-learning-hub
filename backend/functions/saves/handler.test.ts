@@ -38,10 +38,20 @@ vi.mock("@ai-learning-hub/db", () => {
     enforceRateLimit: (...args: unknown[]) => mockEnforceRateLimit(...args),
     requireEnv: (name: string, fallback: string) =>
       process.env[name] ?? fallback,
+    SAVES_TABLE_CONFIG: {
+      tableName: "ai-learning-hub-saves",
+      partitionKey: "PK",
+      sortKey: "SK",
+    },
     USERS_TABLE_CONFIG: {
       tableName: "ai-learning-hub-users",
       partitionKey: "PK",
       sortKey: "SK",
+    },
+    SAVES_WRITE_RATE_LIMIT: {
+      operation: "saves-write",
+      limit: 200,
+      windowSeconds: 3600,
     },
   };
 });
@@ -58,6 +68,7 @@ const mockEmitEvent = vi.fn();
 vi.mock("@ai-learning-hub/events", () => ({
   emitEvent: (...args: unknown[]) => mockEmitEvent(...args),
   getDefaultClient: () => ({}),
+  requireEventBus: () => ({ busName: "test-event-bus", ebClient: {} }),
   SAVES_EVENT_SOURCE: "ai-learning-hub.saves",
 }));
 

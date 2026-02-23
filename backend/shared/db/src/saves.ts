@@ -8,6 +8,12 @@ import { requireEnv } from "./helpers.js";
 import type { TableConfig } from "./helpers.js";
 import type { SaveItem, PublicSave } from "@ai-learning-hub/types";
 
+export const SAVES_WRITE_RATE_LIMIT = {
+  operation: "saves-write",
+  limit: 200,
+  windowSeconds: 3600,
+} as const;
+
 export const SAVES_TABLE_CONFIG: TableConfig = {
   tableName: requireEnv("SAVES_TABLE_NAME", "ai-learning-hub-saves"),
   partitionKey: "PK",
