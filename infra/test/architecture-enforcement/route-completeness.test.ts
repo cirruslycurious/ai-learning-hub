@@ -16,16 +16,25 @@ import {
   type TestApiStacks,
   HANDLER_REF_TO_FUNCTION_NAME,
   extractLambdaFunctionName,
+  buildLambdaFunctionNameMap,
 } from "../helpers/create-test-api-stacks";
 import { ROUTE_REGISTRY } from "../../config/route-registry";
 
 describe("T2: Route Completeness", () => {
   let stacks: TestApiStacks;
-  let routesTemplate: Template;
+  let allRouteTemplates: Template[];
+  let logicalIdToFunctionName: Map<string, string>;
 
   beforeAll(() => {
     stacks = createTestApiStacks();
-    routesTemplate = stacks.routesTemplate;
+    allRouteTemplates = stacks.allRouteTemplates;
+    // Build combined logical-ID-to-function-name map across all route templates
+    logicalIdToFunctionName = new Map<string, string>();
+    for (const template of allRouteTemplates) {
+      for (const [k, v] of buildLambdaFunctionNameMap(template)) {
+        logicalIdToFunctionName.set(k, v);
+      }
+    }
   });
 
   /**
@@ -92,7 +101,10 @@ describe("T2: Route Completeness", () => {
 
         const integration = props.Integration as Record<string, unknown>;
         const uriStr = integration?.Uri ? JSON.stringify(integration.Uri) : "";
-        const functionName = extractLambdaFunctionName(uriStr);
+        const functionName = extractLambdaFunctionName(
+          uriStr,
+          logicalIdToFunctionName
+        );
 
         const existing = result.get(resourceId) ?? new Map();
         existing.set(httpMethod, functionName);
@@ -103,22 +115,32 @@ describe("T2: Route Completeness", () => {
     }
 
     it("each registry route has a matching resource path, method, AND correct handler Lambda", () => {
-      const resourcePaths = getResourcePaths(routesTemplate);
-      const methodDetails = getMethodDetails(routesTemplate);
+      // Aggregate resource paths and method details from all route templates
+      const pathToLogicalIds = new Map<
+        string,
+        { templateIdx: number; logicalId: string }[]
+      >();
+      const methodDetailsByTemplate: Map<string, Map<string, string | null>>[] =
+        [];
 
-      // Invert: path -> logical IDs
-      const pathToLogicalIds = new Map<string, string[]>();
-      for (const [logicalId, path] of resourcePaths) {
-        const existing = pathToLogicalIds.get(path) ?? [];
-        existing.push(logicalId);
-        pathToLogicalIds.set(path, existing);
+      for (let i = 0; i < allRouteTemplates.length; i++) {
+        const template = allRouteTemplates[i];
+        const resourcePaths = getResourcePaths(template);
+        const methodDetails = getMethodDetails(template);
+        methodDetailsByTemplate.push(methodDetails);
+
+        for (const [logicalId, path] of resourcePaths) {
+          const existing = pathToLogicalIds.get(path) ?? [];
+          existing.push({ templateIdx: i, logicalId });
+          pathToLogicalIds.set(path, existing);
+        }
       }
 
       const violations: string[] = [];
 
       for (const route of ROUTE_REGISTRY) {
-        const logicalIds = pathToLogicalIds.get(route.path);
-        if (!logicalIds || logicalIds.length === 0) {
+        const entries = pathToLogicalIds.get(route.path);
+        if (!entries || entries.length === 0) {
           violations.push(`${route.path} — resource not found`);
           continue;
         }
@@ -130,8 +152,8 @@ describe("T2: Route Completeness", () => {
           let found = false;
           let actualFunctionName: string | null = null;
 
-          for (const id of logicalIds) {
-            const methods = methodDetails.get(id);
+          for (const { templateIdx, logicalId } of entries) {
+            const methods = methodDetailsByTemplate[templateIdx].get(logicalId);
             if (methods?.has(method)) {
               found = true;
               actualFunctionName = methods.get(method) ?? null;
@@ -159,28 +181,31 @@ describe("T2: Route Completeness", () => {
 
   describe("AC6b: No unregistered routes in CDK (reverse-direction)", () => {
     it("every non-OPTIONS CDK method has a matching ROUTE_REGISTRY entry", () => {
-      const methods = routesTemplate.findResources("AWS::ApiGateway::Method");
-      const resourcePaths = getResourcePaths(routesTemplate);
       const unregistered: string[] = [];
 
-      for (const [, method] of Object.entries(methods)) {
-        const props = (method as { Properties: Record<string, unknown> })
-          .Properties;
-        const httpMethod = props.HttpMethod as string;
-        if (httpMethod === "OPTIONS") continue;
+      for (const template of allRouteTemplates) {
+        const methods = template.findResources("AWS::ApiGateway::Method");
+        const resourcePaths = getResourcePaths(template);
 
-        const resourceRef = props.ResourceId as { Ref?: string };
-        const resourceId = resourceRef?.Ref;
-        if (!resourceId) continue;
+        for (const [, method] of Object.entries(methods)) {
+          const props = (method as { Properties: Record<string, unknown> })
+            .Properties;
+          const httpMethod = props.HttpMethod as string;
+          if (httpMethod === "OPTIONS") continue;
 
-        const path = resourcePaths.get(resourceId);
-        if (!path) continue;
+          const resourceRef = props.ResourceId as { Ref?: string };
+          const resourceId = resourceRef?.Ref;
+          if (!resourceId) continue;
 
-        const registryMatch = ROUTE_REGISTRY.find(
-          (r) => r.path === path && r.methods.includes(httpMethod)
-        );
-        if (!registryMatch) {
-          unregistered.push(`${httpMethod} ${path}`);
+          const path = resourcePaths.get(resourceId);
+          if (!path) continue;
+
+          const registryMatch = ROUTE_REGISTRY.find(
+            (r) => r.path === path && r.methods.includes(httpMethod)
+          );
+          if (!registryMatch) {
+            unregistered.push(`${httpMethod} ${path}`);
+          }
         }
       }
 
@@ -194,24 +219,32 @@ describe("T2: Route Completeness", () => {
 
   describe("AC6: No orphan handler Lambdas", () => {
     it("every handler ref in registry has at least one API Gateway method integration", () => {
-      const methods = routesTemplate.findResources("AWS::ApiGateway::Method");
-
-      // Collect all Lambda function names referenced in integrations
+      // Collect all Lambda function names referenced in integrations across all route templates
       const integratedFunctionNames = new Set<string>();
 
-      for (const [, method] of Object.entries(methods)) {
-        const props = (method as { Properties: Record<string, unknown> })
-          .Properties;
-        const httpMethod = props.HttpMethod as string;
-        if (httpMethod === "OPTIONS") continue;
+      for (const template of allRouteTemplates) {
+        const methods = template.findResources("AWS::ApiGateway::Method");
 
-        const integration = props.Integration as Record<string, unknown> | null;
-        if (!integration?.Uri) continue;
+        for (const [, method] of Object.entries(methods)) {
+          const props = (method as { Properties: Record<string, unknown> })
+            .Properties;
+          const httpMethod = props.HttpMethod as string;
+          if (httpMethod === "OPTIONS") continue;
 
-        const uriStr = JSON.stringify(integration.Uri);
-        const functionName = extractLambdaFunctionName(uriStr);
-        if (functionName) {
-          integratedFunctionNames.add(functionName);
+          const integration = props.Integration as Record<
+            string,
+            unknown
+          > | null;
+          if (!integration?.Uri) continue;
+
+          const uriStr = JSON.stringify(integration.Uri);
+          const functionName = extractLambdaFunctionName(
+            uriStr,
+            logicalIdToFunctionName
+          );
+          if (functionName) {
+            integratedFunctionNames.add(functionName);
+          }
         }
       }
 

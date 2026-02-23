@@ -14,70 +14,86 @@ import {
   createTestApiStacks,
   HANDLER_REF_TO_FUNCTION_NAME,
   extractLambdaFunctionName,
+  buildLambdaFunctionNameMap,
 } from "../helpers/create-test-api-stacks";
 import { ROUTE_REGISTRY } from "../../config/route-registry";
 
 describe("T4: Lambda ↔ Route Wiring", () => {
-  let routesTemplate: Template;
+  let allRouteTemplates: Template[];
+  let logicalIdToFunctionName: Map<string, string>;
 
   beforeAll(() => {
     const stacks = createTestApiStacks();
-    routesTemplate = stacks.routesTemplate;
+    allRouteTemplates = stacks.allRouteTemplates;
+    logicalIdToFunctionName = new Map<string, string>();
+    for (const template of allRouteTemplates) {
+      for (const [k, v] of buildLambdaFunctionNameMap(template)) {
+        logicalIdToFunctionName.set(k, v);
+      }
+    }
   });
 
   describe("AC9: Every Method Integration.Uri resolves to a Lambda", () => {
     it("all non-OPTIONS methods have valid Lambda function ARN in Integration.Uri", () => {
-      const methods = routesTemplate.findResources("AWS::ApiGateway::Method");
       const knownFunctionNames = new Set(
         Object.values(HANDLER_REF_TO_FUNCTION_NAME)
       );
 
       const violations: string[] = [];
 
-      for (const [logicalId, method] of Object.entries(methods)) {
-        const props = (method as { Properties: Record<string, unknown> })
-          .Properties;
-        const httpMethod = props.HttpMethod as string;
+      for (const template of allRouteTemplates) {
+        const methods = template.findResources("AWS::ApiGateway::Method");
 
-        if (httpMethod === "OPTIONS") continue;
+        for (const [logicalId, method] of Object.entries(methods)) {
+          const props = (method as { Properties: Record<string, unknown> })
+            .Properties;
+          const httpMethod = props.HttpMethod as string;
 
-        const integration = props.Integration as Record<string, unknown> | null;
+          if (httpMethod === "OPTIONS") continue;
 
-        if (!integration) {
-          violations.push(
-            `Method ${logicalId} (${httpMethod}) has no Integration`
+          const integration = props.Integration as Record<
+            string,
+            unknown
+          > | null;
+
+          if (!integration) {
+            violations.push(
+              `Method ${logicalId} (${httpMethod}) has no Integration`
+            );
+            continue;
+          }
+
+          const integrationType = integration.Type as string;
+          if (integrationType !== "AWS_PROXY") {
+            violations.push(
+              `Method ${logicalId} (${httpMethod}) has Integration.Type = ${integrationType}, expected AWS_PROXY`
+            );
+            continue;
+          }
+
+          const uri = integration.Uri;
+          if (!uri) {
+            violations.push(
+              `Method ${logicalId} (${httpMethod}) has no Integration.Uri`
+            );
+            continue;
+          }
+
+          const uriStr = JSON.stringify(uri);
+          const functionName = extractLambdaFunctionName(
+            uriStr,
+            logicalIdToFunctionName
           );
-          continue;
-        }
 
-        const integrationType = integration.Type as string;
-        if (integrationType !== "AWS_PROXY") {
-          violations.push(
-            `Method ${logicalId} (${httpMethod}) has Integration.Type = ${integrationType}, expected AWS_PROXY`
-          );
-          continue;
-        }
-
-        const uri = integration.Uri;
-        if (!uri) {
-          violations.push(
-            `Method ${logicalId} (${httpMethod}) has no Integration.Uri`
-          );
-          continue;
-        }
-
-        // Extract the Lambda function name from the URI and verify it's a known handler
-        const uriStr = JSON.stringify(uri);
-        const functionName = extractLambdaFunctionName(uriStr);
-
-        if (!functionName) {
-          violations.push(
-            `Method ${logicalId} (${httpMethod}) Integration.Uri does not contain a Lambda function ARN`
-          );
-        } else if (!knownFunctionNames.has(functionName)) {
-          violations.push(
-            `Method ${logicalId} (${httpMethod}) references unknown Lambda function: ${functionName}`
-          );
+          if (!functionName) {
+            violations.push(
+              `Method ${logicalId} (${httpMethod}) Integration.Uri does not contain a Lambda function ARN`
+            );
+          } else if (!knownFunctionNames.has(functionName)) {
+            violations.push(
+              `Method ${logicalId} (${httpMethod}) references unknown Lambda function: ${functionName}`
+            );
+          }
         }
       }
 
@@ -89,24 +105,32 @@ describe("T4: Lambda ↔ Route Wiring", () => {
 
   describe("AC10: No orphan handler Lambdas", () => {
     it("every unique handler ref in registry has API Gateway integration", () => {
-      const methods = routesTemplate.findResources("AWS::ApiGateway::Method");
-
-      // Collect all Lambda function names referenced in integration URIs
+      // Collect all Lambda function names referenced in integration URIs across all route templates
       const integratedFunctionNames = new Set<string>();
 
-      for (const [, method] of Object.entries(methods)) {
-        const props = (method as { Properties: Record<string, unknown> })
-          .Properties;
-        const httpMethod = props.HttpMethod as string;
-        if (httpMethod === "OPTIONS") continue;
+      for (const template of allRouteTemplates) {
+        const methods = template.findResources("AWS::ApiGateway::Method");
 
-        const integration = props.Integration as Record<string, unknown> | null;
-        if (!integration?.Uri) continue;
+        for (const [, method] of Object.entries(methods)) {
+          const props = (method as { Properties: Record<string, unknown> })
+            .Properties;
+          const httpMethod = props.HttpMethod as string;
+          if (httpMethod === "OPTIONS") continue;
 
-        const uriStr = JSON.stringify(integration.Uri);
-        const functionName = extractLambdaFunctionName(uriStr);
-        if (functionName) {
-          integratedFunctionNames.add(functionName);
+          const integration = props.Integration as Record<
+            string,
+            unknown
+          > | null;
+          if (!integration?.Uri) continue;
+
+          const uriStr = JSON.stringify(integration.Uri);
+          const functionName = extractLambdaFunctionName(
+            uriStr,
+            logicalIdToFunctionName
+          );
+          if (functionName) {
+            integratedFunctionNames.add(functionName);
+          }
         }
       }
 

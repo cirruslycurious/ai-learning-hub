@@ -57,6 +57,7 @@ const HANDLER_REF_TO_DIR: Record<string, string> = {
   usersMeFunction: "users-me",
   apiKeysFunction: "api-keys",
   generateInviteFunction: "invite-codes",
+  savesCreateFunction: "saves",
 };
 
 describe("Auth Consistency: wrapHandler options vs ROUTE_REGISTRY authType (AC6)", () => {

@@ -23,7 +23,8 @@ export type HandlerRef =
   | "validateInviteFunction"
   | "usersMeFunction"
   | "apiKeysFunction"
-  | "generateInviteFunction";
+  | "generateInviteFunction"
+  | "savesCreateFunction";
 
 export interface RouteEntry {
   /** URL path (e.g., "/auth/validate-invite") */
@@ -77,5 +78,13 @@ export const ROUTE_REGISTRY: RouteEntry[] = [
     authType: "jwt-or-apikey",
     handlerRef: "generateInviteFunction",
     epic: "Epic-2",
+  },
+  // Epic 3 — Save URLs (Core CRUD)
+  {
+    path: "/saves",
+    methods: ["POST"],
+    authType: "jwt-or-apikey",
+    handlerRef: "savesCreateFunction",
+    epic: "Epic-3",
   },
 ];
