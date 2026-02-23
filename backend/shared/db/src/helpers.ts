@@ -52,13 +52,43 @@ export async function getItem<T>(
   config: TableConfig,
   key: Record<string, unknown>,
   logger?: Logger
+): Promise<T | null>;
+export async function getItem<T>(
+  client: DynamoDBDocumentClient,
+  config: TableConfig,
+  key: Record<string, unknown>,
+  options: { consistentRead?: boolean },
+  logger?: Logger
+): Promise<T | null>;
+export async function getItem<T>(
+  client: DynamoDBDocumentClient,
+  config: TableConfig,
+  key: Record<string, unknown>,
+  optionsOrLogger?: { consistentRead?: boolean } | Logger,
+  logger?: Logger
 ): Promise<T | null> {
-  const log = logger ?? createLogger();
+  // Support both (key, logger?) and (key, options, logger?) signatures.
+  // Distinguish by checking for the Logger-specific `timed` method, which
+  // is not a plausible key on a plain options object.
+  let opts: { consistentRead?: boolean } = {};
+  let log: Logger;
+  if (
+    optionsOrLogger &&
+    typeof optionsOrLogger === "object" &&
+    "timed" in optionsOrLogger
+  ) {
+    // Called as getItem(client, config, key, logger)
+    log = optionsOrLogger as Logger;
+  } else {
+    opts = (optionsOrLogger as { consistentRead?: boolean }) ?? {};
+    log = logger ?? createLogger();
+  }
   const startTime = Date.now();
 
   const input: GetCommandInput = {
     TableName: config.tableName,
     Key: key,
+    ...(opts.consistentRead && { ConsistentRead: true }),
   };
 
   try {
@@ -158,6 +188,7 @@ export interface QueryParams {
   cursor?: string;
   scanIndexForward?: boolean;
   indexName?: string;
+  consistentRead?: boolean;
 }
 
 /**
@@ -205,6 +236,7 @@ export async function queryItems<T>(
     ...(params.scanIndexForward !== undefined && {
       ScanIndexForward: params.scanIndexForward,
     }),
+    ...(params.consistentRead && { ConsistentRead: true }),
     ...(params.indexName && { IndexName: params.indexName }),
     ...(params.cursor && {
       ExclusiveStartKey: decodeCursor(params.cursor),

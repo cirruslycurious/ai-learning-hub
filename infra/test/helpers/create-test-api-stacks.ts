@@ -34,6 +34,8 @@ export const HANDLER_REF_TO_FUNCTION_NAME: Record<string, string> = {
   apiKeysFunction: "ApiKeysFn",
   generateInviteFunction: "GenerateInviteFn",
   savesCreateFunction: "ai-learning-hub-saves-create",
+  savesListFunction: "ai-learning-hub-saves-list",
+  savesGetFunction: "ai-learning-hub-saves-get",
 };
 
 /**

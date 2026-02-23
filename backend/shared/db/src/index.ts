@@ -56,6 +56,12 @@ export {
   type PublicInviteCodeItem,
 } from "./invite-codes.js";
 
+// Save operations
+export { SAVES_TABLE_CONFIG, toPublicSave } from "./saves.js";
+
+// Query all items (paginated accumulation)
+export { queryAllItems, type QueryAllParams } from "./query-all.js";
+
 // Rate limiting operations
 export {
   incrementAndCheckRateLimit,

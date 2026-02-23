@@ -100,6 +100,25 @@ describe("DynamoDB Helpers", () => {
         getItem(mockClient, tableConfig, { PK: "test" })
       ).rejects.toThrow(AppError);
     });
+
+    it("should pass ConsistentRead: true to DynamoDB when consistentRead option is set", async () => {
+      mockSend.mockResolvedValueOnce({ Item: { id: "1" } });
+      await getItem(
+        mockClient,
+        tableConfig,
+        { PK: "test" },
+        { consistentRead: true }
+      );
+      const input = mockSend.mock.calls[0][0].input;
+      expect(input.ConsistentRead).toBe(true);
+    });
+
+    it("should not pass ConsistentRead when consistentRead option is not set", async () => {
+      mockSend.mockResolvedValueOnce({ Item: { id: "1" } });
+      await getItem(mockClient, tableConfig, { PK: "test" });
+      const input = mockSend.mock.calls[0][0].input;
+      expect(input.ConsistentRead).toBeUndefined();
+    });
   });
 
   describe("putItem", () => {
@@ -243,6 +262,27 @@ describe("DynamoDB Helpers", () => {
           expressionAttributeValues: { ":pk": "USER#123" },
         })
       ).rejects.toThrow(AppError);
+    });
+
+    it("should pass ConsistentRead: true to DynamoDB when consistentRead option is set", async () => {
+      mockSend.mockResolvedValueOnce({ Items: [{ id: "1" }] });
+      await queryItems(mockClient, tableConfig, {
+        keyConditionExpression: "PK = :pk",
+        expressionAttributeValues: { ":pk": "USER#123" },
+        consistentRead: true,
+      });
+      const input = mockSend.mock.calls[0][0].input;
+      expect(input.ConsistentRead).toBe(true);
+    });
+
+    it("should not pass ConsistentRead when consistentRead option is not set", async () => {
+      mockSend.mockResolvedValueOnce({ Items: [{ id: "1" }] });
+      await queryItems(mockClient, tableConfig, {
+        keyConditionExpression: "PK = :pk",
+        expressionAttributeValues: { ":pk": "USER#123" },
+      });
+      const input = mockSend.mock.calls[0][0].input;
+      expect(input.ConsistentRead).toBeUndefined();
     });
   });
 
