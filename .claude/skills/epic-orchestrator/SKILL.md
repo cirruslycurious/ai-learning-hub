@@ -337,6 +337,26 @@ If the gate reports `pass: false`: fix the CDK errors (circular dependencies, mi
 
 Update status: `updateStoryStatus(story, "review")`
 
+### 2.3b Dedup Scan Loop
+
+**Read `dedup-scan-loop.md` in this skill directory for the full protocol.**
+
+The dedup scan loop detects cross-handler code duplication BEFORE the adversarial review. Unlike the reviewer (which diffs the branch), the scanner reads ALL handler files in the same domain to compare patterns.
+
+**Skip rule:** If `story.touches` contains no paths under `backend/functions/`, skip this step entirely and proceed to 2.4.
+
+Summary of the loop:
+
+1. **Derive domain pattern** from `story.touches` (e.g., `backend/functions/saves*/handler.ts`)
+2. **Spawn `epic-dedup-scanner` subagent** (Task tool, `subagent_type: "epic-dedup-scanner"`) — fresh context, writes findings doc
+3. **Read findings doc**, count MUST-FIX items (Critical + Important)
+4. **If clean (0 MUST-FIX):** Exit loop, proceed to 2.4 (Code Review Loop)
+5. **If not clean AND round < 2:** Spawn `epic-dedup-fixer` subagent — reads findings, extracts to shared, commits locally
+6. **If not clean AND round == 2:** Escalate to human (same options as reviewer escalation)
+7. Loop back to step 2 with fresh scanner
+
+**In `--dry-run` mode:** Skip subagent spawning, log dry-run messages, proceed directly to 2.4.
+
 ### 2.4 Code Review Loop
 
 **Read `review-loop.md` in this skill directory for the full protocol.**

@@ -24,21 +24,32 @@ Need autonomous epic implementation?   → Run /bmad-bmm-auto-epic (spawns subag
 
 These live in `.claude/agents/` and are spawned by the epic orchestrator or manually via the `Task` tool:
 
-| Subagent        | File               | Purpose                                                                                   | Tools                                                                                  | Spawned By                    |
-| --------------- | ------------------ | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------- |
-| `epic-reviewer` | `epic-reviewer.md` | Fresh-context adversarial code review. Reads branch diff, writes structured findings doc. | Read, Glob, Grep, Bash, Write (no Edit -- can write findings but cannot modify source) | Epic orchestrator review loop |
-| `epic-fixer`    | `epic-fixer.md`    | Fixes issues from a findings document. Full edit access, commits fixes locally.           | Read, Glob, Grep, Bash, Write, Edit                                                    | Epic orchestrator review loop |
+| Subagent             | File                    | Purpose                                                                                     | Tools                                                                                  | Spawned By                        |
+| -------------------- | ----------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | --------------------------------- |
+| `epic-reviewer`      | `epic-reviewer.md`      | Fresh-context adversarial code review. Reads branch diff, writes structured findings doc.   | Read, Glob, Grep, Bash, Write (no Edit -- can write findings but cannot modify source) | Epic orchestrator review loop     |
+| `epic-fixer`         | `epic-fixer.md`         | Fixes issues from a findings document. Full edit access, commits fixes locally.             | Read, Glob, Grep, Bash, Write, Edit                                                    | Epic orchestrator review loop     |
+| `epic-dedup-scanner` | `epic-dedup-scanner.md` | Fresh-context dedup scanner. Reads ALL domain handlers to detect cross-handler duplication. | Read, Glob, Grep, Bash, Write (no Edit -- writes findings but cannot modify source)    | Epic orchestrator dedup scan loop |
+| `epic-dedup-fixer`   | `epic-dedup-fixer.md`   | Fixes dedup findings by extracting duplicated code to shared packages. Full edit access.    | Read, Glob, Grep, Bash, Write, Edit                                                    | Epic orchestrator dedup scan loop |
 
 ### How the Orchestrator Uses Subagents
 
-The epic orchestrator (`/bmad-bmm-auto-epic`) runs a **review loop** after each story implementation:
+The epic orchestrator (`/bmad-bmm-auto-epic`) runs two scan/fix loops after each story implementation:
+
+**Dedup Scan Loop (Step 2.3b)** — catches cross-handler code duplication:
+
+1. Spawns `epic-dedup-scanner` (fresh context) to read ALL domain handlers and detect duplication
+2. Scanner writes a findings doc with Critical/Important/Minor categories
+3. If MUST-FIX findings exist, spawns `epic-dedup-fixer` to extract code to shared packages
+4. Repeats (up to 2 rounds) until clean or escalates to human
+
+**Review Loop (Step 2.4)** — catches correctness, security, and test issues:
 
 1. Spawns `epic-reviewer` (fresh context) to review the branch diff
 2. Reviewer writes a findings doc with Critical/Important/Minor categories
 3. If MUST-FIX findings exist, spawns `epic-fixer` to address them
 4. Repeats (up to 3 rounds) until clean or escalates to human
 
-See `.claude/docs/orchestrator-safety.md` for the full review loop protocol.
+See `.claude/skills/epic-orchestrator/dedup-scan-loop.md` and `.claude/skills/epic-orchestrator/review-loop.md` for the full protocols.
 
 ## Role-to-Asset Mapping
 
