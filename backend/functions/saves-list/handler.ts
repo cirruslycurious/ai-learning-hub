@@ -29,11 +29,8 @@ function encodeNextToken(saveId: string): string {
 }
 
 function decodeNextToken(token: string): string | undefined {
-  try {
-    return Buffer.from(token, "base64url").toString("utf-8");
-  } catch {
-    return undefined;
-  }
+  const decoded = Buffer.from(token, "base64url").toString("utf-8");
+  return /^[0-9A-Z]{26}$/.test(decoded) ? decoded : undefined;
 }
 
 async function savesListHandler(ctx: HandlerContext) {

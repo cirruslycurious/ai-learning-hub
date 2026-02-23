@@ -51,17 +51,36 @@ export async function getItem<T>(
   client: DynamoDBDocumentClient,
   config: TableConfig,
   key: Record<string, unknown>,
-  options?: { consistentRead?: boolean } | Logger,
+  logger?: Logger
+): Promise<T | null>;
+export async function getItem<T>(
+  client: DynamoDBDocumentClient,
+  config: TableConfig,
+  key: Record<string, unknown>,
+  options: { consistentRead?: boolean },
+  logger?: Logger
+): Promise<T | null>;
+export async function getItem<T>(
+  client: DynamoDBDocumentClient,
+  config: TableConfig,
+  key: Record<string, unknown>,
+  optionsOrLogger?: { consistentRead?: boolean } | Logger,
   logger?: Logger
 ): Promise<T | null> {
-  // Support both (key, logger) and (key, options, logger) signatures
+  // Support both (key, logger?) and (key, options, logger?) signatures.
+  // Distinguish by checking for the Logger-specific `timed` method, which
+  // is not a plausible key on a plain options object.
   let opts: { consistentRead?: boolean } = {};
   let log: Logger;
-  if (options && typeof options === "object" && "info" in options) {
+  if (
+    optionsOrLogger &&
+    typeof optionsOrLogger === "object" &&
+    "timed" in optionsOrLogger
+  ) {
     // Called as getItem(client, config, key, logger)
-    log = options as Logger;
+    log = optionsOrLogger as Logger;
   } else {
-    opts = (options as { consistentRead?: boolean }) ?? {};
+    opts = (optionsOrLogger as { consistentRead?: boolean }) ?? {};
     log = logger ?? createLogger();
   }
   const startTime = Date.now();

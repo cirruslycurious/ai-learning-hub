@@ -127,7 +127,7 @@ describe("Saves List Handler — GET /saves", () => {
     it("returns first page with nextToken when hasMore", async () => {
       // Create 30 items to exceed default limit of 25
       const items = Array.from({ length: 30 }, (_, i) =>
-        createSaveItem(`01SAVE${String(i).padStart(20, "0")}A`)
+        createSaveItem(`01SAVE${String(i).padStart(19, "0")}A`)
       );
       mockQueryAllItems.mockResolvedValueOnce({
         items,
@@ -146,7 +146,7 @@ describe("Saves List Handler — GET /saves", () => {
 
     it("returns page 2 correctly using nextToken", async () => {
       const items = Array.from({ length: 30 }, (_, i) =>
-        createSaveItem(`01SAVE${String(i).padStart(20, "0")}A`)
+        createSaveItem(`01SAVE${String(i).padStart(19, "0")}A`)
       );
       // The cursor points to the last item of page 1 (index 24)
       const cursorSaveId = items[24].saveId;
@@ -169,7 +169,7 @@ describe("Saves List Handler — GET /saves", () => {
 
     it("respects custom limit", async () => {
       const items = Array.from({ length: 10 }, (_, i) =>
-        createSaveItem(`01SAVE${String(i).padStart(20, "0")}A`)
+        createSaveItem(`01SAVE${String(i).padStart(19, "0")}A`)
       );
       mockQueryAllItems.mockResolvedValueOnce({
         items,
@@ -187,7 +187,7 @@ describe("Saves List Handler — GET /saves", () => {
 
     it("accepts limit=100 (max)", async () => {
       const items = Array.from({ length: 50 }, (_, i) =>
-        createSaveItem(`01SAVE${String(i).padStart(20, "0")}A`)
+        createSaveItem(`01SAVE${String(i).padStart(19, "0")}A`)
       );
       mockQueryAllItems.mockResolvedValueOnce({
         items,
