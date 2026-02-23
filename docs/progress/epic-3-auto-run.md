@@ -3,7 +3,7 @@ epic_id: Epic-3
 status: in-progress
 scope: ["3.1a", "3.1c", "3.1b", "3.2", "3.3"]
 started: "2026-02-19T16:50:32Z"
-last_updated: "2026-02-23T02:29:10Z"
+last_updated: "2026-02-23T13:10:00Z"
 stories:
   "3.1a":
     status: done
@@ -43,10 +43,14 @@ stories:
     completedAt: "2026-02-23T03:30:00Z"
     duration: "~3.5h"
   "3.3":
-    status: in-progress
+    status: done
     issue: 187
+    pr: 188
     branch: story-3-3-update-delete-restore-api
+    review_rounds: 2
     startedAt: "2026-02-23T02:29:10Z"
+    completedAt: "2026-02-23T13:10:00Z"
+    duration: "~11h"
 ---
 
 <!-- Human-readable display below (generated from frontmatter) -->
@@ -59,6 +63,7 @@ stories:
 | 3.1c  | ✅ Complete | #177 | 97%      | 2             | 32m      |
 | 3.1b  | ✅ Complete | #182 | -        | 1             | 41m      |
 | 3.2   | ✅ Complete | #186 | -        | 1             | ~3.5h    |
+| 3.3   | ✅ Complete | #188 | -        | 2             | ~11h     |
 
 ## Activity Log
 
@@ -92,3 +97,14 @@ stories:
 - [02:30] Story 3.2: All 3 Important findings fixed (TS overloads, ConsistentRead tests, dead code cleanup)
 - [03:00] Story 3.2: PR #186 created, CI all green (7/7 checks passed)
 - [03:30] Story 3.2: PR #186 squash-merged to main, story complete
+- [00:00] Story 3.3: Added to scope, Issue #187 created, branch created
+- [00:01] Story 3.3: Implementation starting (update, delete, restore handlers)
+- [04:00] Story 3.3: Implementation complete (3 handlers, 33 tests, event types, CDK wiring)
+- [04:30] Story 3.3: Quality gates passed (lint, type-check, 252 tests, CDK synth)
+- [05:00] Story 3.3: Review Round 1 — 2 Critical, 3 Important, 4 Minor findings
+- [06:00] Story 3.3: Round 1 fixes applied (createNoContentResponse, rate limit bucket, event map, null guards, SSM)
+- [07:00] Story 3.3: Review Round 2 — 0 Critical, 2 Important (null guards refinement)
+- [08:00] Story 3.3: Round 2 fixes applied, all 252 tests passing
+- [09:00] Story 3.3: PR #188 created, CI type-check failure (optional chaining)
+- [09:30] Story 3.3: Fix pushed, CI all green (7/7 checks passed)
+- [10:00] Story 3.3: PR #188 squash-merged to main, story complete
