@@ -36,6 +36,9 @@ export const HANDLER_REF_TO_FUNCTION_NAME: Record<string, string> = {
   savesCreateFunction: "ai-learning-hub-saves-create",
   savesListFunction: "ai-learning-hub-saves-list",
   savesGetFunction: "ai-learning-hub-saves-get",
+  savesUpdateFunction: "ai-learning-hub-saves-update",
+  savesDeleteFunction: "ai-learning-hub-saves-delete",
+  savesRestoreFunction: "ai-learning-hub-saves-restore",
 };
 
 /**

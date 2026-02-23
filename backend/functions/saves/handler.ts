@@ -96,7 +96,7 @@ async function savesCreateHandler(ctx: HandlerContext) {
     client,
     USERS_TABLE_CONFIG.tableName,
     {
-      operation: "saves-create",
+      operation: "saves-write",
       identifier: userId,
       limit: 200,
       windowSeconds: 3600,
