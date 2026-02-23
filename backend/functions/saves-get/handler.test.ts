@@ -2,36 +2,29 @@
  * Saves Get handler tests — GET /saves/:saveId
  *
  * Story 3.2, Task 9.3: Tests all acceptance criteria.
+ * Story 3.1.2: Migrated to shared test utilities (proof-of-concept).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ContentType } from "@ai-learning-hub/types";
-import type { SaveItem } from "@ai-learning-hub/types";
 import {
   createMockEvent,
   createMockContext,
   mockCreateLoggerModule,
   mockMiddlewareModule,
+  createTestSaveItem,
+  VALID_SAVE_ID,
+  mockDbModule,
 } from "../../test-utils/index.js";
 
-// Mock @ai-learning-hub/db
+// Mock @ai-learning-hub/db — using shared mockDbModule with handler-specific mocks
 const mockGetItem = vi.fn();
 const mockUpdateItem = vi.fn();
-const mockGetDefaultClient = vi.fn(() => ({}));
 
-vi.mock("@ai-learning-hub/db", () => ({
-  getDefaultClient: () => mockGetDefaultClient(),
-  getItem: (...args: unknown[]) => mockGetItem(...args),
-  updateItem: (...args: unknown[]) => mockUpdateItem(...args),
-  SAVES_TABLE_CONFIG: {
-    tableName: "ai-learning-hub-saves",
-    partitionKey: "PK",
-    sortKey: "SK",
-  },
-  toPublicSave: (item: SaveItem) => {
-    const { PK: _PK, SK: _SK, deletedAt: _del, ...rest } = item;
-    return rest;
-  },
-}));
+vi.mock("@ai-learning-hub/db", () =>
+  mockDbModule({
+    getItem: (...args: unknown[]) => mockGetItem(...args),
+    updateItem: (...args: unknown[]) => mockUpdateItem(...args),
+  })
+);
 
 // Mock @ai-learning-hub/logging
 vi.mock("@ai-learning-hub/logging", () => mockCreateLoggerModule());
@@ -44,29 +37,14 @@ vi.mock("@ai-learning-hub/middleware", () => mockMiddlewareModule());
 import { handler } from "./handler.js";
 
 const mockContext = createMockContext();
-const VALID_SAVE_ID = "01HXYZ1234567890ABCDEFGHIJ";
 
-function createSaveItem(
-  saveId: string = VALID_SAVE_ID,
-  overrides: Partial<SaveItem> = {}
-): SaveItem {
-  return {
-    PK: "USER#user123",
-    SK: `SAVE#${saveId}`,
-    userId: "user123",
-    saveId,
-    url: "https://example.com/article",
-    normalizedUrl: "https://example.com/article",
-    urlHash: "hash123",
-    contentType: ContentType.ARTICLE,
-    tags: ["test"],
-    isTutorial: false,
-    linkedProjectCount: 0,
-    createdAt: "2026-02-20T00:00:00Z",
-    updatedAt: "2026-02-20T00:00:00Z",
-    ...overrides,
-  };
-}
+// Fixed overrides to match original test assertions
+const SAVE_OVERRIDES: Partial<import("@ai-learning-hub/types").SaveItem> = {
+  url: "https://example.com/article",
+  normalizedUrl: "https://example.com/article",
+  urlHash: "hash123",
+  tags: ["test"],
+};
 
 function createGetEvent(saveId: string = VALID_SAVE_ID, userId = "user123") {
   return createMockEvent({
@@ -85,7 +63,7 @@ describe("Saves Get Handler — GET /saves/:saveId", () => {
 
   describe("AC3: Returns single save with all public attributes", () => {
     it("returns 200 with save data", async () => {
-      const item = createSaveItem();
+      const item = createTestSaveItem(VALID_SAVE_ID, SAVE_OVERRIDES);
       mockGetItem.mockResolvedValueOnce(item);
 
       const event = createGetEvent();
@@ -102,7 +80,7 @@ describe("Saves Get Handler — GET /saves/:saveId", () => {
 
   describe("AC4: lastAccessedAt updated on GET", () => {
     it("calls updateItem to set lastAccessedAt", async () => {
-      const item = createSaveItem();
+      const item = createTestSaveItem(VALID_SAVE_ID, SAVE_OVERRIDES);
       mockGetItem.mockResolvedValueOnce(item);
 
       const event = createGetEvent();
@@ -120,7 +98,7 @@ describe("Saves Get Handler — GET /saves/:saveId", () => {
     });
 
     it("returns 200 even when lastAccessedAt update fails", async () => {
-      const item = createSaveItem();
+      const item = createTestSaveItem(VALID_SAVE_ID, SAVE_OVERRIDES);
       mockGetItem.mockResolvedValueOnce(item);
       mockUpdateItem.mockRejectedValueOnce(new Error("DynamoDB throttle"));
 
@@ -150,7 +128,8 @@ describe("Saves Get Handler — GET /saves/:saveId", () => {
 
   describe("AC5: Soft-deleted save returns 404", () => {
     it("returns 404 when save has deletedAt set", async () => {
-      const item = createSaveItem(VALID_SAVE_ID, {
+      const item = createTestSaveItem(VALID_SAVE_ID, {
+        ...SAVE_OVERRIDES,
         deletedAt: "2026-02-21T00:00:00Z",
       });
       mockGetItem.mockResolvedValueOnce(item);
