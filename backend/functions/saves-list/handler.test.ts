@@ -498,6 +498,27 @@ describe("Saves List Handler — GET /saves", () => {
       expect(body.data.items[1].lastAccessedAt).toBe("2026-02-20T00:00:00Z");
       expect(body.data.items[2].lastAccessedAt).toBeUndefined();
     });
+
+    it("sorts lastAccessedAt ascending with null at bottom", async () => {
+      const items = [
+        createSaveItem("01SAVE0000000000000000001A", {
+          lastAccessedAt: "2026-02-22T00:00:00Z",
+        }),
+        createSaveItem("01SAVE0000000000000000002A", {
+          lastAccessedAt: undefined,
+        }),
+        createSaveItem("01SAVE0000000000000000003A", {
+          lastAccessedAt: "2026-02-20T00:00:00Z",
+        }),
+      ];
+      mockQueryAllItems.mockResolvedValueOnce({ items, truncated: false });
+      const event = createListEvent({ sort: "lastAccessedAt", order: "asc" });
+      const result = await handler(event, mockContext);
+      const body = JSON.parse(result.body);
+      expect(body.data.items[0].lastAccessedAt).toBe("2026-02-20T00:00:00Z");
+      expect(body.data.items[1].lastAccessedAt).toBe("2026-02-22T00:00:00Z");
+      expect(body.data.items[2].lastAccessedAt).toBeUndefined();
+    });
   });
 
   describe("AC7: Sort by title ascending", () => {
@@ -516,6 +537,23 @@ describe("Saves List Handler — GET /saves", () => {
       const body = JSON.parse(result.body);
       expect(body.data.items[0].title).toBe("Alpha");
       expect(body.data.items[1].title).toBe("Zebra");
+      expect(body.data.items[2].title).toBeUndefined();
+    });
+
+    it("sorts title descending with empty title at bottom", async () => {
+      const items = [
+        createSaveItem("01SAVE0000000000000000001A", { title: "Alpha" }),
+        createSaveItem("01SAVE0000000000000000002A", { title: undefined }),
+        createSaveItem("01SAVE0000000000000000003A", { title: "Zebra" }),
+      ];
+      mockQueryAllItems.mockResolvedValueOnce({ items, truncated: false });
+
+      const event = createListEvent({ sort: "title", order: "desc" });
+      const result = await handler(event, mockContext);
+
+      const body = JSON.parse(result.body);
+      expect(body.data.items[0].title).toBe("Zebra");
+      expect(body.data.items[1].title).toBe("Alpha");
       expect(body.data.items[2].title).toBeUndefined();
     });
   });
@@ -584,6 +622,30 @@ describe("Saves List Handler — GET /saves", () => {
   // ──────────────────────────────────────────────────────────────
 
   describe("AC8: Combined filters AND sort", () => {
+    it("applies contentType + linkStatus + search together", async () => {
+      const items = [
+        createSaveItem("01SAVE0000000000000000001A", {
+          contentType: ContentType.VIDEO,
+          title: "React",
+          linkedProjectCount: 1,
+        }),
+        createSaveItem("01SAVE0000000000000000002A", {
+          contentType: ContentType.VIDEO,
+          title: "React Adv",
+          linkedProjectCount: 0,
+        }),
+      ];
+      mockQueryAllItems.mockResolvedValueOnce({ items, truncated: false });
+      const event = createListEvent({
+        contentType: "video",
+        linkStatus: "linked",
+        search: "react",
+      });
+      const result = await handler(event, mockContext);
+      const body = JSON.parse(result.body);
+      expect(body.data.items).toHaveLength(1);
+    });
+
     it("applies contentType + search + sort together", async () => {
       const items = [
         createSaveItem("01SAVE0000000000000000001A", {
@@ -641,18 +703,24 @@ describe("Saves List Handler — GET /saves", () => {
       expect(msg).toMatch(/article|video|podcast/);
     });
 
-    it("returns 400 for invalid linkStatus", async () => {
+    it("returns 400 for invalid linkStatus with valid options in message", async () => {
       const event = createListEvent({ linkStatus: "foo" });
       const result = await handler(event, mockContext);
 
       assertADR008Error(result, ErrorCode.VALIDATION_ERROR, 400);
+      const body = JSON.parse(result.body);
+      const msg = JSON.stringify(body.error);
+      expect(msg).toMatch(/linked|unlinked/);
     });
 
-    it("returns 400 for invalid sort value", async () => {
+    it("returns 400 for invalid sort value with valid options in message", async () => {
       const event = createListEvent({ sort: "invalid" });
       const result = await handler(event, mockContext);
 
       assertADR008Error(result, ErrorCode.VALIDATION_ERROR, 400);
+      const body = JSON.parse(result.body);
+      const msg = JSON.stringify(body.error);
+      expect(msg).toMatch(/createdAt|lastAccessedAt|title/);
     });
 
     it("returns 400 for invalid order value", async () => {
@@ -795,6 +863,57 @@ describe("Saves List Handler — GET /saves", () => {
       const result = await handler(event, mockContext);
 
       assertADR008Error(result, ErrorCode.VALIDATION_ERROR, 400);
+      const body = JSON.parse(result.body);
+      expect(body.error.message).toContain("nextToken");
+    });
+
+    it("paginates filtered results across multiple pages", async () => {
+      // 5 items: 3 videos + 2 articles. Limit=2 so videos span 2 pages.
+      const items = [
+        createSaveItem("01SAVE0000000000000000001A", {
+          contentType: ContentType.VIDEO,
+          createdAt: "2026-02-25T00:00:00Z",
+        }),
+        createSaveItem("01SAVE0000000000000000002A", {
+          contentType: ContentType.ARTICLE,
+          createdAt: "2026-02-24T00:00:00Z",
+        }),
+        createSaveItem("01SAVE0000000000000000003A", {
+          contentType: ContentType.VIDEO,
+          createdAt: "2026-02-23T00:00:00Z",
+        }),
+        createSaveItem("01SAVE0000000000000000004A", {
+          contentType: ContentType.ARTICLE,
+          createdAt: "2026-02-22T00:00:00Z",
+        }),
+        createSaveItem("01SAVE0000000000000000005A", {
+          contentType: ContentType.VIDEO,
+          createdAt: "2026-02-21T00:00:00Z",
+        }),
+      ];
+
+      // Page 1: filter=video, limit=2
+      mockQueryAllItems.mockResolvedValueOnce({ items, truncated: false });
+      const page1Event = createListEvent({ contentType: "video", limit: "2" });
+      const page1Result = await handler(page1Event, mockContext);
+      const page1Body = JSON.parse(page1Result.body);
+
+      expect(page1Body.data.items).toHaveLength(2);
+      expect(page1Body.data.hasMore).toBe(true);
+      expect(page1Body.data.nextToken).toBeDefined();
+
+      // Page 2: same filter, use nextToken from page 1
+      mockQueryAllItems.mockResolvedValueOnce({ items, truncated: false });
+      const page2Event = createListEvent({
+        contentType: "video",
+        limit: "2",
+        nextToken: page1Body.data.nextToken,
+      });
+      const page2Result = await handler(page2Event, mockContext);
+      const page2Body = JSON.parse(page2Result.body);
+
+      expect(page2Body.data.items).toHaveLength(1);
+      expect(page2Body.data.hasMore).toBe(false);
     });
   });
 });
