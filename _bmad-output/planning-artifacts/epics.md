@@ -560,6 +560,25 @@ flowchart TB
 
 ---
 
+### Epic 3.1: Tech Debt — Saves Domain DRY Consolidation
+**Goal:** Eliminate cross-handler code duplication from Epic 3 implementation, extract shared utilities, standardize test scaffolding, and add a pipeline-level deduplication scan agent that runs before the adversarial reviewer.
+
+**User Outcome:** Codebase is DRY across all saves handlers. Future stories are flagged for duplication before review. Developer velocity improves via shared test factories and mock helpers.
+
+**Pipeline design:** Quality Gates (2.2) → Dedup Scan (2.3b) → Adversarial Review (2.4) → Commit & PR (2.5). Dedup: epic-dedup-scanner + epic-dedup-fixer (max 2 rounds). Review: epic-reviewer + epic-fixer (unchanged, max 3 rounds).
+
+**Stories:**
+| Story | Description |
+|-------|-------------|
+| 3.1.1 | Extract shared schemas & constants (saveIdPathSchema, rate limit, EventBridge helper) to @ai-learning-hub/* |
+| 3.1.2 | Shared test utilities (save-factories, mock-events, mock-db, assertADR008Error) in backend/test-utils/ |
+| 3.1.3 | Handler & test consolidation — retrofit all 6 saves handlers to shared code; fix saves/handler.ts toPublicSave/deletedAt |
+| 3.1.4 | Dedup scan agent & pipeline — epic-dedup-scanner + epic-dedup-fixer, 2-round loop between quality gates and reviewer |
+
+**NFRs covered:** NFR-M1 (Maintainability), NFR-R7 (Reliability — toPublicSave divergence)
+
+---
+
 ### Epic 4: Project Management
 **Goal:** Users can create and manage projects with folders, status, and tags.
 
