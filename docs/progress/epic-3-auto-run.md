@@ -34,22 +34,26 @@ stories:
     completedAt: "2026-02-22T22:45:00Z"
     duration: "41m"
   "3.2":
-    status: in-progress
+    status: done
     issue: 185
+    pr: 186
     branch: story-3-2-list-get-saves-api
+    review_rounds: 1
     startedAt: "2026-02-23T00:00:00Z"
+    completedAt: "2026-02-23T03:30:00Z"
+    duration: "~3.5h"
 ---
 
 <!-- Human-readable display below (generated from frontmatter) -->
 
 # Epic 3 Auto-Run Progress
 
-| Story | Status         | PR   | Coverage | Review Rounds | Duration |
-| ----- | -------------- | ---- | -------- | ------------- | -------- |
-| 3.1a  | ✅ Complete    | #156 | -        | -             | 51m      |
-| 3.1c  | ✅ Complete    | #177 | 97%      | 2             | 32m      |
-| 3.1b  | ✅ Complete    | #182 | -        | 1             | 41m      |
-| 3.2   | 🔄 In Progress | -    | -        | -             | -        |
+| Story | Status      | PR   | Coverage | Review Rounds | Duration |
+| ----- | ----------- | ---- | -------- | ------------- | -------- |
+| 3.1a  | ✅ Complete | #156 | -        | -             | 51m      |
+| 3.1c  | ✅ Complete | #177 | 97%      | 2             | 32m      |
+| 3.1b  | ✅ Complete | #182 | -        | 1             | 41m      |
+| 3.2   | ✅ Complete | #186 | -        | 1             | ~3.5h    |
 
 ## Activity Log
 
@@ -77,3 +81,9 @@ stories:
 - [00:41] Story 3.1b: PR #182 created, marked done
 - [00:00] Story 3.2: Added to scope, Issue #185 created, branch created
 - [00:01] Story 3.2: Implementation starting
+- [01:30] Story 3.2: Implementation complete (saves-list + saves-get handlers, queryAllItems, types, CDK, tests)
+- [02:00] Story 3.2: Quality gates passed (lint, type-check, 1529 tests, CDK synth)
+- [02:15] Story 3.2: Review Round 1 — PASS (3 Important, 4 Minor findings)
+- [02:30] Story 3.2: All 3 Important findings fixed (TS overloads, ConsistentRead tests, dead code cleanup)
+- [03:00] Story 3.2: PR #186 created, CI all green (7/7 checks passed)
+- [03:30] Story 3.2: PR #186 squash-merged to main, story complete
