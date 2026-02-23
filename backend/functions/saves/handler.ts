@@ -13,8 +13,9 @@ import {
   transactWriteItems,
   TransactionCancelledError,
   enforceRateLimit,
+  SAVES_TABLE_CONFIG,
   USERS_TABLE_CONFIG,
-  type TableConfig,
+  SAVES_WRITE_RATE_LIMIT,
 } from "@ai-learning-hub/db";
 import {
   wrapHandler,
@@ -31,27 +32,14 @@ import {
 } from "@ai-learning-hub/validation";
 import {
   emitEvent,
-  getDefaultClient as getDefaultEBClient,
+  requireEventBus,
   SAVES_EVENT_SOURCE,
   type SavesEventDetailType,
   type SavesEventDetail,
 } from "@ai-learning-hub/events";
 import { ulid } from "ulidx";
-import { requireEnv } from "@ai-learning-hub/db";
 
-const SAVES_TABLE_CONFIG: TableConfig = {
-  tableName: requireEnv("SAVES_TABLE_NAME", "dev-ai-learning-hub-saves"),
-  partitionKey: "PK",
-  sortKey: "SK",
-};
-
-// Fail loudly at Lambda cold-start if env var is missing
-const EVENT_BUS_NAME = process.env.EVENT_BUS_NAME;
-if (!EVENT_BUS_NAME && process.env.NODE_ENV !== "test")
-  throw new Error("EVENT_BUS_NAME env var is not set");
-
-// Module-level singleton — reused across warm invocations
-const ebClient = getDefaultEBClient();
+const eventBus = requireEventBus();
 
 /** Internal save item shape stored in DynamoDB. */
 interface SaveItem extends Record<string, unknown> {
@@ -96,10 +84,8 @@ async function savesCreateHandler(ctx: HandlerContext) {
     client,
     USERS_TABLE_CONFIG.tableName,
     {
-      operation: "saves-write",
+      ...SAVES_WRITE_RATE_LIMIT,
       identifier: userId,
-      limit: 200,
-      windowSeconds: 3600,
     },
     logger
   );
@@ -222,10 +208,9 @@ async function savesCreateHandler(ctx: HandlerContext) {
   }
 
   // Fire-and-forget event emission (AC4, AC6)
-  const busName = EVENT_BUS_NAME ?? "";
   emitEvent<SavesEventDetailType, SavesEventDetail>(
-    ebClient,
-    busName,
+    eventBus.ebClient,
+    eventBus.busName,
     {
       source: SAVES_EVENT_SOURCE,
       detailType: "SaveCreated",
@@ -325,10 +310,9 @@ async function handleTransactionFailure(
       );
 
       // Fire-and-forget SaveRestored event
-      const busName = EVENT_BUS_NAME ?? "";
       emitEvent<SavesEventDetailType, SavesEventDetail>(
-        ebClient,
-        busName,
+        eventBus.ebClient,
+        eventBus.busName,
         {
           source: SAVES_EVENT_SOURCE,
           detailType: "SaveRestored",

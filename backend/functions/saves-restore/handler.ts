@@ -13,6 +13,7 @@ import {
   enforceRateLimit,
   SAVES_TABLE_CONFIG,
   USERS_TABLE_CONFIG,
+  SAVES_WRITE_RATE_LIMIT,
   toPublicSave,
 } from "@ai-learning-hub/db";
 import {
@@ -22,26 +23,19 @@ import {
 } from "@ai-learning-hub/middleware";
 import { AppError, ErrorCode } from "@ai-learning-hub/types";
 import type { SaveItem } from "@ai-learning-hub/types";
-import { validatePathParams, z } from "@ai-learning-hub/validation";
+import {
+  validatePathParams,
+  saveIdPathSchema,
+} from "@ai-learning-hub/validation";
 import {
   emitEvent,
-  getDefaultClient as getDefaultEBClient,
+  requireEventBus,
   SAVES_EVENT_SOURCE,
   type SavesEventDetailType,
   type SavesEventDetail,
 } from "@ai-learning-hub/events";
 
-const EVENT_BUS_NAME = process.env.EVENT_BUS_NAME;
-if (!EVENT_BUS_NAME && process.env.NODE_ENV !== "test")
-  throw new Error("EVENT_BUS_NAME env var is not set");
-
-const ebClient = getDefaultEBClient();
-
-const saveIdPathSchema = z.object({
-  saveId: z
-    .string()
-    .regex(/^[0-9A-Z]{26}$/, "saveId must be a 26-character ULID"),
-});
+const eventBus = requireEventBus();
 
 /**
  * POST /saves/:saveId/restore — Restore a soft-deleted save.
@@ -59,10 +53,8 @@ async function savesRestoreHandler(ctx: HandlerContext) {
     client,
     USERS_TABLE_CONFIG.tableName,
     {
-      operation: "saves-write",
+      ...SAVES_WRITE_RATE_LIMIT,
       identifier: userId,
-      limit: 200,
-      windowSeconds: 3600,
     },
     logger
   );
@@ -117,10 +109,9 @@ async function savesRestoreHandler(ctx: HandlerContext) {
   }
 
   // Fire-and-forget SaveRestored event (AC13) — only on deleted → active
-  const busName = EVENT_BUS_NAME ?? "";
   emitEvent<SavesEventDetailType, SavesEventDetail>(
-    ebClient,
-    busName,
+    eventBus.ebClient,
+    eventBus.busName,
     {
       source: SAVES_EVENT_SOURCE,
       detailType: "SaveRestored",

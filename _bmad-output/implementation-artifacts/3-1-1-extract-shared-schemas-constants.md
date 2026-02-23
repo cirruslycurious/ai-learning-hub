@@ -1,7 +1,7 @@
 ---
 id: "3.1.1"
 title: "Extract Shared Schemas & Constants"
-status: ready-for-dev
+status: done
 depends_on: []
 touches:
   - backend/shared/validation/src/schemas.ts
@@ -19,7 +19,7 @@ risk: low
 
 # Story 3.1.1: Extract Shared Schemas & Constants
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -38,8 +38,8 @@ so that policy changes (rate limits, validation rules, EventBridge config) only 
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Extract `saveIdPathSchema` (AC: #1)
-  - [ ] 1.1 Add `saveIdPathSchema` to `backend/shared/validation/src/schemas.ts` alongside existing `createSaveSchema`, `updateSaveSchema`, `listSavesQuerySchema`. Use this exact definition (must match current handler definitions character-for-character):
+- [x] Task 1: Extract `saveIdPathSchema` (AC: #1)
+  - [x] 1.1 Add `saveIdPathSchema` to `backend/shared/validation/src/schemas.ts` alongside existing `createSaveSchema`, `updateSaveSchema`, `listSavesQuerySchema`. Use this exact definition (must match current handler definitions character-for-character):
     ```typescript
     export const saveIdPathSchema = z.object({
       saveId: z
@@ -47,14 +47,14 @@ so that policy changes (rate limits, validation rules, EventBridge config) only 
         .regex(/^[0-9A-Z]{26}$/, "saveId must be a 26-character ULID"),
     });
     ```
-  - [ ] 1.2 Export from `backend/shared/validation/src/index.ts`
-  - [ ] 1.3 Rebuild validation package: `npm run -w @ai-learning-hub/validation build`
-  - [ ] 1.4 Update imports in `saves-get/handler.ts`, `saves-update/handler.ts`, `saves-delete/handler.ts`, `saves-restore/handler.ts`
-  - [ ] 1.5 Remove local `saveIdPathSchema` definitions from all 4 handlers
-  - [ ] 1.6 Verify: `grep -r "const saveIdPathSchema" backend/functions/` returns no matches
+  - [x] 1.2 Export from `backend/shared/validation/src/index.ts`
+  - [x] 1.3 Rebuild validation package: `npm run -w @ai-learning-hub/validation build`
+  - [x] 1.4 Update imports in `saves-get/handler.ts`, `saves-update/handler.ts`, `saves-delete/handler.ts`, `saves-restore/handler.ts`
+  - [x] 1.5 Remove local `saveIdPathSchema` definitions from all 4 handlers
+  - [x] 1.6 Verify: `grep -r "const saveIdPathSchema" backend/functions/` returns no matches
 
-- [ ] Task 2: Extract rate limit constant (AC: #2)
-  - [ ] 2.1 Add to `backend/shared/db/src/saves.ts`:
+- [x] Task 2: Extract rate limit constant (AC: #2)
+  - [x] 2.1 Add to `backend/shared/db/src/saves.ts`:
     ```typescript
     export const SAVES_WRITE_RATE_LIMIT = {
       operation: "saves-write",
@@ -62,8 +62,8 @@ so that policy changes (rate limits, validation rules, EventBridge config) only 
       windowSeconds: 3600,
     } as const;
     ```
-  - [ ] 2.2 Export from `backend/shared/db/src/index.ts`
-  - [ ] 2.3 Update `saves/handler.ts`, `saves-update/handler.ts`, `saves-delete/handler.ts`, `saves-restore/handler.ts` to use:
+  - [x] 2.2 Export from `backend/shared/db/src/index.ts`
+  - [x] 2.3 Update `saves/handler.ts`, `saves-update/handler.ts`, `saves-delete/handler.ts`, `saves-restore/handler.ts` to use:
     ```typescript
     await enforceRateLimit(client, USERS_TABLE_CONFIG.tableName, {
       ...SAVES_WRITE_RATE_LIMIT,
@@ -71,8 +71,8 @@ so that policy changes (rate limits, validation rules, EventBridge config) only 
     }, logger);
     ```
 
-- [ ] Task 3: Extract EventBridge init helper (AC: #3)
-  - [ ] 3.1 Add `requireEventBus()` to the events package (e.g., `backend/shared/events/src/index.ts` or a new `init.ts`):
+- [x] Task 3: Extract EventBridge init helper (AC: #3)
+  - [x] 3.1 Add `requireEventBus()` to the events package (e.g., `backend/shared/events/src/index.ts` or a new `init.ts`):
     ```typescript
     export function requireEventBus() {
       const busName = process.env.EVENT_BUS_NAME;
@@ -81,15 +81,15 @@ so that policy changes (rate limits, validation rules, EventBridge config) only 
       return { busName: busName ?? "", ebClient: getDefaultClient() };
     }
     ```
-  - [ ] 3.2 If `requireEventBus` is implemented in a new file (e.g., `init.ts`), re-export it from `backend/shared/events/src/index.ts` so the public API remains `@ai-learning-hub/events`
-  - [ ] 3.3 Update all 4 handlers: at module scope, set `const eventBus = requireEventBus();`. In the handler body, use `eventBus.ebClient` and `eventBus.busName` for all `emitEvent(...)` calls. Do not call `requireEventBus()` inside the handler function or retain a separate EventBridge client getter.
-  - [ ] 3.4 Remove the 4 inline `const EVENT_BUS_NAME = ...` + guard + `getDefaultEBClient()` blocks
-  - [ ] 3.5 Update test mocks: in each of the 4 handler test files that mock `@ai-learning-hub/events` (saves, saves-update, saves-delete, saves-restore), add `requireEventBus` to the mock: `requireEventBus: () => ({ busName: "test-event-bus", ebClient: {} })`. Without this, handler module-level `requireEventBus()` calls will fail on test load.
+  - [x] 3.2 If `requireEventBus` is implemented in a new file (e.g., `init.ts`), re-export it from `backend/shared/events/src/index.ts` so the public API remains `@ai-learning-hub/events`
+  - [x] 3.3 Update all 4 handlers: at module scope, set `const eventBus = requireEventBus();`. In the handler body, use `eventBus.ebClient` and `eventBus.busName` for all `emitEvent(...)` calls. Do not call `requireEventBus()` inside the handler function or retain a separate EventBridge client getter.
+  - [x] 3.4 Remove the 4 inline `const EVENT_BUS_NAME = ...` + guard + `getDefaultEBClient()` blocks
+  - [x] 3.5 Update test mocks: in each of the 4 handler test files that mock `@ai-learning-hub/events` (saves, saves-update, saves-delete, saves-restore), add `requireEventBus` to the mock: `requireEventBus: () => ({ busName: "test-event-bus", ebClient: {} })`. Without this, handler module-level `requireEventBus()` calls will fail on test load.
 
-- [ ] Task 4: Verify all tests pass (AC: #4)
-  - [ ] 4.1 Run `npm test` — all tests must pass
-  - [ ] 4.2 Run `npm run type-check` — clean
-  - [ ] 4.3 Run `npm run lint` — clean
+- [x] Task 4: Verify all tests pass (AC: #4)
+  - [x] 4.1 Run `npm test` — all tests must pass
+  - [x] 4.2 Run `npm run type-check` — clean
+  - [x] 4.3 Run `npm run lint` — clean
 
 ## Dev Notes
 
@@ -155,10 +155,35 @@ This story only moves existing code into shared packages. Existing tests validat
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+None — clean implementation, no debugging needed.
+
 ### Completion Notes List
 
+- All 4 tasks completed in a single pass with zero test failures
+- saveIdPathSchema extracted to @ai-learning-hub/validation, verified no local definitions remain
+- SAVES_WRITE_RATE_LIMIT extracted to @ai-learning-hub/db/saves with `as const`
+- requireEventBus() added to @ai-learning-hub/events, called at module scope in all 4 handlers
+- saves/handler.ts also switched from local SAVES_TABLE_CONFIG to shared import
+- All 4 test files updated with requireEventBus mock and SAVES_WRITE_RATE_LIMIT mock
+- Quality gates: npm test (all pass), npm run type-check (clean), npm run lint (0 errors)
+
 ### File List
+
+- backend/shared/validation/src/schemas.ts (modified — added saveIdPathSchema)
+- backend/shared/validation/src/index.ts (modified — added export)
+- backend/shared/db/src/saves.ts (modified — added SAVES_WRITE_RATE_LIMIT)
+- backend/shared/db/src/index.ts (modified — added export)
+- backend/shared/events/src/index.ts (modified — added requireEventBus)
+- backend/functions/saves-get/handler.ts (modified — use shared saveIdPathSchema)
+- backend/functions/saves-update/handler.ts (modified — all 3 extractions)
+- backend/functions/saves-delete/handler.ts (modified — all 3 extractions)
+- backend/functions/saves-restore/handler.ts (modified — all 3 extractions)
+- backend/functions/saves/handler.ts (modified — rate limit + EventBridge)
+- backend/functions/saves-update/handler.test.ts (modified — mock updates)
+- backend/functions/saves-delete/handler.test.ts (modified — mock updates)
+- backend/functions/saves-restore/handler.test.ts (modified — mock updates)
+- backend/functions/saves/handler.test.ts (modified — mock updates)

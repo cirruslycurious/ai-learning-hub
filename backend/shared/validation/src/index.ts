@@ -27,6 +27,7 @@ export {
   createSaveSchema,
   updateSaveSchema,
   listSavesQuerySchema,
+  saveIdPathSchema,
 } from "./schemas.js";
 
 // URL normalization

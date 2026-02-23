@@ -11,15 +11,12 @@ import {
   toPublicSave,
 } from "@ai-learning-hub/db";
 import { wrapHandler, type HandlerContext } from "@ai-learning-hub/middleware";
-import { validatePathParams, z } from "@ai-learning-hub/validation";
+import {
+  validatePathParams,
+  saveIdPathSchema,
+} from "@ai-learning-hub/validation";
 import { AppError, ErrorCode } from "@ai-learning-hub/types";
 import type { SaveItem } from "@ai-learning-hub/types";
-
-const saveIdPathSchema = z.object({
-  saveId: z
-    .string()
-    .regex(/^[0-9A-Z]{26}$/, "saveId must be a 26-character ULID"),
-});
 
 async function savesGetHandler(ctx: HandlerContext) {
   const { event, auth, logger } = ctx;

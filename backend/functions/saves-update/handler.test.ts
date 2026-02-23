@@ -33,6 +33,11 @@ vi.mock("@ai-learning-hub/db", () => ({
     partitionKey: "PK",
     sortKey: "SK",
   },
+  SAVES_WRITE_RATE_LIMIT: {
+    operation: "saves-write",
+    limit: 200,
+    windowSeconds: 3600,
+  },
   toPublicSave: (item: SaveItem) => {
     const { PK: _PK, SK: _SK, deletedAt: _del, ...rest } = item;
     return rest;
@@ -51,6 +56,7 @@ const mockEmitEvent = vi.fn();
 vi.mock("@ai-learning-hub/events", () => ({
   emitEvent: (...args: unknown[]) => mockEmitEvent(...args),
   getDefaultClient: () => ({}),
+  requireEventBus: () => ({ busName: "test-event-bus", ebClient: {} }),
   SAVES_EVENT_SOURCE: "ai-learning-hub.saves",
 }));
 

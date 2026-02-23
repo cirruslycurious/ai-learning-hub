@@ -244,6 +244,16 @@ export const listSavesQuerySchema = z.object({
 });
 
 /**
+ * Save ID path parameter schema — validates :saveId as a 26-character ULID.
+ * Used by saves-get, saves-update, saves-delete, saves-restore handlers.
+ */
+export const saveIdPathSchema = z.object({
+  saveId: z
+    .string()
+    .regex(/^[0-9A-Z]{26}$/, "saveId must be a 26-character ULID"),
+});
+
+/**
  * Update save request body schema (PATCH /saves/:saveId)
  * URL fields NOT included (immutable after creation).
  * At least one field required.
