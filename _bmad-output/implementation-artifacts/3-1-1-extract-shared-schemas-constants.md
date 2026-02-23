@@ -1,7 +1,7 @@
 ---
 id: "3.1.1"
 title: "Extract Shared Schemas & Constants"
-status: review
+status: done
 depends_on: []
 touches:
   - backend/shared/validation/src/schemas.ts
@@ -19,7 +19,7 @@ risk: low
 
 # Story 3.1.1: Extract Shared Schemas & Constants
 
-Status: review
+Status: done
 
 ## Story
 
