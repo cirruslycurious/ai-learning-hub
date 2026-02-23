@@ -116,7 +116,7 @@ describe("Saves Update Handler — PATCH /saves/:saveId", () => {
       expect(body.data).not.toHaveProperty("SK");
       expect(body.data).not.toHaveProperty("deletedAt");
       // ADR-008: X-Request-Id header must be present on all responses
-      expect(result.headers["X-Request-Id"]).toBe("test-req-id");
+      expect(result.headers?.["X-Request-Id"]).toBe("test-req-id");
     });
 
     it("only updates provided fields in DynamoDB expression", async () => {
