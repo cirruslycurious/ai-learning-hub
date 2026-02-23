@@ -16,6 +16,7 @@ import {
   SAVES_TABLE_CONFIG,
   USERS_TABLE_CONFIG,
   SAVES_WRITE_RATE_LIMIT,
+  toPublicSave,
 } from "@ai-learning-hub/db";
 import {
   wrapHandler,
@@ -23,6 +24,7 @@ import {
   type HandlerContext,
 } from "@ai-learning-hub/middleware";
 import { AppError, ErrorCode, ContentType } from "@ai-learning-hub/types";
+import type { SaveItem, PublicSave } from "@ai-learning-hub/types";
 import {
   normalizeUrl,
   detectContentType,
@@ -41,30 +43,23 @@ import { ulid } from "ulidx";
 
 const eventBus = requireEventBus();
 
-/** Internal save item shape stored in DynamoDB. */
-interface SaveItem extends Record<string, unknown> {
-  PK: string;
-  SK: string;
-  userId: string;
-  saveId: string;
-  url: string;
-  normalizedUrl: string;
-  urlHash: string;
-  title?: string;
-  userNotes?: string;
-  contentType: ContentType;
-  tags: string[];
-  isTutorial: boolean;
-  linkedProjectCount: number;
-  createdAt: string;
-  updatedAt: string;
-  deletedAt?: string;
-}
-
-/** Strip internal DynamoDB keys before returning a save to the API caller. */
-function toPublicSave(item: SaveItem) {
-  const { PK: _PK, SK: _SK, ...rest } = item;
-  return rest;
+/** Build a 409 duplicate response with the existing save. */
+function createDuplicateResponse(existingSave: PublicSave, requestId: string) {
+  return {
+    statusCode: 409,
+    headers: {
+      "Content-Type": "application/json",
+      "X-Request-Id": requestId,
+    },
+    body: JSON.stringify({
+      error: {
+        code: "DUPLICATE_SAVE",
+        message: "URL already saved",
+        requestId,
+      },
+      existingSave,
+    }),
+  };
 }
 
 /**
@@ -127,22 +122,10 @@ async function savesCreateHandler(ctx: HandlerContext) {
   );
 
   if (layer1Result.items.length > 0) {
-    // Active save found — return 409 with existing save
-    return {
-      statusCode: 409,
-      headers: {
-        "Content-Type": "application/json",
-        "X-Request-Id": requestId,
-      },
-      body: JSON.stringify({
-        error: {
-          code: "DUPLICATE_SAVE",
-          message: "URL already saved",
-          requestId,
-        },
-        existingSave: toPublicSave(layer1Result.items[0]),
-      }),
-    };
+    return createDuplicateResponse(
+      toPublicSave(layer1Result.items[0]),
+      requestId
+    );
   }
 
   // --- Build save item ---
@@ -258,21 +241,10 @@ async function handleTransactionFailure(
   );
 
   if (activeResult.items.length > 0) {
-    return {
-      statusCode: 409,
-      headers: {
-        "Content-Type": "application/json",
-        "X-Request-Id": requestId,
-      },
-      body: JSON.stringify({
-        error: {
-          code: "DUPLICATE_SAVE",
-          message: "URL already saved",
-          requestId,
-        },
-        existingSave: toPublicSave(activeResult.items[0]),
-      }),
-    };
+    return createDuplicateResponse(
+      toPublicSave(activeResult.items[0]),
+      requestId
+    );
   }
 
   // Check for soft-deleted save

@@ -85,11 +85,7 @@ async function savesDeleteHandler(ctx: HandlerContext) {
       logger
     );
   } catch (error) {
-    if (
-      error instanceof Error &&
-      "code" in error &&
-      (error as AppError).code === ErrorCode.NOT_FOUND
-    ) {
+    if (AppError.isAppError(error) && error.code === ErrorCode.NOT_FOUND) {
       // Disambiguation: missing vs already deleted
       const existing = await getItem<SaveItem>(
         client,

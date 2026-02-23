@@ -16,11 +16,7 @@ import {
   SAVES_WRITE_RATE_LIMIT,
   toPublicSave,
 } from "@ai-learning-hub/db";
-import {
-  wrapHandler,
-  createSuccessResponse,
-  type HandlerContext,
-} from "@ai-learning-hub/middleware";
+import { wrapHandler, type HandlerContext } from "@ai-learning-hub/middleware";
 import { AppError, ErrorCode } from "@ai-learning-hub/types";
 import type { SaveItem } from "@ai-learning-hub/types";
 import {
@@ -41,7 +37,7 @@ const eventBus = requireEventBus();
  * POST /saves/:saveId/restore — Restore a soft-deleted save.
  */
 async function savesRestoreHandler(ctx: HandlerContext) {
-  const { event, auth, logger, requestId } = ctx;
+  const { event, auth, logger } = ctx;
   const userId = auth!.userId;
 
   const { saveId } = validatePathParams(saveIdPathSchema, event.pathParameters);
@@ -76,11 +72,7 @@ async function savesRestoreHandler(ctx: HandlerContext) {
       logger
     );
   } catch (error) {
-    if (
-      error instanceof Error &&
-      "code" in error &&
-      (error as AppError).code === ErrorCode.NOT_FOUND
-    ) {
+    if (AppError.isAppError(error) && error.code === ErrorCode.NOT_FOUND) {
       // Disambiguation: already active vs truly missing
       const existing = await getItem<SaveItem>(
         client,
@@ -92,7 +84,7 @@ async function savesRestoreHandler(ctx: HandlerContext) {
 
       if (existing && !existing.deletedAt) {
         // Already active — idempotent 200, no event
-        return createSuccessResponse(toPublicSave(existing), requestId);
+        return toPublicSave(existing);
       }
 
       // Truly missing or wrong user
@@ -127,7 +119,7 @@ async function savesRestoreHandler(ctx: HandlerContext) {
     logger
   );
 
-  return createSuccessResponse(toPublicSave(restored), requestId);
+  return toPublicSave(restored);
 }
 
 export const handler = wrapHandler(savesRestoreHandler, {

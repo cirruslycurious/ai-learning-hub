@@ -97,6 +97,20 @@ describe("AppError", () => {
     expect(AppError.isAppError("string")).toBe(false);
   });
 
+  it("should identify duck-typed AppError from separate module copy", () => {
+    const duckTyped = Object.assign(new Error("Duck"), {
+      name: "AppError",
+      code: ErrorCode.NOT_FOUND,
+      statusCode: 404,
+    });
+    expect(AppError.isAppError(duckTyped)).toBe(true);
+  });
+
+  it("should reject Error with AppError name but missing code/statusCode", () => {
+    const partial = Object.assign(new Error("Partial"), { name: "AppError" });
+    expect(AppError.isAppError(partial)).toBe(false);
+  });
+
   it("should have proper stack trace", () => {
     const error = new AppError(ErrorCode.INTERNAL_ERROR, "Test error");
 

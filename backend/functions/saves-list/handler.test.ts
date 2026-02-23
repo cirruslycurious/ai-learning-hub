@@ -3,35 +3,29 @@
  *
  * Story 3.2: Base pagination tests.
  * Story 3.4: Filter, search, sort, truncated, combined filter tests.
+ * Story 3.1.3: Migrated to shared test utilities.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ContentType, ErrorCode } from "@ai-learning-hub/types";
-import type { SaveItem } from "@ai-learning-hub/types";
+
 import {
   createMockEvent,
   createMockContext,
   mockCreateLoggerModule,
   mockMiddlewareModule,
   assertADR008Error,
+  createTestSaveItem,
+  mockDbModule,
 } from "../../test-utils/index.js";
 
-// Mock @ai-learning-hub/db
+// Mock @ai-learning-hub/db — using shared mockDbModule with handler-specific mocks
 const mockQueryAllItems = vi.fn();
-const mockGetDefaultClient = vi.fn(() => ({}));
 
-vi.mock("@ai-learning-hub/db", () => ({
-  getDefaultClient: () => mockGetDefaultClient(),
-  queryAllItems: (...args: unknown[]) => mockQueryAllItems(...args),
-  SAVES_TABLE_CONFIG: {
-    tableName: "ai-learning-hub-saves",
-    partitionKey: "PK",
-    sortKey: "SK",
-  },
-  toPublicSave: (item: SaveItem) => {
-    const { PK: _PK, SK: _SK, deletedAt: _del, ...rest } = item;
-    return rest;
-  },
-}));
+vi.mock("@ai-learning-hub/db", () =>
+  mockDbModule({
+    queryAllItems: (...args: unknown[]) => mockQueryAllItems(...args),
+  })
+);
 
 // Mock @ai-learning-hub/logging
 vi.mock("@ai-learning-hub/logging", () => mockCreateLoggerModule());
@@ -44,28 +38,6 @@ vi.mock("@ai-learning-hub/middleware", () => mockMiddlewareModule());
 import { handler } from "./handler.js";
 
 const mockContext = createMockContext();
-
-function createSaveItem(
-  saveId: string,
-  overrides: Partial<SaveItem> = {}
-): SaveItem {
-  return {
-    PK: "USER#user123",
-    SK: `SAVE#${saveId}`,
-    userId: "user123",
-    saveId,
-    url: `https://example.com/${saveId}`,
-    normalizedUrl: `https://example.com/${saveId}`,
-    urlHash: `hash-${saveId}`,
-    contentType: ContentType.ARTICLE,
-    tags: [],
-    isTutorial: false,
-    linkedProjectCount: 0,
-    createdAt: "2026-02-20T00:00:00Z",
-    updatedAt: "2026-02-20T00:00:00Z",
-    ...overrides,
-  };
-}
 
 function createListEvent(
   queryParams?: Record<string, string>,
@@ -91,8 +63,8 @@ describe("Saves List Handler — GET /saves", () => {
   describe("Base: Returns paginated list of active saves", () => {
     it("returns 200 with items and pagination shape", async () => {
       const items = [
-        createSaveItem("01SAVE1111111111111111111A"),
-        createSaveItem("01SAVE0000000000000000000B"),
+        createTestSaveItem("01SAVE1111111111111111111A"),
+        createTestSaveItem("01SAVE0000000000000000000B"),
       ];
       mockQueryAllItems.mockResolvedValueOnce({
         items,
@@ -132,7 +104,7 @@ describe("Saves List Handler — GET /saves", () => {
   describe("Base: In-memory pagination with ULID cursor", () => {
     it("returns first page with nextToken when hasMore", async () => {
       const items = Array.from({ length: 30 }, (_, i) =>
-        createSaveItem(`01SAVE${String(i).padStart(19, "0")}A`)
+        createTestSaveItem(`01SAVE${String(i).padStart(19, "0")}A`)
       );
       mockQueryAllItems.mockResolvedValueOnce({
         items,
@@ -151,7 +123,7 @@ describe("Saves List Handler — GET /saves", () => {
 
     it("returns page 2 correctly using nextToken", async () => {
       const items = Array.from({ length: 30 }, (_, i) =>
-        createSaveItem(`01SAVE${String(i).padStart(19, "0")}A`)
+        createTestSaveItem(`01SAVE${String(i).padStart(19, "0")}A`)
       );
       const cursorSaveId = items[24].saveId;
       const nextToken = Buffer.from(cursorSaveId).toString("base64url");
@@ -172,7 +144,7 @@ describe("Saves List Handler — GET /saves", () => {
 
     it("respects custom limit", async () => {
       const items = Array.from({ length: 10 }, (_, i) =>
-        createSaveItem(`01SAVE${String(i).padStart(19, "0")}A`)
+        createTestSaveItem(`01SAVE${String(i).padStart(19, "0")}A`)
       );
       mockQueryAllItems.mockResolvedValueOnce({
         items,
@@ -190,7 +162,7 @@ describe("Saves List Handler — GET /saves", () => {
 
     it("accepts limit=100 (max)", async () => {
       const items = Array.from({ length: 50 }, (_, i) =>
-        createSaveItem(`01SAVE${String(i).padStart(19, "0")}A`)
+        createTestSaveItem(`01SAVE${String(i).padStart(19, "0")}A`)
       );
       mockQueryAllItems.mockResolvedValueOnce({
         items,
@@ -248,7 +220,7 @@ describe("Saves List Handler — GET /saves", () => {
 
   describe("Base: toPublicSave strips internal fields", () => {
     it("strips PK, SK, deletedAt from each item in response", async () => {
-      const item = createSaveItem("01SAVE1111111111111111111A");
+      const item = createTestSaveItem("01SAVE1111111111111111111A");
       mockQueryAllItems.mockResolvedValueOnce({
         items: [item],
         truncated: false,
@@ -273,7 +245,7 @@ describe("Saves List Handler — GET /saves", () => {
       });
       const result = await handler(event, mockContext);
 
-      expect(result.statusCode).toBe(401);
+      assertADR008Error(result, ErrorCode.UNAUTHORIZED, 401);
     });
   });
 
@@ -284,13 +256,13 @@ describe("Saves List Handler — GET /saves", () => {
   describe("AC1: Filter by contentType", () => {
     it("returns only saves matching contentType=video", async () => {
       const items = [
-        createSaveItem("01SAVE0000000000000000001A", {
+        createTestSaveItem("01SAVE0000000000000000001A", {
           contentType: ContentType.VIDEO,
         }),
-        createSaveItem("01SAVE0000000000000000002A", {
+        createTestSaveItem("01SAVE0000000000000000002A", {
           contentType: ContentType.ARTICLE,
         }),
-        createSaveItem("01SAVE0000000000000000003A", {
+        createTestSaveItem("01SAVE0000000000000000003A", {
           contentType: ContentType.VIDEO,
         }),
       ];
@@ -313,13 +285,13 @@ describe("Saves List Handler — GET /saves", () => {
   describe("AC2: Filter by linkStatus=linked", () => {
     it("returns saves where linkedProjectCount > 0", async () => {
       const items = [
-        createSaveItem("01SAVE0000000000000000001A", {
+        createTestSaveItem("01SAVE0000000000000000001A", {
           linkedProjectCount: 2,
         }),
-        createSaveItem("01SAVE0000000000000000002A", {
+        createTestSaveItem("01SAVE0000000000000000002A", {
           linkedProjectCount: 0,
         }),
-        createSaveItem("01SAVE0000000000000000003A", {
+        createTestSaveItem("01SAVE0000000000000000003A", {
           linkedProjectCount: 1,
         }),
       ];
@@ -337,10 +309,10 @@ describe("Saves List Handler — GET /saves", () => {
   describe("AC3: Filter by linkStatus=unlinked", () => {
     it("returns saves where linkedProjectCount = 0", async () => {
       const items = [
-        createSaveItem("01SAVE0000000000000000001A", {
+        createTestSaveItem("01SAVE0000000000000000001A", {
           linkedProjectCount: 2,
         }),
-        createSaveItem("01SAVE0000000000000000002A", {
+        createTestSaveItem("01SAVE0000000000000000002A", {
           linkedProjectCount: 0,
         }),
       ];
@@ -356,7 +328,7 @@ describe("Saves List Handler — GET /saves", () => {
     });
 
     it("treats missing linkedProjectCount as 0 (unlinked)", async () => {
-      const item = createSaveItem("01SAVE0000000000000000001A");
+      const item = createTestSaveItem("01SAVE0000000000000000001A");
       // Simulate missing field by casting
       delete (item as unknown as Record<string, unknown>).linkedProjectCount;
       mockQueryAllItems.mockResolvedValueOnce({
@@ -376,13 +348,13 @@ describe("Saves List Handler — GET /saves", () => {
   describe("AC4: Search by title/url substring", () => {
     it("returns saves where title contains search term (case-insensitive)", async () => {
       const items = [
-        createSaveItem("01SAVE0000000000000000001A", {
+        createTestSaveItem("01SAVE0000000000000000001A", {
           title: "Learning React Hooks",
         }),
-        createSaveItem("01SAVE0000000000000000002A", {
+        createTestSaveItem("01SAVE0000000000000000002A", {
           title: "Vue.js Guide",
         }),
-        createSaveItem("01SAVE0000000000000000003A", {
+        createTestSaveItem("01SAVE0000000000000000003A", {
           title: "Advanced React Patterns",
         }),
       ];
@@ -398,11 +370,11 @@ describe("Saves List Handler — GET /saves", () => {
 
     it("returns saves where url contains search term", async () => {
       const items = [
-        createSaveItem("01SAVE0000000000000000001A", {
+        createTestSaveItem("01SAVE0000000000000000001A", {
           url: "https://react.dev/docs",
           title: "Some Title",
         }),
-        createSaveItem("01SAVE0000000000000000002A", {
+        createTestSaveItem("01SAVE0000000000000000002A", {
           url: "https://vuejs.org/guide",
           title: "Vue Guide",
         }),
@@ -419,11 +391,11 @@ describe("Saves List Handler — GET /saves", () => {
 
     it("handles saves with missing title during search", async () => {
       const items = [
-        createSaveItem("01SAVE0000000000000000001A", {
+        createTestSaveItem("01SAVE0000000000000000001A", {
           title: undefined,
           url: "https://react.dev/docs",
         }),
-        createSaveItem("01SAVE0000000000000000002A", {
+        createTestSaveItem("01SAVE0000000000000000002A", {
           title: "React Guide",
           url: "https://example.com",
         }),
@@ -447,13 +419,13 @@ describe("Saves List Handler — GET /saves", () => {
   describe("AC5: Sort by createdAt ascending", () => {
     it("returns saves sorted by createdAt asc", async () => {
       const items = [
-        createSaveItem("01SAVE0000000000000000003A", {
+        createTestSaveItem("01SAVE0000000000000000003A", {
           createdAt: "2026-02-22T00:00:00Z",
         }),
-        createSaveItem("01SAVE0000000000000000001A", {
+        createTestSaveItem("01SAVE0000000000000000001A", {
           createdAt: "2026-02-20T00:00:00Z",
         }),
-        createSaveItem("01SAVE0000000000000000002A", {
+        createTestSaveItem("01SAVE0000000000000000002A", {
           createdAt: "2026-02-21T00:00:00Z",
         }),
       ];
@@ -473,13 +445,13 @@ describe("Saves List Handler — GET /saves", () => {
   describe("AC6: Sort by lastAccessedAt descending", () => {
     it("returns saves sorted by lastAccessedAt desc; null sorts to bottom", async () => {
       const items = [
-        createSaveItem("01SAVE0000000000000000001A", {
+        createTestSaveItem("01SAVE0000000000000000001A", {
           lastAccessedAt: "2026-02-20T00:00:00Z",
         }),
-        createSaveItem("01SAVE0000000000000000002A", {
+        createTestSaveItem("01SAVE0000000000000000002A", {
           lastAccessedAt: undefined,
         }),
-        createSaveItem("01SAVE0000000000000000003A", {
+        createTestSaveItem("01SAVE0000000000000000003A", {
           lastAccessedAt: "2026-02-22T00:00:00Z",
         }),
       ];
@@ -501,13 +473,13 @@ describe("Saves List Handler — GET /saves", () => {
 
     it("sorts lastAccessedAt ascending with null at bottom", async () => {
       const items = [
-        createSaveItem("01SAVE0000000000000000001A", {
+        createTestSaveItem("01SAVE0000000000000000001A", {
           lastAccessedAt: "2026-02-22T00:00:00Z",
         }),
-        createSaveItem("01SAVE0000000000000000002A", {
+        createTestSaveItem("01SAVE0000000000000000002A", {
           lastAccessedAt: undefined,
         }),
-        createSaveItem("01SAVE0000000000000000003A", {
+        createTestSaveItem("01SAVE0000000000000000003A", {
           lastAccessedAt: "2026-02-20T00:00:00Z",
         }),
       ];
@@ -524,9 +496,9 @@ describe("Saves List Handler — GET /saves", () => {
   describe("AC7: Sort by title ascending", () => {
     it("returns saves sorted alphabetically; empty title at bottom", async () => {
       const items = [
-        createSaveItem("01SAVE0000000000000000001A", { title: "Zebra" }),
-        createSaveItem("01SAVE0000000000000000002A", { title: undefined }),
-        createSaveItem("01SAVE0000000000000000003A", { title: "Alpha" }),
+        createTestSaveItem("01SAVE0000000000000000001A", { title: "Zebra" }),
+        createTestSaveItem("01SAVE0000000000000000002A", { title: undefined }),
+        createTestSaveItem("01SAVE0000000000000000003A", { title: "Alpha" }),
       ];
       mockQueryAllItems.mockResolvedValueOnce({ items, truncated: false });
 
@@ -542,9 +514,9 @@ describe("Saves List Handler — GET /saves", () => {
 
     it("sorts title descending with empty title at bottom", async () => {
       const items = [
-        createSaveItem("01SAVE0000000000000000001A", { title: "Alpha" }),
-        createSaveItem("01SAVE0000000000000000002A", { title: undefined }),
-        createSaveItem("01SAVE0000000000000000003A", { title: "Zebra" }),
+        createTestSaveItem("01SAVE0000000000000000001A", { title: "Alpha" }),
+        createTestSaveItem("01SAVE0000000000000000002A", { title: undefined }),
+        createTestSaveItem("01SAVE0000000000000000003A", { title: "Zebra" }),
       ];
       mockQueryAllItems.mockResolvedValueOnce({ items, truncated: false });
 
@@ -561,10 +533,10 @@ describe("Saves List Handler — GET /saves", () => {
   describe("Default order when only sort provided", () => {
     it("defaults to desc for sort=createdAt", async () => {
       const items = [
-        createSaveItem("01SAVE0000000000000000001A", {
+        createTestSaveItem("01SAVE0000000000000000001A", {
           createdAt: "2026-02-20T00:00:00Z",
         }),
-        createSaveItem("01SAVE0000000000000000002A", {
+        createTestSaveItem("01SAVE0000000000000000002A", {
           createdAt: "2026-02-22T00:00:00Z",
         }),
       ];
@@ -582,10 +554,10 @@ describe("Saves List Handler — GET /saves", () => {
 
     it("defaults to desc for sort=lastAccessedAt", async () => {
       const items = [
-        createSaveItem("01SAVE0000000000000000001A", {
+        createTestSaveItem("01SAVE0000000000000000001A", {
           lastAccessedAt: "2026-02-20T00:00:00Z",
         }),
-        createSaveItem("01SAVE0000000000000000002A", {
+        createTestSaveItem("01SAVE0000000000000000002A", {
           lastAccessedAt: "2026-02-22T00:00:00Z",
         }),
       ];
@@ -602,8 +574,8 @@ describe("Saves List Handler — GET /saves", () => {
 
     it("defaults to asc for sort=title", async () => {
       const items = [
-        createSaveItem("01SAVE0000000000000000001A", { title: "Zebra" }),
-        createSaveItem("01SAVE0000000000000000002A", { title: "Alpha" }),
+        createTestSaveItem("01SAVE0000000000000000001A", { title: "Zebra" }),
+        createTestSaveItem("01SAVE0000000000000000002A", { title: "Alpha" }),
       ];
       mockQueryAllItems.mockResolvedValueOnce({ items, truncated: false });
 
@@ -624,12 +596,12 @@ describe("Saves List Handler — GET /saves", () => {
   describe("AC8: Combined filters AND sort", () => {
     it("applies contentType + linkStatus + search together", async () => {
       const items = [
-        createSaveItem("01SAVE0000000000000000001A", {
+        createTestSaveItem("01SAVE0000000000000000001A", {
           contentType: ContentType.VIDEO,
           title: "React",
           linkedProjectCount: 1,
         }),
-        createSaveItem("01SAVE0000000000000000002A", {
+        createTestSaveItem("01SAVE0000000000000000002A", {
           contentType: ContentType.VIDEO,
           title: "React Adv",
           linkedProjectCount: 0,
@@ -648,22 +620,22 @@ describe("Saves List Handler — GET /saves", () => {
 
     it("applies contentType + search + sort together", async () => {
       const items = [
-        createSaveItem("01SAVE0000000000000000001A", {
+        createTestSaveItem("01SAVE0000000000000000001A", {
           contentType: ContentType.VIDEO,
           title: "React Hooks",
           createdAt: "2026-02-20T00:00:00Z",
         }),
-        createSaveItem("01SAVE0000000000000000002A", {
+        createTestSaveItem("01SAVE0000000000000000002A", {
           contentType: ContentType.VIDEO,
           title: "React Patterns",
           createdAt: "2026-02-22T00:00:00Z",
         }),
-        createSaveItem("01SAVE0000000000000000003A", {
+        createTestSaveItem("01SAVE0000000000000000003A", {
           contentType: ContentType.ARTICLE,
           title: "React Overview",
           createdAt: "2026-02-21T00:00:00Z",
         }),
-        createSaveItem("01SAVE0000000000000000004A", {
+        createTestSaveItem("01SAVE0000000000000000004A", {
           contentType: ContentType.VIDEO,
           title: "Vue Tutorial",
           createdAt: "2026-02-23T00:00:00Z",
@@ -734,14 +706,14 @@ describe("Saves List Handler — GET /saves", () => {
       const event = createListEvent({ limit: "101" });
       const result = await handler(event, mockContext);
 
-      expect(result.statusCode).toBe(400);
+      assertADR008Error(result, ErrorCode.VALIDATION_ERROR, 400);
     });
 
     it("returns 400 when limit is 0", async () => {
       const event = createListEvent({ limit: "0" });
       const result = await handler(event, mockContext);
 
-      expect(result.statusCode).toBe(400);
+      assertADR008Error(result, ErrorCode.VALIDATION_ERROR, 400);
     });
   });
 
@@ -752,7 +724,7 @@ describe("Saves List Handler — GET /saves", () => {
   describe("AC10: No saves match filters → empty result", () => {
     it("returns { items: [], hasMore: false } when no matches", async () => {
       const items = [
-        createSaveItem("01SAVE0000000000000000001A", {
+        createTestSaveItem("01SAVE0000000000000000001A", {
           contentType: ContentType.ARTICLE,
         }),
       ];
@@ -775,7 +747,7 @@ describe("Saves List Handler — GET /saves", () => {
   describe("AC11: Truncated flag in response", () => {
     it("includes truncated: true when ceiling hit", async () => {
       mockQueryAllItems.mockResolvedValueOnce({
-        items: [createSaveItem("01SAVE0000000000000000001A")],
+        items: [createTestSaveItem("01SAVE0000000000000000001A")],
         truncated: true,
       });
 
@@ -789,7 +761,7 @@ describe("Saves List Handler — GET /saves", () => {
 
     it("omits truncated when not truncated", async () => {
       mockQueryAllItems.mockResolvedValueOnce({
-        items: [createSaveItem("01SAVE0000000000000000001A")],
+        items: [createTestSaveItem("01SAVE0000000000000000001A")],
         truncated: false,
       });
 
@@ -822,13 +794,13 @@ describe("Saves List Handler — GET /saves", () => {
     it("returns first page when nextToken saveId not in filtered list but exists in unfiltered", async () => {
       // Save exists in unfiltered set but is excluded by contentType filter
       const items = [
-        createSaveItem("01SAVE0000000000000000001A", {
+        createTestSaveItem("01SAVE0000000000000000001A", {
           contentType: ContentType.ARTICLE,
         }),
-        createSaveItem("01SAVE0000000000000000002A", {
+        createTestSaveItem("01SAVE0000000000000000002A", {
           contentType: ContentType.VIDEO,
         }),
-        createSaveItem("01SAVE0000000000000000003A", {
+        createTestSaveItem("01SAVE0000000000000000003A", {
           contentType: ContentType.VIDEO,
         }),
       ];
@@ -851,7 +823,7 @@ describe("Saves List Handler — GET /saves", () => {
     });
 
     it("returns 400 when nextToken saveId not in unfiltered set (stale cursor)", async () => {
-      const items = [createSaveItem("01SAVE0000000000000000001A")];
+      const items = [createTestSaveItem("01SAVE0000000000000000001A")];
       // Cursor points to a save that doesn't exist at all
       const nextToken = Buffer.from("01NOTEXIST000000000000000A").toString(
         "base64url"
@@ -870,23 +842,23 @@ describe("Saves List Handler — GET /saves", () => {
     it("paginates filtered results across multiple pages", async () => {
       // 5 items: 3 videos + 2 articles. Limit=2 so videos span 2 pages.
       const items = [
-        createSaveItem("01SAVE0000000000000000001A", {
+        createTestSaveItem("01SAVE0000000000000000001A", {
           contentType: ContentType.VIDEO,
           createdAt: "2026-02-25T00:00:00Z",
         }),
-        createSaveItem("01SAVE0000000000000000002A", {
+        createTestSaveItem("01SAVE0000000000000000002A", {
           contentType: ContentType.ARTICLE,
           createdAt: "2026-02-24T00:00:00Z",
         }),
-        createSaveItem("01SAVE0000000000000000003A", {
+        createTestSaveItem("01SAVE0000000000000000003A", {
           contentType: ContentType.VIDEO,
           createdAt: "2026-02-23T00:00:00Z",
         }),
-        createSaveItem("01SAVE0000000000000000004A", {
+        createTestSaveItem("01SAVE0000000000000000004A", {
           contentType: ContentType.ARTICLE,
           createdAt: "2026-02-22T00:00:00Z",
         }),
-        createSaveItem("01SAVE0000000000000000005A", {
+        createTestSaveItem("01SAVE0000000000000000005A", {
           contentType: ContentType.VIDEO,
           createdAt: "2026-02-21T00:00:00Z",
         }),

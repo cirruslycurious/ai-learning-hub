@@ -15,11 +15,7 @@ import {
   SAVES_WRITE_RATE_LIMIT,
   toPublicSave,
 } from "@ai-learning-hub/db";
-import {
-  wrapHandler,
-  createSuccessResponse,
-  type HandlerContext,
-} from "@ai-learning-hub/middleware";
+import { wrapHandler, type HandlerContext } from "@ai-learning-hub/middleware";
 import { AppError, ErrorCode } from "@ai-learning-hub/types";
 import type { SaveItem } from "@ai-learning-hub/types";
 import {
@@ -42,7 +38,7 @@ const eventBus = requireEventBus();
  * PATCH /saves/:saveId — Update save metadata.
  */
 async function savesUpdateHandler(ctx: HandlerContext) {
-  const { event, auth, logger, requestId } = ctx;
+  const { event, auth, logger } = ctx;
   const userId = auth!.userId;
 
   const { saveId } = validatePathParams(saveIdPathSchema, event.pathParameters);
@@ -105,11 +101,7 @@ async function savesUpdateHandler(ctx: HandlerContext) {
       logger
     );
   } catch (error) {
-    if (
-      error instanceof Error &&
-      "code" in error &&
-      (error as AppError).code === ErrorCode.NOT_FOUND
-    ) {
+    if (AppError.isAppError(error) && error.code === ErrorCode.NOT_FOUND) {
       throw new AppError(ErrorCode.NOT_FOUND, "Save not found");
     }
     throw error;
@@ -140,7 +132,7 @@ async function savesUpdateHandler(ctx: HandlerContext) {
     logger
   );
 
-  return createSuccessResponse(toPublicSave(updated), requestId);
+  return toPublicSave(updated);
 }
 
 export const handler = wrapHandler(savesUpdateHandler, {
