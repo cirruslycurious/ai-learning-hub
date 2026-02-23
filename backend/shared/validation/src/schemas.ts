@@ -229,6 +229,21 @@ export const createSaveSchema = z.object({
 });
 
 /**
+ * List saves query schema (GET /saves) — Story 3.4
+ * Extends pagination with filter, search, and sort params.
+ * All new params are optional; coerced from query strings.
+ */
+export const listSavesQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+  nextToken: z.string().optional(),
+  contentType: contentTypeSchema.optional(),
+  linkStatus: z.enum(["linked", "unlinked"]).optional(),
+  search: z.string().min(1).max(200).optional(),
+  sort: z.enum(["createdAt", "lastAccessedAt", "title"]).optional(),
+  order: z.enum(["asc", "desc"]).optional(),
+});
+
+/**
  * Update save request body schema (PATCH /saves/:saveId)
  * URL fields NOT included (immutable after creation).
  * At least one field required.

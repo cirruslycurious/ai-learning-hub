@@ -1,16 +1,18 @@
 /**
  * Saves List handler tests — GET /saves
  *
- * Story 3.2, Task 9.2: Tests all acceptance criteria.
+ * Story 3.2: Base pagination tests.
+ * Story 3.4: Filter, search, sort, truncated, combined filter tests.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ContentType } from "@ai-learning-hub/types";
+import { ContentType, ErrorCode } from "@ai-learning-hub/types";
 import type { SaveItem } from "@ai-learning-hub/types";
 import {
   createMockEvent,
   createMockContext,
   mockCreateLoggerModule,
   mockMiddlewareModule,
+  assertADR008Error,
 } from "../../test-utils/index.js";
 
 // Mock @ai-learning-hub/db
@@ -82,7 +84,11 @@ describe("Saves List Handler — GET /saves", () => {
     vi.clearAllMocks();
   });
 
-  describe("AC1: Returns paginated list of active saves", () => {
+  // ──────────────────────────────────────────────────────────────
+  // Story 3.2 — Base pagination tests (retained)
+  // ──────────────────────────────────────────────────────────────
+
+  describe("Base: Returns paginated list of active saves", () => {
     it("returns 200 with items and pagination shape", async () => {
       const items = [
         createSaveItem("01SAVE1111111111111111111A"),
@@ -106,7 +112,7 @@ describe("Saves List Handler — GET /saves", () => {
     });
   });
 
-  describe("AC6: Empty list returns { items: [], hasMore: false }", () => {
+  describe("Base: Empty list returns { items: [], hasMore: false }", () => {
     it("returns empty array when user has no saves", async () => {
       mockQueryAllItems.mockResolvedValueOnce({
         items: [],
@@ -123,9 +129,8 @@ describe("Saves List Handler — GET /saves", () => {
     });
   });
 
-  describe("AC2: In-memory pagination with ULID cursor", () => {
+  describe("Base: In-memory pagination with ULID cursor", () => {
     it("returns first page with nextToken when hasMore", async () => {
-      // Create 30 items to exceed default limit of 25
       const items = Array.from({ length: 30 }, (_, i) =>
         createSaveItem(`01SAVE${String(i).padStart(19, "0")}A`)
       );
@@ -148,7 +153,6 @@ describe("Saves List Handler — GET /saves", () => {
       const items = Array.from({ length: 30 }, (_, i) =>
         createSaveItem(`01SAVE${String(i).padStart(19, "0")}A`)
       );
-      // The cursor points to the last item of page 1 (index 24)
       const cursorSaveId = items[24].saveId;
       const nextToken = Buffer.from(cursorSaveId).toString("base64url");
 
@@ -162,7 +166,6 @@ describe("Saves List Handler — GET /saves", () => {
 
       expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
-      // Items 25-29 = 5 remaining items
       expect(body.data.items).toHaveLength(5);
       expect(body.data.hasMore).toBe(false);
     });
@@ -201,58 +204,7 @@ describe("Saves List Handler — GET /saves", () => {
     });
   });
 
-  describe("AC10: Stale nextToken returns 400", () => {
-    it("returns 400 when cursor saveId is not in result set", async () => {
-      const items = [createSaveItem("01SAVE1111111111111111111A")];
-      const staleToken = Buffer.from("01STALE_DOES_NOT_EXIST_HERE").toString(
-        "base64url"
-      );
-
-      mockQueryAllItems.mockResolvedValueOnce({
-        items,
-        truncated: false,
-      });
-
-      const event = createListEvent({ nextToken: staleToken });
-      const result = await handler(event, mockContext);
-
-      expect(result.statusCode).toBe(400);
-      const body = JSON.parse(result.body);
-      expect(body.error.code).toBe("VALIDATION_ERROR");
-      expect(body.error.message).toContain("nextToken is invalid");
-    });
-
-    it("returns 400 for malformed nextToken", async () => {
-      mockQueryAllItems.mockResolvedValueOnce({
-        items: [],
-        truncated: false,
-      });
-
-      // Invalid base64url
-      const event = createListEvent({ nextToken: "!!!invalid!!!" });
-      const result = await handler(event, mockContext);
-
-      expect(result.statusCode).toBe(400);
-    });
-  });
-
-  describe("Validation errors", () => {
-    it("returns 400 when limit exceeds max (101)", async () => {
-      const event = createListEvent({ limit: "101" });
-      const result = await handler(event, mockContext);
-
-      expect(result.statusCode).toBe(400);
-    });
-
-    it("returns 400 when limit is 0", async () => {
-      const event = createListEvent({ limit: "0" });
-      const result = await handler(event, mockContext);
-
-      expect(result.statusCode).toBe(400);
-    });
-  });
-
-  describe("AC8: ConsistentRead passed to DynamoDB", () => {
+  describe("Base: ConsistentRead passed to DynamoDB", () => {
     it("passes consistentRead: true to queryAllItems", async () => {
       mockQueryAllItems.mockResolvedValueOnce({
         items: [],
@@ -263,17 +215,17 @@ describe("Saves List Handler — GET /saves", () => {
       await handler(event, mockContext);
 
       expect(mockQueryAllItems).toHaveBeenCalledWith(
-        expect.anything(), // client
-        expect.anything(), // config
+        expect.anything(),
+        expect.anything(),
         expect.objectContaining({
           consistentRead: true,
         }),
-        expect.anything() // logger
+        expect.anything()
       );
     });
   });
 
-  describe("FilterExpression verification", () => {
+  describe("Base: FilterExpression verification", () => {
     it("passes filterExpression to exclude soft-deleted items", async () => {
       mockQueryAllItems.mockResolvedValueOnce({
         items: [],
@@ -294,7 +246,7 @@ describe("Saves List Handler — GET /saves", () => {
     });
   });
 
-  describe("toPublicSave strips internal fields", () => {
+  describe("Base: toPublicSave strips internal fields", () => {
     it("strips PK, SK, deletedAt from each item in response", async () => {
       const item = createSaveItem("01SAVE1111111111111111111A");
       mockQueryAllItems.mockResolvedValueOnce({
@@ -313,7 +265,7 @@ describe("Saves List Handler — GET /saves", () => {
     });
   });
 
-  describe("Authentication", () => {
+  describe("Base: Authentication", () => {
     it("returns 401 when not authenticated", async () => {
       const event = createMockEvent({
         method: "GET",
@@ -322,6 +274,527 @@ describe("Saves List Handler — GET /saves", () => {
       const result = await handler(event, mockContext);
 
       expect(result.statusCode).toBe(401);
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // Story 3.4 — Filtering (AC1–AC4)
+  // ──────────────────────────────────────────────────────────────
+
+  describe("AC1: Filter by contentType", () => {
+    it("returns only saves matching contentType=video", async () => {
+      const items = [
+        createSaveItem("01SAVE0000000000000000001A", {
+          contentType: ContentType.VIDEO,
+        }),
+        createSaveItem("01SAVE0000000000000000002A", {
+          contentType: ContentType.ARTICLE,
+        }),
+        createSaveItem("01SAVE0000000000000000003A", {
+          contentType: ContentType.VIDEO,
+        }),
+      ];
+      mockQueryAllItems.mockResolvedValueOnce({ items, truncated: false });
+
+      const event = createListEvent({ contentType: "video" });
+      const result = await handler(event, mockContext);
+
+      expect(result.statusCode).toBe(200);
+      const body = JSON.parse(result.body);
+      expect(body.data.items).toHaveLength(2);
+      expect(
+        body.data.items.every(
+          (i: { contentType: string }) => i.contentType === "video"
+        )
+      ).toBe(true);
+    });
+  });
+
+  describe("AC2: Filter by linkStatus=linked", () => {
+    it("returns saves where linkedProjectCount > 0", async () => {
+      const items = [
+        createSaveItem("01SAVE0000000000000000001A", {
+          linkedProjectCount: 2,
+        }),
+        createSaveItem("01SAVE0000000000000000002A", {
+          linkedProjectCount: 0,
+        }),
+        createSaveItem("01SAVE0000000000000000003A", {
+          linkedProjectCount: 1,
+        }),
+      ];
+      mockQueryAllItems.mockResolvedValueOnce({ items, truncated: false });
+
+      const event = createListEvent({ linkStatus: "linked" });
+      const result = await handler(event, mockContext);
+
+      expect(result.statusCode).toBe(200);
+      const body = JSON.parse(result.body);
+      expect(body.data.items).toHaveLength(2);
+    });
+  });
+
+  describe("AC3: Filter by linkStatus=unlinked", () => {
+    it("returns saves where linkedProjectCount = 0", async () => {
+      const items = [
+        createSaveItem("01SAVE0000000000000000001A", {
+          linkedProjectCount: 2,
+        }),
+        createSaveItem("01SAVE0000000000000000002A", {
+          linkedProjectCount: 0,
+        }),
+      ];
+      mockQueryAllItems.mockResolvedValueOnce({ items, truncated: false });
+
+      const event = createListEvent({ linkStatus: "unlinked" });
+      const result = await handler(event, mockContext);
+
+      expect(result.statusCode).toBe(200);
+      const body = JSON.parse(result.body);
+      expect(body.data.items).toHaveLength(1);
+      expect(body.data.items[0].linkedProjectCount).toBe(0);
+    });
+
+    it("treats missing linkedProjectCount as 0 (unlinked)", async () => {
+      const item = createSaveItem("01SAVE0000000000000000001A");
+      // Simulate missing field by casting
+      delete (item as unknown as Record<string, unknown>).linkedProjectCount;
+      mockQueryAllItems.mockResolvedValueOnce({
+        items: [item],
+        truncated: false,
+      });
+
+      const event = createListEvent({ linkStatus: "unlinked" });
+      const result = await handler(event, mockContext);
+
+      expect(result.statusCode).toBe(200);
+      const body = JSON.parse(result.body);
+      expect(body.data.items).toHaveLength(1);
+    });
+  });
+
+  describe("AC4: Search by title/url substring", () => {
+    it("returns saves where title contains search term (case-insensitive)", async () => {
+      const items = [
+        createSaveItem("01SAVE0000000000000000001A", {
+          title: "Learning React Hooks",
+        }),
+        createSaveItem("01SAVE0000000000000000002A", {
+          title: "Vue.js Guide",
+        }),
+        createSaveItem("01SAVE0000000000000000003A", {
+          title: "Advanced React Patterns",
+        }),
+      ];
+      mockQueryAllItems.mockResolvedValueOnce({ items, truncated: false });
+
+      const event = createListEvent({ search: "react" });
+      const result = await handler(event, mockContext);
+
+      expect(result.statusCode).toBe(200);
+      const body = JSON.parse(result.body);
+      expect(body.data.items).toHaveLength(2);
+    });
+
+    it("returns saves where url contains search term", async () => {
+      const items = [
+        createSaveItem("01SAVE0000000000000000001A", {
+          url: "https://react.dev/docs",
+          title: "Some Title",
+        }),
+        createSaveItem("01SAVE0000000000000000002A", {
+          url: "https://vuejs.org/guide",
+          title: "Vue Guide",
+        }),
+      ];
+      mockQueryAllItems.mockResolvedValueOnce({ items, truncated: false });
+
+      const event = createListEvent({ search: "react" });
+      const result = await handler(event, mockContext);
+
+      expect(result.statusCode).toBe(200);
+      const body = JSON.parse(result.body);
+      expect(body.data.items).toHaveLength(1);
+    });
+
+    it("handles saves with missing title during search", async () => {
+      const items = [
+        createSaveItem("01SAVE0000000000000000001A", {
+          title: undefined,
+          url: "https://react.dev/docs",
+        }),
+        createSaveItem("01SAVE0000000000000000002A", {
+          title: "React Guide",
+          url: "https://example.com",
+        }),
+      ];
+      mockQueryAllItems.mockResolvedValueOnce({ items, truncated: false });
+
+      const event = createListEvent({ search: "react" });
+      const result = await handler(event, mockContext);
+
+      expect(result.statusCode).toBe(200);
+      const body = JSON.parse(result.body);
+      // Both match: first via url, second via title
+      expect(body.data.items).toHaveLength(2);
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // Story 3.4 — Sorting (AC5–AC7)
+  // ──────────────────────────────────────────────────────────────
+
+  describe("AC5: Sort by createdAt ascending", () => {
+    it("returns saves sorted by createdAt asc", async () => {
+      const items = [
+        createSaveItem("01SAVE0000000000000000003A", {
+          createdAt: "2026-02-22T00:00:00Z",
+        }),
+        createSaveItem("01SAVE0000000000000000001A", {
+          createdAt: "2026-02-20T00:00:00Z",
+        }),
+        createSaveItem("01SAVE0000000000000000002A", {
+          createdAt: "2026-02-21T00:00:00Z",
+        }),
+      ];
+      mockQueryAllItems.mockResolvedValueOnce({ items, truncated: false });
+
+      const event = createListEvent({ sort: "createdAt", order: "asc" });
+      const result = await handler(event, mockContext);
+
+      expect(result.statusCode).toBe(200);
+      const body = JSON.parse(result.body);
+      expect(body.data.items[0].createdAt).toBe("2026-02-20T00:00:00Z");
+      expect(body.data.items[1].createdAt).toBe("2026-02-21T00:00:00Z");
+      expect(body.data.items[2].createdAt).toBe("2026-02-22T00:00:00Z");
+    });
+  });
+
+  describe("AC6: Sort by lastAccessedAt descending", () => {
+    it("returns saves sorted by lastAccessedAt desc; null sorts to bottom", async () => {
+      const items = [
+        createSaveItem("01SAVE0000000000000000001A", {
+          lastAccessedAt: "2026-02-20T00:00:00Z",
+        }),
+        createSaveItem("01SAVE0000000000000000002A", {
+          lastAccessedAt: undefined,
+        }),
+        createSaveItem("01SAVE0000000000000000003A", {
+          lastAccessedAt: "2026-02-22T00:00:00Z",
+        }),
+      ];
+      mockQueryAllItems.mockResolvedValueOnce({ items, truncated: false });
+
+      const event = createListEvent({
+        sort: "lastAccessedAt",
+        order: "desc",
+      });
+      const result = await handler(event, mockContext);
+
+      expect(result.statusCode).toBe(200);
+      const body = JSON.parse(result.body);
+      // Most recent first, null at bottom
+      expect(body.data.items[0].lastAccessedAt).toBe("2026-02-22T00:00:00Z");
+      expect(body.data.items[1].lastAccessedAt).toBe("2026-02-20T00:00:00Z");
+      expect(body.data.items[2].lastAccessedAt).toBeUndefined();
+    });
+  });
+
+  describe("AC7: Sort by title ascending", () => {
+    it("returns saves sorted alphabetically; empty title at bottom", async () => {
+      const items = [
+        createSaveItem("01SAVE0000000000000000001A", { title: "Zebra" }),
+        createSaveItem("01SAVE0000000000000000002A", { title: undefined }),
+        createSaveItem("01SAVE0000000000000000003A", { title: "Alpha" }),
+      ];
+      mockQueryAllItems.mockResolvedValueOnce({ items, truncated: false });
+
+      const event = createListEvent({ sort: "title", order: "asc" });
+      const result = await handler(event, mockContext);
+
+      expect(result.statusCode).toBe(200);
+      const body = JSON.parse(result.body);
+      expect(body.data.items[0].title).toBe("Alpha");
+      expect(body.data.items[1].title).toBe("Zebra");
+      expect(body.data.items[2].title).toBeUndefined();
+    });
+  });
+
+  describe("Default order when only sort provided", () => {
+    it("defaults to desc for sort=createdAt", async () => {
+      const items = [
+        createSaveItem("01SAVE0000000000000000001A", {
+          createdAt: "2026-02-20T00:00:00Z",
+        }),
+        createSaveItem("01SAVE0000000000000000002A", {
+          createdAt: "2026-02-22T00:00:00Z",
+        }),
+      ];
+      mockQueryAllItems.mockResolvedValueOnce({ items, truncated: false });
+
+      const event = createListEvent({ sort: "createdAt" });
+      const result = await handler(event, mockContext);
+
+      expect(result.statusCode).toBe(200);
+      const body = JSON.parse(result.body);
+      // desc: newest first
+      expect(body.data.items[0].createdAt).toBe("2026-02-22T00:00:00Z");
+      expect(body.data.items[1].createdAt).toBe("2026-02-20T00:00:00Z");
+    });
+
+    it("defaults to desc for sort=lastAccessedAt", async () => {
+      const items = [
+        createSaveItem("01SAVE0000000000000000001A", {
+          lastAccessedAt: "2026-02-20T00:00:00Z",
+        }),
+        createSaveItem("01SAVE0000000000000000002A", {
+          lastAccessedAt: "2026-02-22T00:00:00Z",
+        }),
+      ];
+      mockQueryAllItems.mockResolvedValueOnce({ items, truncated: false });
+
+      const event = createListEvent({ sort: "lastAccessedAt" });
+      const result = await handler(event, mockContext);
+
+      expect(result.statusCode).toBe(200);
+      const body = JSON.parse(result.body);
+      expect(body.data.items[0].lastAccessedAt).toBe("2026-02-22T00:00:00Z");
+      expect(body.data.items[1].lastAccessedAt).toBe("2026-02-20T00:00:00Z");
+    });
+
+    it("defaults to asc for sort=title", async () => {
+      const items = [
+        createSaveItem("01SAVE0000000000000000001A", { title: "Zebra" }),
+        createSaveItem("01SAVE0000000000000000002A", { title: "Alpha" }),
+      ];
+      mockQueryAllItems.mockResolvedValueOnce({ items, truncated: false });
+
+      const event = createListEvent({ sort: "title" });
+      const result = await handler(event, mockContext);
+
+      expect(result.statusCode).toBe(200);
+      const body = JSON.parse(result.body);
+      expect(body.data.items[0].title).toBe("Alpha");
+      expect(body.data.items[1].title).toBe("Zebra");
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // Story 3.4 — Combined filters + sort (AC8)
+  // ──────────────────────────────────────────────────────────────
+
+  describe("AC8: Combined filters AND sort", () => {
+    it("applies contentType + search + sort together", async () => {
+      const items = [
+        createSaveItem("01SAVE0000000000000000001A", {
+          contentType: ContentType.VIDEO,
+          title: "React Hooks",
+          createdAt: "2026-02-20T00:00:00Z",
+        }),
+        createSaveItem("01SAVE0000000000000000002A", {
+          contentType: ContentType.VIDEO,
+          title: "React Patterns",
+          createdAt: "2026-02-22T00:00:00Z",
+        }),
+        createSaveItem("01SAVE0000000000000000003A", {
+          contentType: ContentType.ARTICLE,
+          title: "React Overview",
+          createdAt: "2026-02-21T00:00:00Z",
+        }),
+        createSaveItem("01SAVE0000000000000000004A", {
+          contentType: ContentType.VIDEO,
+          title: "Vue Tutorial",
+          createdAt: "2026-02-23T00:00:00Z",
+        }),
+      ];
+      mockQueryAllItems.mockResolvedValueOnce({ items, truncated: false });
+
+      const event = createListEvent({
+        contentType: "video",
+        search: "react",
+        sort: "createdAt",
+      });
+      const result = await handler(event, mockContext);
+
+      expect(result.statusCode).toBe(200);
+      const body = JSON.parse(result.body);
+      // Only video + react: items 1 and 2; sorted desc by default
+      expect(body.data.items).toHaveLength(2);
+      expect(body.data.items[0].createdAt).toBe("2026-02-22T00:00:00Z");
+      expect(body.data.items[1].createdAt).toBe("2026-02-20T00:00:00Z");
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // Story 3.4 — Validation errors (AC9)
+  // ──────────────────────────────────────────────────────────────
+
+  describe("AC9: Invalid filter/sort values → 400", () => {
+    it("returns 400 for invalid contentType with valid options in message", async () => {
+      const event = createListEvent({ contentType: "invalid" });
+      const result = await handler(event, mockContext);
+
+      assertADR008Error(result, ErrorCode.VALIDATION_ERROR, 400);
+      const body = JSON.parse(result.body);
+      const msg = JSON.stringify(body.error);
+      // Ensure valid options are listed somewhere in error output
+      expect(msg).toMatch(/article|video|podcast/);
+    });
+
+    it("returns 400 for invalid linkStatus", async () => {
+      const event = createListEvent({ linkStatus: "foo" });
+      const result = await handler(event, mockContext);
+
+      assertADR008Error(result, ErrorCode.VALIDATION_ERROR, 400);
+    });
+
+    it("returns 400 for invalid sort value", async () => {
+      const event = createListEvent({ sort: "invalid" });
+      const result = await handler(event, mockContext);
+
+      assertADR008Error(result, ErrorCode.VALIDATION_ERROR, 400);
+    });
+
+    it("returns 400 for invalid order value", async () => {
+      const event = createListEvent({ order: "random" });
+      const result = await handler(event, mockContext);
+
+      assertADR008Error(result, ErrorCode.VALIDATION_ERROR, 400);
+    });
+
+    it("returns 400 when limit exceeds max (101)", async () => {
+      const event = createListEvent({ limit: "101" });
+      const result = await handler(event, mockContext);
+
+      expect(result.statusCode).toBe(400);
+    });
+
+    it("returns 400 when limit is 0", async () => {
+      const event = createListEvent({ limit: "0" });
+      const result = await handler(event, mockContext);
+
+      expect(result.statusCode).toBe(400);
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // Story 3.4 — Empty filter result (AC10)
+  // ──────────────────────────────────────────────────────────────
+
+  describe("AC10: No saves match filters → empty result", () => {
+    it("returns { items: [], hasMore: false } when no matches", async () => {
+      const items = [
+        createSaveItem("01SAVE0000000000000000001A", {
+          contentType: ContentType.ARTICLE,
+        }),
+      ];
+      mockQueryAllItems.mockResolvedValueOnce({ items, truncated: false });
+
+      const event = createListEvent({ contentType: "podcast" });
+      const result = await handler(event, mockContext);
+
+      expect(result.statusCode).toBe(200);
+      const body = JSON.parse(result.body);
+      expect(body.data.items).toEqual([]);
+      expect(body.data.hasMore).toBe(false);
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // Story 3.4 — Truncated flag (AC11)
+  // ──────────────────────────────────────────────────────────────
+
+  describe("AC11: Truncated flag in response", () => {
+    it("includes truncated: true when ceiling hit", async () => {
+      mockQueryAllItems.mockResolvedValueOnce({
+        items: [createSaveItem("01SAVE0000000000000000001A")],
+        truncated: true,
+      });
+
+      const event = createListEvent();
+      const result = await handler(event, mockContext);
+
+      expect(result.statusCode).toBe(200);
+      const body = JSON.parse(result.body);
+      expect(body.data.truncated).toBe(true);
+    });
+
+    it("omits truncated when not truncated", async () => {
+      mockQueryAllItems.mockResolvedValueOnce({
+        items: [createSaveItem("01SAVE0000000000000000001A")],
+        truncated: false,
+      });
+
+      const event = createListEvent();
+      const result = await handler(event, mockContext);
+
+      expect(result.statusCode).toBe(200);
+      const body = JSON.parse(result.body);
+      expect(body.data.truncated).toBeUndefined();
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // Story 3.4 — nextToken behavior with filters
+  // ──────────────────────────────────────────────────────────────
+
+  describe("nextToken with filter changes", () => {
+    it("returns 400 for malformed nextToken", async () => {
+      mockQueryAllItems.mockResolvedValueOnce({
+        items: [],
+        truncated: false,
+      });
+
+      const event = createListEvent({ nextToken: "!!!invalid!!!" });
+      const result = await handler(event, mockContext);
+
+      assertADR008Error(result, ErrorCode.VALIDATION_ERROR, 400);
+    });
+
+    it("returns first page when nextToken saveId not in filtered list but exists in unfiltered", async () => {
+      // Save exists in unfiltered set but is excluded by contentType filter
+      const items = [
+        createSaveItem("01SAVE0000000000000000001A", {
+          contentType: ContentType.ARTICLE,
+        }),
+        createSaveItem("01SAVE0000000000000000002A", {
+          contentType: ContentType.VIDEO,
+        }),
+        createSaveItem("01SAVE0000000000000000003A", {
+          contentType: ContentType.VIDEO,
+        }),
+      ];
+      // Cursor points to the article save (index 0)
+      const nextToken = Buffer.from(items[0].saveId).toString("base64url");
+
+      mockQueryAllItems.mockResolvedValueOnce({ items, truncated: false });
+
+      // Now filter to only videos — cursor save is not in filtered list
+      const event = createListEvent({
+        contentType: "video",
+        nextToken,
+      });
+      const result = await handler(event, mockContext);
+
+      expect(result.statusCode).toBe(200);
+      const body = JSON.parse(result.body);
+      // Should return first page of filtered results (no 400)
+      expect(body.data.items).toHaveLength(2);
+    });
+
+    it("returns 400 when nextToken saveId not in unfiltered set (stale cursor)", async () => {
+      const items = [createSaveItem("01SAVE0000000000000000001A")];
+      // Cursor points to a save that doesn't exist at all
+      const nextToken = Buffer.from("01NOTEXIST000000000000000A").toString(
+        "base64url"
+      );
+
+      mockQueryAllItems.mockResolvedValueOnce({ items, truncated: false });
+
+      const event = createListEvent({ nextToken });
+      const result = await handler(event, mockContext);
+
+      assertADR008Error(result, ErrorCode.VALIDATION_ERROR, 400);
     });
   });
 });
