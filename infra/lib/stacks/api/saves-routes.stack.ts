@@ -36,6 +36,9 @@ export class SavesRoutesStack extends cdk.Stack {
   public readonly savesCreateFunction: lambda.IFunction;
   public readonly savesListFunction: lambda.IFunction;
   public readonly savesGetFunction: lambda.IFunction;
+  public readonly savesUpdateFunction: lambda.IFunction;
+  public readonly savesDeleteFunction: lambda.IFunction;
+  public readonly savesRestoreFunction: lambda.IFunction;
 
   constructor(scope: Construct, id: string, props: SavesRoutesStackProps) {
     super(scope, id, props);
@@ -185,6 +188,138 @@ export class SavesRoutesStack extends cdk.Stack {
     savesTable.grantReadWriteData(savesGetFunction);
     this.savesGetFunction = savesGetFunction;
 
+    // saves-update — PATCH /saves/:saveId (Story 3.3)
+    const savesUpdateFunction = new nodejs.NodejsFunction(
+      this,
+      "SavesUpdateFunction",
+      {
+        functionName: "ai-learning-hub-saves-update",
+        entry: path.join(
+          process.cwd(),
+          "..",
+          "backend/functions/saves-update/handler.ts"
+        ),
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_LATEST,
+        memorySize: 256,
+        timeout: cdk.Duration.seconds(10),
+        tracing: lambda.Tracing.ACTIVE,
+        environment: {
+          SAVES_TABLE_NAME: savesTable.tableName,
+          USERS_TABLE_NAME: usersTable.tableName,
+          EVENT_BUS_NAME: eventBus.eventBusName,
+          NODE_OPTIONS: "--enable-source-maps",
+        },
+        bundling: {
+          minify: true,
+          sourceMap: true,
+          externalModules: [
+            "@aws-sdk/client-dynamodb",
+            "@aws-sdk/lib-dynamodb",
+            "@aws-sdk/client-eventbridge",
+            "@aws-sdk/client-ssm",
+          ],
+        },
+      }
+    );
+    savesTable.grantReadWriteData(savesUpdateFunction);
+    usersTable.grantReadWriteData(savesUpdateFunction);
+    savesUpdateFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["events:PutEvents"],
+        resources: [eventBus.eventBusArn],
+      })
+    );
+    this.savesUpdateFunction = savesUpdateFunction;
+
+    // saves-delete — DELETE /saves/:saveId (Story 3.3)
+    const savesDeleteFunction = new nodejs.NodejsFunction(
+      this,
+      "SavesDeleteFunction",
+      {
+        functionName: "ai-learning-hub-saves-delete",
+        entry: path.join(
+          process.cwd(),
+          "..",
+          "backend/functions/saves-delete/handler.ts"
+        ),
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_LATEST,
+        memorySize: 256,
+        timeout: cdk.Duration.seconds(10),
+        tracing: lambda.Tracing.ACTIVE,
+        environment: {
+          SAVES_TABLE_NAME: savesTable.tableName,
+          USERS_TABLE_NAME: usersTable.tableName,
+          EVENT_BUS_NAME: eventBus.eventBusName,
+          NODE_OPTIONS: "--enable-source-maps",
+        },
+        bundling: {
+          minify: true,
+          sourceMap: true,
+          externalModules: [
+            "@aws-sdk/client-dynamodb",
+            "@aws-sdk/lib-dynamodb",
+            "@aws-sdk/client-eventbridge",
+            "@aws-sdk/client-ssm",
+          ],
+        },
+      }
+    );
+    savesTable.grantReadWriteData(savesDeleteFunction);
+    usersTable.grantReadWriteData(savesDeleteFunction);
+    savesDeleteFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["events:PutEvents"],
+        resources: [eventBus.eventBusArn],
+      })
+    );
+    this.savesDeleteFunction = savesDeleteFunction;
+
+    // saves-restore — POST /saves/:saveId/restore (Story 3.3)
+    const savesRestoreFunction = new nodejs.NodejsFunction(
+      this,
+      "SavesRestoreFunction",
+      {
+        functionName: "ai-learning-hub-saves-restore",
+        entry: path.join(
+          process.cwd(),
+          "..",
+          "backend/functions/saves-restore/handler.ts"
+        ),
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_LATEST,
+        memorySize: 256,
+        timeout: cdk.Duration.seconds(10),
+        tracing: lambda.Tracing.ACTIVE,
+        environment: {
+          SAVES_TABLE_NAME: savesTable.tableName,
+          USERS_TABLE_NAME: usersTable.tableName,
+          EVENT_BUS_NAME: eventBus.eventBusName,
+          NODE_OPTIONS: "--enable-source-maps",
+        },
+        bundling: {
+          minify: true,
+          sourceMap: true,
+          externalModules: [
+            "@aws-sdk/client-dynamodb",
+            "@aws-sdk/lib-dynamodb",
+            "@aws-sdk/client-eventbridge",
+            "@aws-sdk/client-ssm",
+          ],
+        },
+      }
+    );
+    savesTable.grantReadWriteData(savesRestoreFunction);
+    usersTable.grantReadWriteData(savesRestoreFunction);
+    savesRestoreFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["events:PutEvents"],
+        resources: [eventBus.eventBusArn],
+      })
+    );
+    this.savesRestoreFunction = savesRestoreFunction;
+
     // Wire /saves routes
     const savesResource = restApi.root.addResource("saves");
     savesResource.addCorsPreflight(corsOptions);
@@ -211,6 +346,34 @@ export class SavesRoutesStack extends cdk.Stack {
     saveByIdResource.addMethod(
       "GET",
       new apigateway.LambdaIntegration(savesGetFunction),
+      {
+        authorizer: apiKeyAuthorizer,
+        authorizationType: apigateway.AuthorizationType.CUSTOM,
+      }
+    );
+    saveByIdResource.addMethod(
+      "PATCH",
+      new apigateway.LambdaIntegration(savesUpdateFunction),
+      {
+        authorizer: apiKeyAuthorizer,
+        authorizationType: apigateway.AuthorizationType.CUSTOM,
+      }
+    );
+    saveByIdResource.addMethod(
+      "DELETE",
+      new apigateway.LambdaIntegration(savesDeleteFunction),
+      {
+        authorizer: apiKeyAuthorizer,
+        authorizationType: apigateway.AuthorizationType.CUSTOM,
+      }
+    );
+
+    // Wire /saves/{saveId}/restore route (Story 3.3)
+    const restoreResource = saveByIdResource.addResource("restore");
+    restoreResource.addCorsPreflight(corsOptions);
+    restoreResource.addMethod(
+      "POST",
+      new apigateway.LambdaIntegration(savesRestoreFunction),
       {
         authorizer: apiKeyAuthorizer,
         authorizationType: apigateway.AuthorizationType.CUSTOM,
@@ -256,6 +419,21 @@ export class SavesRoutesStack extends cdk.Stack {
     );
     NagSuppressions.addResourceSuppressions(
       savesGetFunction,
+      nagSuppressions,
+      true
+    );
+    NagSuppressions.addResourceSuppressions(
+      savesUpdateFunction,
+      nagSuppressions,
+      true
+    );
+    NagSuppressions.addResourceSuppressions(
+      savesDeleteFunction,
+      nagSuppressions,
+      true
+    );
+    NagSuppressions.addResourceSuppressions(
+      savesRestoreFunction,
       nagSuppressions,
       true
     );

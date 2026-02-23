@@ -60,6 +60,9 @@ const HANDLER_REF_TO_DIR: Record<string, string> = {
   savesCreateFunction: "saves",
   savesListFunction: "saves-list",
   savesGetFunction: "saves-get",
+  savesUpdateFunction: "saves-update",
+  savesDeleteFunction: "saves-delete",
+  savesRestoreFunction: "saves-restore",
 };
 
 describe("Auth Consistency: wrapHandler options vs ROUTE_REGISTRY authType (AC6)", () => {

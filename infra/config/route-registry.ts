@@ -26,7 +26,10 @@ export type HandlerRef =
   | "generateInviteFunction"
   | "savesCreateFunction"
   | "savesListFunction"
-  | "savesGetFunction";
+  | "savesGetFunction"
+  | "savesUpdateFunction"
+  | "savesDeleteFunction"
+  | "savesRestoreFunction";
 
 export interface RouteEntry {
   /** URL path (e.g., "/auth/validate-invite") */
@@ -101,6 +104,27 @@ export const ROUTE_REGISTRY: RouteEntry[] = [
     methods: ["GET"],
     authType: "jwt-or-apikey",
     handlerRef: "savesGetFunction",
+    epic: "Epic-3",
+  },
+  {
+    path: "/saves/{saveId}",
+    methods: ["PATCH"],
+    authType: "jwt-or-apikey",
+    handlerRef: "savesUpdateFunction",
+    epic: "Epic-3",
+  },
+  {
+    path: "/saves/{saveId}",
+    methods: ["DELETE"],
+    authType: "jwt-or-apikey",
+    handlerRef: "savesDeleteFunction",
+    epic: "Epic-3",
+  },
+  {
+    path: "/saves/{saveId}/restore",
+    methods: ["POST"],
+    authType: "jwt-or-apikey",
+    handlerRef: "savesRestoreFunction",
     epic: "Epic-3",
   },
 ];

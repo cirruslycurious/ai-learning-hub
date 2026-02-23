@@ -344,7 +344,7 @@ describe("Saves Create Handler", () => {
         expect.anything(),
         expect.any(String),
         expect.objectContaining({
-          operation: "saves-create",
+          operation: "saves-write",
           identifier: "user_xyz",
           limit: 200,
           windowSeconds: 3600,

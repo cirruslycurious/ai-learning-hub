@@ -13,4 +13,8 @@ export {
   SAVES_EVENT_SOURCE,
   type SavesEventDetailType,
   type SavesEventDetail,
+  type SaveCreatedRestoredDetail,
+  type SaveUpdatedDetail,
+  type SaveDeletedDetail,
+  type SavesEventMap,
 } from "./events/saves.js";
