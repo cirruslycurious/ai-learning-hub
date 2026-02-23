@@ -1,9 +1,9 @@
 ---
 epic_id: Epic-3
 status: in-progress
-scope: ["3.1a", "3.1c", "3.1b", "3.2"]
+scope: ["3.1a", "3.1c", "3.1b", "3.2", "3.3"]
 started: "2026-02-19T16:50:32Z"
-last_updated: "2026-02-23T00:00:00Z"
+last_updated: "2026-02-23T02:29:10Z"
 stories:
   "3.1a":
     status: done
@@ -42,6 +42,11 @@ stories:
     startedAt: "2026-02-23T00:00:00Z"
     completedAt: "2026-02-23T03:30:00Z"
     duration: "~3.5h"
+  "3.3":
+    status: in-progress
+    issue: 187
+    branch: story-3-3-update-delete-restore-api
+    startedAt: "2026-02-23T02:29:10Z"
 ---
 
 <!-- Human-readable display below (generated from frontmatter) -->

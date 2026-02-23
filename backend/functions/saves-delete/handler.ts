@@ -119,22 +119,24 @@ async function savesDeleteHandler(ctx: HandlerContext) {
   }
 
   // Fire-and-forget SaveDeleted event (AC4) — only on active → deleted
-  const busName = EVENT_BUS_NAME ?? "";
-  emitEvent<SavesEventDetailType, SavesEventDetail>(
-    ebClient,
-    busName,
-    {
-      source: SAVES_EVENT_SOURCE,
-      detailType: "SaveDeleted",
-      detail: {
-        userId,
-        saveId,
-        normalizedUrl: previousItem?.normalizedUrl ?? "",
-        urlHash: previousItem?.urlHash ?? "",
+  if (previousItem) {
+    const busName = EVENT_BUS_NAME ?? "";
+    emitEvent<SavesEventDetailType, SavesEventDetail>(
+      ebClient,
+      busName,
+      {
+        source: SAVES_EVENT_SOURCE,
+        detailType: "SaveDeleted",
+        detail: {
+          userId,
+          saveId,
+          normalizedUrl: previousItem.normalizedUrl,
+          urlHash: previousItem.urlHash,
+        },
       },
-    },
-    logger
-  );
+      logger
+    );
+  }
 
   return createNoContentResponse(requestId);
 }

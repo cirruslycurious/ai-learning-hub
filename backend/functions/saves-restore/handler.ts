@@ -109,6 +109,13 @@ async function savesRestoreHandler(ctx: HandlerContext) {
     throw error;
   }
 
+  if (!restored) {
+    throw new AppError(
+      ErrorCode.INTERNAL_ERROR,
+      "Failed to retrieve restored save"
+    );
+  }
+
   // Fire-and-forget SaveRestored event (AC13) — only on deleted → active
   const busName = EVENT_BUS_NAME ?? "";
   emitEvent<SavesEventDetailType, SavesEventDetail>(
@@ -120,16 +127,16 @@ async function savesRestoreHandler(ctx: HandlerContext) {
       detail: {
         userId,
         saveId,
-        url: restored!.url,
-        normalizedUrl: restored!.normalizedUrl,
-        urlHash: restored!.urlHash,
-        contentType: restored!.contentType,
+        url: restored.url,
+        normalizedUrl: restored.normalizedUrl,
+        urlHash: restored.urlHash,
+        contentType: restored.contentType,
       },
     },
     logger
   );
 
-  return createSuccessResponse(toPublicSave(restored!), requestId);
+  return createSuccessResponse(toPublicSave(restored), requestId);
 }
 
 export const handler = wrapHandler(savesRestoreHandler, {

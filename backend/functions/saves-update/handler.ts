@@ -125,6 +125,13 @@ async function savesUpdateHandler(ctx: HandlerContext) {
     throw error;
   }
 
+  if (!updated) {
+    throw new AppError(
+      ErrorCode.INTERNAL_ERROR,
+      "Failed to retrieve updated save"
+    );
+  }
+
   // Fire-and-forget SaveUpdated event (AC2)
   const busName = EVENT_BUS_NAME ?? "";
   emitEvent<SavesEventDetailType, SavesEventDetail>(
@@ -136,15 +143,15 @@ async function savesUpdateHandler(ctx: HandlerContext) {
       detail: {
         userId,
         saveId,
-        normalizedUrl: updated!.normalizedUrl,
-        urlHash: updated!.urlHash,
+        normalizedUrl: updated.normalizedUrl,
+        urlHash: updated.urlHash,
         updatedFields,
       },
     },
     logger
   );
 
-  return createSuccessResponse(toPublicSave(updated!), requestId);
+  return createSuccessResponse(toPublicSave(updated), requestId);
 }
 
 export const handler = wrapHandler(savesUpdateHandler, {
