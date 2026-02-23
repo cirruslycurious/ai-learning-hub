@@ -7,12 +7,12 @@
 
 ## Story Summary
 
-| Story | Title | Status | PR | Coverage | Review Rounds | Findings Fixed | Duration |
-| ----- | ----- | ------ | -- | -------- | ------------- | -------------- | -------- |
-| 3.1.1 | Extract shared schemas & constants | Done | #194 | 97% | 1 | 0 | ~11h |
-| 3.1.2 | Shared test utilities for saves domain | Done | #196 | 97% | 1 | 0 | 55m |
-| 3.1.3 | Handler & test consolidation | Pending | — | — | — | — | — |
-| 3.1.4 | Dedup scan agent & pipeline | Pending | — | — | — | — | — |
+| Story | Title                                  | Status  | PR   | Coverage | Review Rounds | Findings Fixed | Duration |
+| ----- | -------------------------------------- | ------- | ---- | -------- | ------------- | -------------- | -------- |
+| 3.1.1 | Extract shared schemas & constants     | Done    | #194 | 97%      | 1             | 0              | ~11h     |
+| 3.1.2 | Shared test utilities for saves domain | Done    | #196 | 97%      | 1             | 0              | 55m      |
+| 3.1.3 | Handler & test consolidation           | Pending | —    | —        | —             | —              | —        |
+| 3.1.4 | Dedup scan agent & pipeline            | Pending | —    | —        | —             | —              | —        |
 
 ## Metrics
 
