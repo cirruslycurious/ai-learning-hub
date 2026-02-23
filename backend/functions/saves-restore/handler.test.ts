@@ -2,49 +2,35 @@
  * Saves Restore handler tests — POST /saves/:saveId/restore
  *
  * Story 3.3, Task 4: Tests for restore (undo delete) endpoint.
+ * Story 3.1.3: Migrated to shared test utilities.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { AppError, ErrorCode, ContentType } from "@ai-learning-hub/types";
+import { AppError, ErrorCode } from "@ai-learning-hub/types";
 import type { SaveItem } from "@ai-learning-hub/types";
 import {
   createMockEvent,
   createMockContext,
   mockCreateLoggerModule,
   mockMiddlewareModule,
+  mockDbModule,
+  mockEventsModule,
+  createTestSaveItem,
+  VALID_SAVE_ID,
+  assertADR008Error,
 } from "../../test-utils/index.js";
 
-// Mock @ai-learning-hub/db
+// Mock @ai-learning-hub/db — using shared mockDbModule with handler-specific mocks
 const mockGetItem = vi.fn();
 const mockUpdateItem = vi.fn();
 const mockEnforceRateLimit = vi.fn();
-const mockGetDefaultClient = vi.fn(() => ({}));
 
-vi.mock("@ai-learning-hub/db", () => ({
-  getDefaultClient: () => mockGetDefaultClient(),
-  getItem: (...args: unknown[]) => mockGetItem(...args),
-  updateItem: (...args: unknown[]) => mockUpdateItem(...args),
-  enforceRateLimit: (...args: unknown[]) => mockEnforceRateLimit(...args),
-  requireEnv: (name: string, fallback: string) => process.env[name] ?? fallback,
-  SAVES_TABLE_CONFIG: {
-    tableName: "ai-learning-hub-saves",
-    partitionKey: "PK",
-    sortKey: "SK",
-  },
-  USERS_TABLE_CONFIG: {
-    tableName: "ai-learning-hub-users",
-    partitionKey: "PK",
-    sortKey: "SK",
-  },
-  SAVES_WRITE_RATE_LIMIT: {
-    operation: "saves-write",
-    limit: 200,
-    windowSeconds: 3600,
-  },
-  toPublicSave: (item: SaveItem) => {
-    const { PK: _PK, SK: _SK, deletedAt: _del, ...rest } = item;
-    return rest;
-  },
-}));
+vi.mock("@ai-learning-hub/db", () =>
+  mockDbModule({
+    getItem: (...args: unknown[]) => mockGetItem(...args),
+    updateItem: (...args: unknown[]) => mockUpdateItem(...args),
+    enforceRateLimit: (...args: unknown[]) => mockEnforceRateLimit(...args),
+  })
+);
 
 // Mock @ai-learning-hub/logging
 vi.mock("@ai-learning-hub/logging", () => mockCreateLoggerModule());
@@ -52,20 +38,26 @@ vi.mock("@ai-learning-hub/logging", () => mockCreateLoggerModule());
 // Mock @ai-learning-hub/middleware
 vi.mock("@ai-learning-hub/middleware", () => mockMiddlewareModule());
 
-// Mock @ai-learning-hub/events
+// Mock @ai-learning-hub/events — using shared mockEventsModule
 const mockEmitEvent = vi.fn();
 
-vi.mock("@ai-learning-hub/events", () => ({
-  emitEvent: (...args: unknown[]) => mockEmitEvent(...args),
-  getDefaultClient: () => ({}),
-  requireEventBus: () => ({ busName: "test-event-bus", ebClient: {} }),
-  SAVES_EVENT_SOURCE: "ai-learning-hub.saves",
-}));
+vi.mock("@ai-learning-hub/events", () =>
+  mockEventsModule({
+    emitEvent: (...args: unknown[]) => mockEmitEvent(...args),
+  })
+);
 
 import { handler } from "./handler.js";
 
 const mockContext = createMockContext();
-const VALID_SAVE_ID = "01HXYZ1234567890ABCDEFGHIJ";
+
+/** Fixed overrides to match original test assertions. */
+const SAVE_OVERRIDES: Partial<SaveItem> = {
+  url: "https://example.com/article",
+  normalizedUrl: "https://example.com/article",
+  urlHash: "hash123",
+  tags: ["test"],
+};
 
 function createRestoreEvent(
   saveId: string = VALID_SAVE_ID,
@@ -79,25 +71,6 @@ function createRestoreEvent(
   });
 }
 
-function createSaveItem(overrides: Partial<SaveItem> = {}): SaveItem {
-  return {
-    PK: "USER#user123",
-    SK: `SAVE#${VALID_SAVE_ID}`,
-    userId: "user123",
-    saveId: VALID_SAVE_ID,
-    url: "https://example.com/article",
-    normalizedUrl: "https://example.com/article",
-    urlHash: "hash123",
-    contentType: ContentType.ARTICLE,
-    tags: ["test"],
-    isTutorial: false,
-    linkedProjectCount: 0,
-    createdAt: "2026-02-20T00:00:00Z",
-    updatedAt: "2026-02-20T00:00:00Z",
-    ...overrides,
-  };
-}
-
 describe("Saves Restore Handler — POST /saves/:saveId/restore", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -106,7 +79,8 @@ describe("Saves Restore Handler — POST /saves/:saveId/restore", () => {
 
   describe("AC10: Restore soft-deleted save", () => {
     it("returns 200 with restored save when deletedAt is cleared", async () => {
-      const restoredItem = createSaveItem({
+      const restoredItem = createTestSaveItem(VALID_SAVE_ID, {
+        ...SAVE_OVERRIDES,
         updatedAt: "2026-02-23T00:00:00Z",
       });
       mockUpdateItem.mockResolvedValueOnce(restoredItem);
@@ -123,7 +97,7 @@ describe("Saves Restore Handler — POST /saves/:saveId/restore", () => {
     });
 
     it("passes correct update expression to remove deletedAt", async () => {
-      const restoredItem = createSaveItem();
+      const restoredItem = createTestSaveItem(VALID_SAVE_ID, SAVE_OVERRIDES);
       mockUpdateItem.mockResolvedValueOnce(restoredItem);
 
       const event = createRestoreEvent();
@@ -154,7 +128,7 @@ describe("Saves Restore Handler — POST /saves/:saveId/restore", () => {
         new AppError(ErrorCode.NOT_FOUND, "Item not found")
       );
       // Disambiguation: getItem returns active item
-      const activeItem = createSaveItem();
+      const activeItem = createTestSaveItem(VALID_SAVE_ID, SAVE_OVERRIDES);
       mockGetItem.mockResolvedValueOnce(activeItem);
 
       const event = createRestoreEvent();
@@ -169,7 +143,9 @@ describe("Saves Restore Handler — POST /saves/:saveId/restore", () => {
       mockUpdateItem.mockRejectedValueOnce(
         new AppError(ErrorCode.NOT_FOUND, "Item not found")
       );
-      mockGetItem.mockResolvedValueOnce(createSaveItem());
+      mockGetItem.mockResolvedValueOnce(
+        createTestSaveItem(VALID_SAVE_ID, SAVE_OVERRIDES)
+      );
 
       const event = createRestoreEvent();
       await handler(event, mockContext);
@@ -188,16 +164,15 @@ describe("Saves Restore Handler — POST /saves/:saveId/restore", () => {
       const event = createRestoreEvent();
       const result = await handler(event, mockContext);
 
-      expect(result.statusCode).toBe(404);
+      assertADR008Error(result, ErrorCode.NOT_FOUND, 404);
       const body = JSON.parse(result.body);
-      expect(body.error.code).toBe("NOT_FOUND");
       expect(body.error.message).toBe("Save not found");
     });
   });
 
   describe("AC13: Emits SaveRestored event on deleted → active", () => {
     it("emits SaveRestored with correct detail", async () => {
-      const restoredItem = createSaveItem();
+      const restoredItem = createTestSaveItem(VALID_SAVE_ID, SAVE_OVERRIDES);
       mockUpdateItem.mockResolvedValueOnce(restoredItem);
 
       const event = createRestoreEvent();
@@ -228,15 +203,13 @@ describe("Saves Restore Handler — POST /saves/:saveId/restore", () => {
       const event = createRestoreEvent("invalid-id");
       const result = await handler(event, mockContext);
 
-      expect(result.statusCode).toBe(400);
-      const body = JSON.parse(result.body);
-      expect(body.error.code).toBe("VALIDATION_ERROR");
+      assertADR008Error(result, ErrorCode.VALIDATION_ERROR, 400);
     });
   });
 
   describe("Rate limiting", () => {
     it("enforces write rate limit", async () => {
-      const restoredItem = createSaveItem();
+      const restoredItem = createTestSaveItem(VALID_SAVE_ID, SAVE_OVERRIDES);
       mockUpdateItem.mockResolvedValueOnce(restoredItem);
 
       const event = createRestoreEvent();
@@ -265,7 +238,7 @@ describe("Saves Restore Handler — POST /saves/:saveId/restore", () => {
       });
       const result = await handler(event, mockContext);
 
-      expect(result.statusCode).toBe(401);
+      assertADR008Error(result, ErrorCode.UNAUTHORIZED, 401);
     });
   });
 });

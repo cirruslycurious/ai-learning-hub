@@ -1,9 +1,9 @@
 ---
 epic_id: Epic-3.1
 status: in-progress
-scope: ["3.1.1", "3.1.2"]
+scope: ["3.1.1", "3.1.2", "3.1.3"]
 started: "2026-02-23T00:00:00Z"
-last_updated: "2026-02-23T17:10:00Z"
+last_updated: "2026-02-23T18:02:00Z"
 stories:
   "3.1.1":
     {
@@ -30,16 +30,24 @@ stories:
       reviewRounds: 1,
       reviewResult: APPROVE,
     }
+  "3.1.3":
+    {
+      status: in-progress,
+      issue: 197,
+      branch: story-3-1-3-handler-test-consolidation,
+      startedAt: "2026-02-23T18:02:00Z",
+    }
 ---
 
 <!-- Human-readable display below (generated from frontmatter) -->
 
 # Epic 3.1 Auto-Run Progress
 
-| Story | Status | PR   | Review Rounds | Result  |
-| ----- | ------ | ---- | ------------- | ------- |
-| 3.1.1 | Done   | #194 | 1             | APPROVE |
-| 3.1.2 | Done   | #196 | 1             | APPROVE |
+| Story | Status         | PR   | Review Rounds | Result  |
+| ----- | -------------- | ---- | ------------- | ------- |
+| 3.1.1 | Done           | #194 | 1             | APPROVE |
+| 3.1.2 | Done           | #196 | 1             | APPROVE |
+| 3.1.3 | 🔄 In Progress | -    | -             | -       |
 
 ## Activity Log
 
@@ -51,3 +59,5 @@ stories:
 - [16:15] Story 3.1.2: Issue #195 created, branch created, implementation starting
 - [17:10] Story 3.1.2: All CI checks passed, review approved (Round 1), PR #196 ready
 - [17:10] Story 3.1.2 complete (2/2 stories done in this scope)
+- [18:01] Epic 3.1 auto-run resumed — adding Story 3.1.3 to scope
+- [18:02] Story 3.1.3: Issue #197 created, branch created, implementation starting

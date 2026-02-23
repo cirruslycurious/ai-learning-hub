@@ -3,8 +3,10 @@
  *
  * Story 3.2, Task 9.3: Tests all acceptance criteria.
  * Story 3.1.2: Migrated to shared test utilities (proof-of-concept).
+ * Story 3.1.3: Added assertADR008Error for error-path assertions.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ErrorCode } from "@ai-learning-hub/types";
 import {
   createMockEvent,
   createMockContext,
@@ -13,6 +15,7 @@ import {
   createTestSaveItem,
   VALID_SAVE_ID,
   mockDbModule,
+  assertADR008Error,
 } from "../../test-utils/index.js";
 
 // Mock @ai-learning-hub/db — using shared mockDbModule with handler-specific mocks
@@ -119,9 +122,8 @@ describe("Saves Get Handler — GET /saves/:saveId", () => {
       const event = createGetEvent();
       const result = await handler(event, mockContext);
 
-      expect(result.statusCode).toBe(404);
+      assertADR008Error(result, ErrorCode.NOT_FOUND, 404);
       const body = JSON.parse(result.body);
-      expect(body.error.code).toBe("NOT_FOUND");
       expect(body.error.message).toBe("Save not found");
     });
   });
@@ -137,9 +139,7 @@ describe("Saves Get Handler — GET /saves/:saveId", () => {
       const event = createGetEvent();
       const result = await handler(event, mockContext);
 
-      expect(result.statusCode).toBe(404);
-      const body = JSON.parse(result.body);
-      expect(body.error.code).toBe("NOT_FOUND");
+      assertADR008Error(result, ErrorCode.NOT_FOUND, 404);
     });
   });
 
@@ -168,16 +168,14 @@ describe("Saves Get Handler — GET /saves/:saveId", () => {
       const event = createGetEvent("abc123");
       const result = await handler(event, mockContext);
 
-      expect(result.statusCode).toBe(400);
-      const body = JSON.parse(result.body);
-      expect(body.error.code).toBe("VALIDATION_ERROR");
+      assertADR008Error(result, ErrorCode.VALIDATION_ERROR, 400);
     });
 
     it("returns 400 for saveId with lowercase characters", async () => {
       const event = createGetEvent("01hxyz12345678901234567a");
       const result = await handler(event, mockContext);
 
-      expect(result.statusCode).toBe(400);
+      assertADR008Error(result, ErrorCode.VALIDATION_ERROR, 400);
     });
   });
 
@@ -190,7 +188,7 @@ describe("Saves Get Handler — GET /saves/:saveId", () => {
       });
       const result = await handler(event, mockContext);
 
-      expect(result.statusCode).toBe(401);
+      assertADR008Error(result, ErrorCode.UNAUTHORIZED, 401);
     });
   });
 });

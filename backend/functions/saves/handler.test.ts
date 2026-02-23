@@ -2,6 +2,7 @@
  * Saves Create handler tests
  *
  * Story 3.1b: Create Save API (Epic 3).
+ * Story 3.1.3: Migrated to shared test utilities.
  * Tests all 9 acceptance criteria.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -11,16 +12,19 @@ import {
   createMockContext,
   mockCreateLoggerModule,
   mockMiddlewareModule,
+  mockDbModule,
+  mockEventsModule,
+  assertADR008Error,
 } from "../../test-utils/index.js";
 
-// Mock @ai-learning-hub/db
+// Mock @ai-learning-hub/db — using shared mockDbModule with handler-specific mocks
 const mockQueryItems = vi.fn();
 const mockUpdateItem = vi.fn();
 const mockTransactWriteItems = vi.fn();
 const mockEnforceRateLimit = vi.fn();
-const mockGetDefaultClient = vi.fn(() => ({}));
 
 vi.mock("@ai-learning-hub/db", () => {
+  // TransactionCancelledError is handler-specific (only saves-create uses it)
   class _MockTransactionCancelledError extends Error {
     public readonly reasons: string[];
     constructor(reasons: string[]) {
@@ -30,29 +34,14 @@ vi.mock("@ai-learning-hub/db", () => {
     }
   }
   return {
-    getDefaultClient: () => mockGetDefaultClient(),
-    queryItems: (...args: unknown[]) => mockQueryItems(...args),
-    updateItem: (...args: unknown[]) => mockUpdateItem(...args),
-    transactWriteItems: (...args: unknown[]) => mockTransactWriteItems(...args),
+    ...mockDbModule({
+      queryItems: (...args: unknown[]) => mockQueryItems(...args),
+      updateItem: (...args: unknown[]) => mockUpdateItem(...args),
+      transactWriteItems: (...args: unknown[]) =>
+        mockTransactWriteItems(...args),
+      enforceRateLimit: (...args: unknown[]) => mockEnforceRateLimit(...args),
+    }),
     TransactionCancelledError: _MockTransactionCancelledError,
-    enforceRateLimit: (...args: unknown[]) => mockEnforceRateLimit(...args),
-    requireEnv: (name: string, fallback: string) =>
-      process.env[name] ?? fallback,
-    SAVES_TABLE_CONFIG: {
-      tableName: "ai-learning-hub-saves",
-      partitionKey: "PK",
-      sortKey: "SK",
-    },
-    USERS_TABLE_CONFIG: {
-      tableName: "ai-learning-hub-users",
-      partitionKey: "PK",
-      sortKey: "SK",
-    },
-    SAVES_WRITE_RATE_LIMIT: {
-      operation: "saves-write",
-      limit: 200,
-      windowSeconds: 3600,
-    },
   };
 });
 
@@ -62,15 +51,14 @@ vi.mock("@ai-learning-hub/logging", () => mockCreateLoggerModule());
 // Mock @ai-learning-hub/middleware
 vi.mock("@ai-learning-hub/middleware", () => mockMiddlewareModule());
 
-// Mock @ai-learning-hub/events
+// Mock @ai-learning-hub/events — using shared mockEventsModule
 const mockEmitEvent = vi.fn();
 
-vi.mock("@ai-learning-hub/events", () => ({
-  emitEvent: (...args: unknown[]) => mockEmitEvent(...args),
-  getDefaultClient: () => ({}),
-  requireEventBus: () => ({ busName: "test-event-bus", ebClient: {} }),
-  SAVES_EVENT_SOURCE: "ai-learning-hub.saves",
-}));
+vi.mock("@ai-learning-hub/events", () =>
+  mockEventsModule({
+    emitEvent: (...args: unknown[]) => mockEmitEvent(...args),
+  })
+);
 
 // Mock ulidx
 vi.mock("ulidx", () => ({
@@ -107,19 +95,19 @@ describe("Saves Create Handler", () => {
     it("returns 400 for invalid URL", async () => {
       const event = createSaveEvent({ url: "not-a-url" }, "user_123");
       const result = await handler(event, mockContext);
-      expect(result.statusCode).toBe(400);
+      assertADR008Error(result, ErrorCode.VALIDATION_ERROR, 400);
     });
 
     it("returns 400 for missing URL", async () => {
       const event = createSaveEvent({}, "user_123");
       const result = await handler(event, mockContext);
-      expect(result.statusCode).toBe(400);
+      assertADR008Error(result, ErrorCode.VALIDATION_ERROR, 400);
     });
 
     it("returns 400 for missing request body", async () => {
       const event = createSaveEvent(null, "user_123");
       const result = await handler(event, mockContext);
-      expect(result.statusCode).toBe(400);
+      assertADR008Error(result, ErrorCode.VALIDATION_ERROR, 400);
     });
 
     it("returns 400 for URL with embedded credentials", async () => {
@@ -128,7 +116,7 @@ describe("Saves Create Handler", () => {
         "user_123"
       );
       const result = await handler(event, mockContext);
-      expect(result.statusCode).toBe(400);
+      assertADR008Error(result, ErrorCode.VALIDATION_ERROR, 400);
     });
   });
 
@@ -282,6 +270,41 @@ describe("Saves Create Handler", () => {
       // X-Request-Id header on Layer 2 409 responses (ADR-008 compliance)
       expect(result.headers?.["X-Request-Id"]).toBe("test-req-id");
     });
+
+    it("strips deletedAt from 409 existingSave response (Story 3.1.3 AC2)", async () => {
+      // Simulate a save item that has a deletedAt field (edge case)
+      const existingSave = {
+        PK: "USER#user_123",
+        SK: "SAVE#existing",
+        userId: "user_123",
+        saveId: "existing",
+        url: "https://example.com",
+        normalizedUrl: "https://example.com/",
+        urlHash: "abc123",
+        contentType: "article",
+        tags: [],
+        isTutorial: false,
+        linkedProjectCount: 0,
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+        deletedAt: "2026-01-10T00:00:00Z",
+      };
+      mockQueryItems.mockResolvedValueOnce({
+        items: [existingSave],
+        hasMore: false,
+      });
+
+      const event = createSaveEvent({ url: "https://example.com" }, "user_123");
+      const result = await handler(event, mockContext);
+      const body = JSON.parse(result.body);
+
+      expect(result.statusCode).toBe(409);
+      // Shared toPublicSave strips PK, SK, AND deletedAt
+      expect(body.existingSave.PK).toBeUndefined();
+      expect(body.existingSave.SK).toBeUndefined();
+      expect(body.existingSave.deletedAt).toBeUndefined();
+      expect(body.existingSave.saveId).toBe("existing");
+    });
   });
 
   describe("AC4: EventBridge event emitted after write", () => {
@@ -375,9 +398,7 @@ describe("Saves Create Handler", () => {
       const event = createSaveEvent({ url: "https://example.com" }, "user_123");
       const result = await handler(event, mockContext);
 
-      expect(result.statusCode).toBe(429);
-      const body = JSON.parse(result.body);
-      expect(body.error.code).toBe("RATE_LIMITED");
+      assertADR008Error(result, ErrorCode.RATE_LIMITED, 429);
       expect(mockTransactWriteItems).not.toHaveBeenCalled();
     });
   });
@@ -530,9 +551,7 @@ describe("Saves Create Handler", () => {
       const result = await handler(event, mockContext);
 
       // Should propagate as 500, not silently swallow the error
-      expect(result.statusCode).toBe(500);
-      const body = JSON.parse(result.body);
-      expect(body.error.code).toBe("INTERNAL_ERROR");
+      assertADR008Error(result, ErrorCode.INTERNAL_ERROR, 500);
     });
 
     it("returns 500 for orphaned marker (data anomaly)", async () => {
@@ -548,9 +567,7 @@ describe("Saves Create Handler", () => {
       const event = createSaveEvent({ url: "https://example.com" }, "user_123");
       const result = await handler(event, mockContext);
 
-      expect(result.statusCode).toBe(500);
-      const body = JSON.parse(result.body);
-      expect(body.error.code).toBe("INTERNAL_ERROR");
+      assertADR008Error(result, ErrorCode.INTERNAL_ERROR, 500);
     });
   });
 
@@ -590,7 +607,7 @@ describe("Saves Create Handler", () => {
     it("returns 401 when no auth context", async () => {
       const event = createSaveEvent({ url: "https://example.com" });
       const result = await handler(event, mockContext);
-      expect(result.statusCode).toBe(401);
+      assertADR008Error(result, ErrorCode.UNAUTHORIZED, 401);
     });
   });
 
