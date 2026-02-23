@@ -1,9 +1,9 @@
 ---
 epic_id: Epic-3
 status: in-progress
-scope: ["3.1a", "3.1c", "3.1b", "3.2", "3.3"]
+scope: ["3.1a", "3.1c", "3.1b", "3.2", "3.3", "3.4"]
 started: "2026-02-19T16:50:32Z"
-last_updated: "2026-02-23T13:10:00Z"
+last_updated: "2026-02-23T18:35:00Z"
 stories:
   "3.1a":
     status: done
@@ -51,6 +51,17 @@ stories:
     startedAt: "2026-02-23T02:29:10Z"
     completedAt: "2026-02-23T13:10:00Z"
     duration: "~11h"
+  "3.4":
+    status: done
+    issue: 189
+    pr: 190
+    branch: story-3-4-save-filtering-sorting
+    commit: 19ebc832fbd4c1fb5ea79407abd32727c2074cd7
+    coverage: 100
+    review_rounds: 2
+    startedAt: "2026-02-23T18:00:00Z"
+    completedAt: "2026-02-23T18:35:00Z"
+    duration: "35m"
 ---
 
 <!-- Human-readable display below (generated from frontmatter) -->
@@ -64,6 +75,7 @@ stories:
 | 3.1b  | ✅ Complete | #182 | -        | 1             | 41m      |
 | 3.2   | ✅ Complete | #186 | -        | 1             | ~3.5h    |
 | 3.3   | ✅ Complete | #188 | -        | 2             | ~11h     |
+| 3.4   | ✅ Complete | #190 | 100%     | 2             | 35m      |
 
 ## Activity Log
 
@@ -108,3 +120,12 @@ stories:
 - [09:00] Story 3.3: PR #188 created, CI type-check failure (optional chaining)
 - [09:30] Story 3.3: Fix pushed, CI all green (7/7 checks passed)
 - [10:00] Story 3.3: PR #188 squash-merged to main, story complete
+- [00:00] Story 3.4: Added to scope, Issue #189 created, branch story-3-4-save-filtering-sorting created
+- [00:01] Story 3.4: Implementation starting
+- [00:10] Story 3.4: Implementation complete (handler + schema + 36 tests)
+- [00:12] Story 3.4: Quality gates passed (lint, type-check, 329 tests, CDK synth skipped)
+- [00:15] Story 3.4: Review Round 1 — 0 Critical, 4 Important (test coverage gaps)
+- [00:20] Story 3.4: Round 1 fixes applied (6/8 findings addressed, 40 tests total)
+- [00:25] Story 3.4: Review Round 2 — APPROVE (0 Critical, 0 Important, 3 Minor)
+- [00:28] Story 3.4: PR #190 created, CI all green (14/14 checks passed)
+- [00:35] Story 3.4: Marked done
