@@ -45,7 +45,7 @@ so that **we prove DynamoDB access, IAM, env vars, TransactWriteItems, soft-dele
 | --- | -------------------------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | SV1 | Valid auth token available                         | `POST /saves` with `{ url: "not-a-url" }`                                       | 400 response; ADR-008 error shape with code `"VALIDATION_ERROR"` |
 | SV2 | Valid auth token available                         | `GET /saves/not-a-valid-ulid`                                                   | 400 response; ADR-008 error shape with code `"VALIDATION_ERROR"` |
-| SV3 | Valid auth token available                         | `GET /saves/01JNOTREAL000000000000000` (valid ULID format, nonexistent)         | 404 response; ADR-008 error shape with code `"NOT_FOUND"`        |
+| SV3 | Valid auth token available                         | `GET /saves/00000000000000000000000000` (valid ULID format, 26 chars, nonexistent) | 404 response; ADR-008 error shape with code `"NOT_FOUND"`        |
 | SV4 | Save exists (see Dev Notes)     | `PATCH /saves/<saveId>` with `{ url: "https://changed.com" }` (immutable field) | 400 response; ADR-008 error shape with code `"VALIDATION_ERROR"` |
 
 **General:**
