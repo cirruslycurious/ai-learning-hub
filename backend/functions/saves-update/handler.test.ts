@@ -320,4 +320,43 @@ describe("Saves Update Handler — PATCH /saves/:saveId", () => {
       );
     });
   });
+
+  // ──────────────────────────────────────────────────────────────
+  // Story 3.1.7 — API key scope enforcement tests
+  // ──────────────────────────────────────────────────────────────
+
+  describe("AC6: API key scope enforcement", () => {
+    it("rejects capture-only key (saves:write) with 403 SCOPE_INSUFFICIENT", async () => {
+      const event = createMockEvent({
+        method: "PATCH",
+        path: `/saves/${VALID_SAVE_ID}`,
+        pathParameters: { saveId: VALID_SAVE_ID },
+        body: { title: "Updated" },
+        userId: "user_123",
+        authMethod: "api-key",
+        scopes: ["saves:write"],
+      });
+      const result = await handler(event, mockContext);
+
+      assertADR008Error(result, ErrorCode.SCOPE_INSUFFICIENT, 403);
+    });
+
+    it("allows full-access key (*) to PATCH /saves/:saveId", async () => {
+      const updated = createTestSaveItem(VALID_SAVE_ID, SAVE_OVERRIDES);
+      mockUpdateItem.mockResolvedValueOnce(updated);
+
+      const event = createMockEvent({
+        method: "PATCH",
+        path: `/saves/${VALID_SAVE_ID}`,
+        pathParameters: { saveId: VALID_SAVE_ID },
+        body: { title: "Updated" },
+        userId: "user_123",
+        authMethod: "api-key",
+        scopes: ["*"],
+      });
+      const result = await handler(event, mockContext);
+
+      expect(result.statusCode).toBe(200);
+    });
+  });
 });

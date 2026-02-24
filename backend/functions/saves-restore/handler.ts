@@ -124,5 +124,5 @@ async function savesRestoreHandler(ctx: HandlerContext) {
 
 export const handler = wrapHandler(savesRestoreHandler, {
   requireAuth: true,
-  requiredScope: "saves:write",
+  requiredScope: "*",
 });

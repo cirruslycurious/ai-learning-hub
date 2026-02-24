@@ -130,5 +130,5 @@ async function savesDeleteHandler(ctx: HandlerContext) {
 
 export const handler = wrapHandler(savesDeleteHandler, {
   requireAuth: true,
-  requiredScope: "saves:write",
+  requiredScope: "*",
 });
