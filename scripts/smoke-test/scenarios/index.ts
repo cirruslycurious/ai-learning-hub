@@ -23,7 +23,13 @@ import { rateLimitingScenarios } from "./rate-limiting.js";
 import { savesCrudScenarios } from "./saves-crud.js";
 import { savesValidationScenarios } from "./saves-validation.js";
 
-/** Flat list of all scenarios across all phases. */
+/**
+ * Flat list of all scenarios across all phases.
+ *
+ * WARNING: Consumers of this flat list must also call initApiKeyCleanup()
+ * and initSavesCrudCleanup() to wire cleanup callbacks. Prefer using
+ * the phase-based execution in phases.ts which handles init automatically.
+ */
 export const scenarios = [
   ...jwtAuthScenarios,
   ...apiKeyScenarios,

@@ -9,10 +9,19 @@
 
 import type { ScenarioDefinition, CleanupFn } from "../types.js";
 import { getClient } from "../client.js";
-import { assertStatus, assertADR008, assertSaveShape } from "../helpers.js";
+import {
+  assertStatus,
+  assertADR008,
+  assertSaveShape,
+  jwtAuth,
+} from "../helpers.js";
+
+// ULID: 26 characters, Crockford's Base32 alphabet
+const ULID_RE = /^[0-9A-HJKMNP-TV-Z]{26}$/i;
 
 // Module-level shared state for the lifecycle chain
 let createdSaveId: string | null = null;
+let createdSaveUrl: string | null = null;
 let registerCleanupFn: ((fn: CleanupFn) => void) | null = null;
 
 /**
@@ -29,10 +38,7 @@ export const savesCrudScenarios: ScenarioDefinition[] = [
     name: "POST /saves — create with unique URL → 201 + save shape",
     async run() {
       const client = getClient();
-      const auth = {
-        type: "jwt" as const,
-        token: process.env.SMOKE_TEST_CLERK_JWT!,
-      };
+      const auth = jwtAuth();
       const uniqueUrl = `https://example.com/smoke-test-${Date.now()}`;
 
       const res = await client.post("/saves", { url: uniqueUrl }, { auth });
@@ -40,7 +46,14 @@ export const savesCrudScenarios: ScenarioDefinition[] = [
       assertSaveShape(res.body);
 
       const data = (res.body as { data: { saveId: string } }).data;
+
+      // AC: saveId is a valid ULID (26 chars, Crockford Base32)
+      if (!ULID_RE.test(data.saveId)) {
+        throw new Error(`SC1: saveId is not a valid ULID: "${data.saveId}"`);
+      }
+
       createdSaveId = data.saveId;
+      createdSaveUrl = uniqueUrl;
 
       // Register cleanup: soft-delete the save after all scenarios
       if (registerCleanupFn) {
@@ -64,19 +77,22 @@ export const savesCrudScenarios: ScenarioDefinition[] = [
     async run() {
       if (!createdSaveId) throw new Error("SC2 requires SC1 (no saveId)");
       const client = getClient();
-      const auth = {
-        type: "jwt" as const,
-        token: process.env.SMOKE_TEST_CLERK_JWT!,
-      };
+      const auth = jwtAuth();
 
       const res = await client.get(`/saves/${createdSaveId}`, { auth });
       assertStatus(res.status, 200, "SC2: GET /saves/:saveId");
       assertSaveShape(res.body, { requireLastAccessedAt: true });
 
-      const data = (res.body as { data: { saveId: string } }).data;
+      const data = (res.body as { data: { saveId: string; url: string } }).data;
       if (data.saveId !== createdSaveId) {
         throw new Error(
           `SC2: saveId mismatch: ${data.saveId} !== ${createdSaveId}`
+        );
+      }
+      // AC: data.url matches submitted URL
+      if (data.url !== createdSaveUrl) {
+        throw new Error(
+          `SC2: url mismatch: "${data.url}" !== "${createdSaveUrl}"`
         );
       }
 
@@ -91,10 +107,7 @@ export const savesCrudScenarios: ScenarioDefinition[] = [
     async run() {
       if (!createdSaveId) throw new Error("SC3 requires SC1 (no saveId)");
       const client = getClient();
-      const auth = {
-        type: "jwt" as const,
-        token: process.env.SMOKE_TEST_CLERK_JWT!,
-      };
+      const auth = jwtAuth();
 
       const res = await client.get("/saves", { auth });
       assertStatus(res.status, 200, "SC3: GET /saves");
@@ -130,10 +143,7 @@ export const savesCrudScenarios: ScenarioDefinition[] = [
     async run() {
       if (!createdSaveId) throw new Error("SC4 requires SC1 (no saveId)");
       const client = getClient();
-      const auth = {
-        type: "jwt" as const,
-        token: process.env.SMOKE_TEST_CLERK_JWT!,
-      };
+      const auth = jwtAuth();
 
       const res = await client.patch(
         `/saves/${createdSaveId}`,
@@ -168,10 +178,7 @@ export const savesCrudScenarios: ScenarioDefinition[] = [
     async run() {
       if (!createdSaveId) throw new Error("SC5 requires SC1 (no saveId)");
       const client = getClient();
-      const auth = {
-        type: "jwt" as const,
-        token: process.env.SMOKE_TEST_CLERK_JWT!,
-      };
+      const auth = jwtAuth();
 
       const res = await client.delete(`/saves/${createdSaveId}`, { auth });
       assertStatus(res.status, 204, "SC5: DELETE /saves/:saveId");
@@ -187,10 +194,7 @@ export const savesCrudScenarios: ScenarioDefinition[] = [
     async run() {
       if (!createdSaveId) throw new Error("SC6 requires SC5 (no saveId)");
       const client = getClient();
-      const auth = {
-        type: "jwt" as const,
-        token: process.env.SMOKE_TEST_CLERK_JWT!,
-      };
+      const auth = jwtAuth();
 
       const res = await client.get(`/saves/${createdSaveId}`, { auth });
       assertStatus(res.status, 404, "SC6: GET deleted save");
@@ -207,10 +211,7 @@ export const savesCrudScenarios: ScenarioDefinition[] = [
     async run() {
       if (!createdSaveId) throw new Error("SC7 requires SC5 (no saveId)");
       const client = getClient();
-      const auth = {
-        type: "jwt" as const,
-        token: process.env.SMOKE_TEST_CLERK_JWT!,
-      };
+      const auth = jwtAuth();
 
       const res = await client.post(
         `/saves/${createdSaveId}/restore`,
@@ -220,7 +221,15 @@ export const savesCrudScenarios: ScenarioDefinition[] = [
       assertStatus(res.status, 200, "SC7: POST /saves/:saveId/restore");
       assertSaveShape(res.body);
 
-      const data = (res.body as { data: { deletedAt?: string } }).data;
+      const data = (
+        res.body as { data: { saveId: string; deletedAt?: string } }
+      ).data;
+      // AC: body data.saveId matches
+      if (data.saveId !== createdSaveId) {
+        throw new Error(
+          `SC7: saveId mismatch: ${data.saveId} !== ${createdSaveId}`
+        );
+      }
       if (data.deletedAt) {
         throw new Error(
           `SC7: deletedAt should be absent after restore, got "${data.deletedAt}"`
@@ -238,10 +247,7 @@ export const savesCrudScenarios: ScenarioDefinition[] = [
     async run() {
       if (!createdSaveId) throw new Error("SC8 requires SC7 (no saveId)");
       const client = getClient();
-      const auth = {
-        type: "jwt" as const,
-        token: process.env.SMOKE_TEST_CLERK_JWT!,
-      };
+      const auth = jwtAuth();
 
       const res = await client.get(`/saves/${createdSaveId}`, { auth });
       assertStatus(res.status, 200, "SC8: GET restored save");

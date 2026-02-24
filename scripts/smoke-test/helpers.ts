@@ -91,7 +91,7 @@ export function assertSaveShape(
   if (!data?.url) missing.push("data.url");
   if (!data?.normalizedUrl) missing.push("data.normalizedUrl");
   if (!data?.urlHash) missing.push("data.urlHash");
-  if (data?.contentType === undefined) missing.push("data.contentType");
+  if (typeof data?.contentType !== "string") missing.push("data.contentType");
   if (!Array.isArray(data?.tags)) missing.push("data.tags");
   if (!data?.createdAt) missing.push("data.createdAt");
   if (!data?.updatedAt) missing.push("data.updatedAt");
@@ -103,6 +103,14 @@ export function assertSaveShape(
       `Save shape missing fields [${missing.join(", ")}] in: ${JSON.stringify(body)}`
     );
   }
+}
+
+/**
+ * Build the JWT auth object for smoke test requests.
+ * Reads from SMOKE_TEST_CLERK_JWT env var.
+ */
+export function jwtAuth(): { type: "jwt"; token: string } {
+  return { type: "jwt" as const, token: process.env.SMOKE_TEST_CLERK_JWT! };
 }
 
 /**

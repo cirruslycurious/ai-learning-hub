@@ -81,8 +81,21 @@ export function getFilteredPhases(args: string[]): Phase[] {
   const phaseArg = args.find((a) => a.startsWith("--phase="));
   const upToArg = args.find((a) => a.startsWith("--up-to="));
 
+  if (phaseArg && upToArg) {
+    console.error(
+      "Cannot use both --phase and --up-to. Provide one or the other."
+    );
+    process.exit(1);
+  }
+
   if (phaseArg) {
     const phaseId = parseInt(phaseArg.split("=")[1], 10);
+    if (isNaN(phaseId)) {
+      console.error(
+        `Invalid --phase value: "${phaseArg.split("=")[1]}". Must be a number.`
+      );
+      process.exit(1);
+    }
     const found = phases.filter((p) => p.id === phaseId);
     if (found.length === 0) {
       console.error(
@@ -95,7 +108,20 @@ export function getFilteredPhases(args: string[]): Phase[] {
 
   if (upToArg) {
     const upToId = parseInt(upToArg.split("=")[1], 10);
-    return phases.filter((p) => p.id <= upToId);
+    if (isNaN(upToId)) {
+      console.error(
+        `Invalid --up-to value: "${upToArg.split("=")[1]}". Must be a number.`
+      );
+      process.exit(1);
+    }
+    const filtered = phases.filter((p) => p.id <= upToId);
+    if (filtered.length === 0) {
+      console.error(
+        `No phases found with id <= ${upToId}. Available: ${phases.map((p) => p.id).join(", ")}`
+      );
+      process.exit(1);
+    }
+    return filtered;
   }
 
   return phases;

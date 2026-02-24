@@ -8,7 +8,7 @@
 
 import type { ScenarioDefinition } from "../types.js";
 import { getClient } from "../client.js";
-import { assertStatus, assertADR008 } from "../helpers.js";
+import { assertStatus, assertADR008, jwtAuth } from "../helpers.js";
 
 export const savesValidationScenarios: ScenarioDefinition[] = [
   // SV1: Invalid URL → 400 VALIDATION_ERROR
@@ -17,10 +17,7 @@ export const savesValidationScenarios: ScenarioDefinition[] = [
     name: "POST /saves with invalid URL → 400 VALIDATION_ERROR",
     async run() {
       const client = getClient();
-      const auth = {
-        type: "jwt" as const,
-        token: process.env.SMOKE_TEST_CLERK_JWT!,
-      };
+      const auth = jwtAuth();
 
       const res = await client.post("/saves", { url: "not-a-url" }, { auth });
       assertStatus(res.status, 400, "SV1: POST /saves invalid URL");
@@ -36,10 +33,7 @@ export const savesValidationScenarios: ScenarioDefinition[] = [
     name: "GET /saves/not-a-valid-ulid → 400 VALIDATION_ERROR",
     async run() {
       const client = getClient();
-      const auth = {
-        type: "jwt" as const,
-        token: process.env.SMOKE_TEST_CLERK_JWT!,
-      };
+      const auth = jwtAuth();
 
       const res = await client.get("/saves/not-a-valid-ulid", { auth });
       assertStatus(res.status, 400, "SV2: GET /saves/invalid-ulid");
@@ -55,10 +49,7 @@ export const savesValidationScenarios: ScenarioDefinition[] = [
     name: "GET /saves/01JNOTREAL000000000000000 → 404 NOT_FOUND",
     async run() {
       const client = getClient();
-      const auth = {
-        type: "jwt" as const,
-        token: process.env.SMOKE_TEST_CLERK_JWT!,
-      };
+      const auth = jwtAuth();
 
       const res = await client.get("/saves/01JNOTREAL000000000000000", {
         auth,
@@ -76,10 +67,7 @@ export const savesValidationScenarios: ScenarioDefinition[] = [
     name: "PATCH /saves/:saveId with immutable url field → 400 VALIDATION_ERROR",
     async run() {
       const client = getClient();
-      const auth = {
-        type: "jwt" as const,
-        token: process.env.SMOKE_TEST_CLERK_JWT!,
-      };
+      const auth = jwtAuth();
 
       // Create a temporary save for this test
       const uniqueUrl = `https://example.com/smoke-validation-${Date.now()}`;
