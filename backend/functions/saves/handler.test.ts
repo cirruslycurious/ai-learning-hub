@@ -673,4 +673,58 @@ describe("Saves Create Handler", () => {
       expect(result2.statusCode).toBe(409);
     });
   });
+
+  // ──────────────────────────────────────────────────────────────
+  // Story 3.1.7 — API key scope enforcement tests
+  // ──────────────────────────────────────────────────────────────
+
+  describe("AC6: API key scope enforcement", () => {
+    it("allows capture-only key (saves:write) to POST /saves", async () => {
+      mockQueryItems.mockResolvedValue({ items: [], hasMore: false });
+      mockTransactWriteItems.mockResolvedValue(undefined);
+
+      const event = createMockEvent({
+        method: "POST",
+        path: "/saves",
+        body: { url: "https://example.com" },
+        userId: "user_123",
+        authMethod: "api-key",
+        scopes: ["saves:write"],
+      });
+      const result = await handler(event, mockContext);
+
+      expect(result.statusCode).toBe(201);
+    });
+
+    it("allows full-access key (*) to POST /saves", async () => {
+      mockQueryItems.mockResolvedValue({ items: [], hasMore: false });
+      mockTransactWriteItems.mockResolvedValue(undefined);
+
+      const event = createMockEvent({
+        method: "POST",
+        path: "/saves",
+        body: { url: "https://example.com" },
+        userId: "user_123",
+        authMethod: "api-key",
+        scopes: ["*"],
+      });
+      const result = await handler(event, mockContext);
+
+      expect(result.statusCode).toBe(201);
+    });
+
+    it("rejects API key with unrelated scope with 403 SCOPE_INSUFFICIENT", async () => {
+      const event = createMockEvent({
+        method: "POST",
+        path: "/saves",
+        body: { url: "https://example.com" },
+        userId: "user_123",
+        authMethod: "api-key",
+        scopes: ["some:other"],
+      });
+      const result = await handler(event, mockContext);
+
+      assertADR008Error(result, ErrorCode.SCOPE_INSUFFICIENT, 403);
+    });
+  });
 });

@@ -59,4 +59,7 @@ async function savesGetHandler(ctx: HandlerContext) {
   return toPublicSave(item);
 }
 
-export const handler = wrapHandler(savesGetHandler, { requireAuth: true });
+export const handler = wrapHandler(savesGetHandler, {
+  requireAuth: true,
+  requiredScope: "*",
+});
