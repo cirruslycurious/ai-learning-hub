@@ -10,6 +10,12 @@
  * Optional:         SMOKE_TEST_ADMIN_JWT, SMOKE_TEST_EXPIRED_JWT,
  *                   SMOKE_TEST_RATE_LIMIT_JWT, SMOKE_TEST_SKIP
  * See: scripts/smoke-test/.env.smoke.example
+ *
+ * Phase support (Story 3.1.6):
+ *   npm run smoke-test                    # all phases
+ *   npm run smoke-test -- --phase=1       # Phase 1 only (infra-auth)
+ *   npm run smoke-test -- --phase=2       # Phase 2 only (saves-crud)
+ *   npm run smoke-test -- --up-to=2       # Phases 1 and 2
  */
 
 // AC19: Exit immediately if required env vars are not set
@@ -26,7 +32,7 @@ if (!process.env.SMOKE_TEST_CLERK_JWT) {
   process.exit(1);
 }
 
-import { scenarios, initApiKeyCleanup } from "./scenarios/index.js";
+import { getFilteredPhases } from "./phases.js";
 import { ScenarioSkipped } from "./types.js";
 import type { CleanupFn, Result } from "./types.js";
 
@@ -105,50 +111,60 @@ function printTable(results: Result[]): void {
 
 // ─── Main runner ──────────────────────────────────────────────────────────────
 
-// Wire cleanup registry into api-key scenarios (AC18)
-initApiKeyCleanup(registerCleanup);
+const selectedPhases = getFilteredPhases(process.argv.slice(2));
+
+// Initialize cleanup registry for each selected phase
+for (const phase of selectedPhases) {
+  if (phase.init) {
+    phase.init(registerCleanup);
+  }
+}
 
 const results: Result[] = [];
 
 try {
-  for (const scenario of scenarios) {
-    if (skipSet.has(scenario.id)) {
-      results.push({
-        id: scenario.id,
-        name: scenario.name,
-        status: "SKIP",
-        ms: 0,
-      });
-      continue;
-    }
+  for (const phase of selectedPhases) {
+    console.log(`\n── Phase ${phase.id}: ${phase.name} ──`);
 
-    const start = Date.now();
-    try {
-      const httpStatus = await scenario.run();
-      results.push({
-        id: scenario.id,
-        name: scenario.name,
-        status: "PASS",
-        ms: Date.now() - start,
-        httpStatus: httpStatus > 0 ? httpStatus : undefined,
-      });
-    } catch (err) {
-      if (err instanceof ScenarioSkipped) {
+    for (const scenario of phase.scenarios) {
+      if (skipSet.has(scenario.id)) {
         results.push({
           id: scenario.id,
           name: scenario.name,
           status: "SKIP",
-          ms: Date.now() - start,
-          error: err,
+          ms: 0,
         });
-      } else {
+        continue;
+      }
+
+      const start = Date.now();
+      try {
+        const httpStatus = await scenario.run();
         results.push({
           id: scenario.id,
           name: scenario.name,
-          status: "FAIL",
+          status: "PASS",
           ms: Date.now() - start,
-          error: err,
+          httpStatus: httpStatus > 0 ? httpStatus : undefined,
         });
+      } catch (err) {
+        if (err instanceof ScenarioSkipped) {
+          results.push({
+            id: scenario.id,
+            name: scenario.name,
+            status: "SKIP",
+            ms: Date.now() - start,
+            error: err,
+          });
+        } else {
+          results.push({
+            id: scenario.id,
+            name: scenario.name,
+            status: "FAIL",
+            ms: Date.now() - start,
+            error: err,
+          });
+        }
       }
     }
   }
