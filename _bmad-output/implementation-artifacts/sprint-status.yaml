@@ -100,11 +100,15 @@ development_status:
   epic-3-retrospective: optional
 
   # Epic 3.1: Tech Debt — Saves Domain DRY Consolidation (4 stories)
-  epic-3-1-debt: backlog
-  3-1-1-extract-shared-schemas-constants: ready-for-dev
-  3-1-2-shared-test-utilities: ready-for-dev
-  3-1-3-handler-test-consolidation: ready-for-dev
-  3-1-4-dedup-scan-agent-pipeline: ready-for-dev
+  epic-3-1-debt: in-progress
+  3-1-1-extract-shared-schemas-constants: done # PR #194
+  3-1-2-shared-test-utilities: done # PR #196
+  3-1-3-handler-test-consolidation: done # PR #198
+  3-1-4-dedup-scan-agent-pipeline: done # PR #200
+  3-1-5-phase-runner-infrastructure: in-progress
+  3-1-6-saves-crud-validation: ready-for-dev
+  3-1-7-dedup-filtering-api-key: ready-for-dev
+  3-1-8-eventbridge-observability-infra: ready-for-dev
   epic-3-1-retrospective: optional
 
   # Epic 4: Project Management (stories TBD)

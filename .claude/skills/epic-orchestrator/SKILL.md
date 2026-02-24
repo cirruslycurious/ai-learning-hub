@@ -166,6 +166,8 @@ Select runner:
 
 ## Phase 2: Story Implementation Loop
 
+> **Phase order and execution semantics** are defined in `phase-registry.md` (step list, skip conditions, gate criteria) and `phase-runner.md` (execution loop, dry-run, resume) in this directory. The sections below are the canonical prose for each step. Step IDs and order must stay in sync with the registry: 2.1 → 2.2 → 2.3 → 2.3b → 2.4 → 2.5 → 2.6 → 2.7.
+
 For each story in scope (topological order):
 
 ### 2.1 Pre-Implementation
