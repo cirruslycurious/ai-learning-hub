@@ -1,9 +1,9 @@
 ---
 epic_id: Epic-3.1
-status: done
-scope: ["3.1.1", "3.1.2", "3.1.3"]
+status: in-progress
+scope: ["3.1.1", "3.1.2", "3.1.3", "3.1.5", "3.1.7", "3.1.6"]
 started: "2026-02-23T00:00:00Z"
-last_updated: "2026-02-23T18:02:00Z"
+last_updated: "2026-02-23T22:00:00Z"
 stories:
   "3.1.1":
     {
@@ -42,17 +42,23 @@ stories:
       reviewRounds: 1,
       reviewResult: APPROVE,
     }
+  "3.1.5": { status: pending }
+  "3.1.7": { status: pending }
+  "3.1.6": { status: pending }
 ---
 
 <!-- Human-readable display below (generated from frontmatter) -->
 
 # Epic 3.1 Auto-Run Progress
 
-| Story | Status | PR   | Review Rounds | Result  |
-| ----- | ------ | ---- | ------------- | ------- |
-| 3.1.1 | Done   | #194 | 1             | APPROVE |
-| 3.1.2 | Done   | #196 | 1             | APPROVE |
-| 3.1.3 | Done   | #198 | 1             | APPROVE |
+| Story | Status      | PR   | Review Rounds | Result  | Duration |
+| ----- | ----------- | ---- | ------------- | ------- | -------- |
+| 3.1.1 | ✅ Complete | #194 | 1             | APPROVE | -        |
+| 3.1.2 | ✅ Complete | #196 | 1             | APPROVE | 55m      |
+| 3.1.3 | ✅ Complete | #198 | 1             | APPROVE | -        |
+| 3.1.5 | ⏳ Pending  | -    | -             | -       | -        |
+| 3.1.7 | ⏳ Pending  | -    | -             | -       | -        |
+| 3.1.6 | ⏳ Pending  | -    | -             | -       | -        |
 
 ## Activity Log
 
@@ -69,3 +75,5 @@ stories:
 - [21:52] Story 3.1.3: All quality gates passed, review approved (Round 1), PR #198 ready
 - [21:52] Story 3.1.3 complete (3/3 stories done in this scope)
 - [21:52] Epic 3.1 auto-run complete — all 3 stories done
+- [22:00] Epic 3.1 auto-run resumed — adding Stories 3.1.5, 3.1.7, 3.1.6 to scope
+- [22:00] External deps verified: 3.1.4 (PR #200 merged), 3.4 (PR #190 merged)

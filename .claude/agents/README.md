@@ -197,4 +197,7 @@ See `.claude/docs/safety-architecture.md` for the full three-layer defense model
 - `.claude/docs/safety-architecture.md` — Three-layer defense model
 - `.claude/docs/hook-system.md` — Hook System Details
 - `.claude/skills/epic-orchestrator/SKILL.md` — Full orchestrator implementation
+- `.claude/skills/epic-orchestrator/phase-registry.md` — Phase 2 step order, skip conditions, gate criteria
+- `.claude/skills/epic-orchestrator/phase-runner.md` — Execution protocol (dry-run, resume, escalation)
 - `.claude/skills/epic-orchestrator/review-loop.md` — Review loop protocol
+- `.claude/skills/epic-orchestrator/dedup-scan-loop.md` — Dedup scan loop protocol
