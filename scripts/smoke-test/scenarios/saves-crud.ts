@@ -16,8 +16,9 @@ import {
   jwtAuth,
 } from "../helpers.js";
 
-// ULID: 26 characters, Crockford's Base32 alphabet
-const ULID_RE = /^[0-9A-HJKMNP-TV-Z]{26}$/i;
+// ULID: 26 uppercase alphanumeric characters — aligned with the backend's
+// saveIdPathSchema regex /^[0-9A-Z]{26}$/ (see backend/shared/validation/src/schemas.ts)
+const ULID_RE = /^[0-9A-Z]{26}$/;
 
 // Module-level shared state for the lifecycle chain
 let createdSaveId: string | null = null;
@@ -55,11 +56,15 @@ export const savesCrudScenarios: ScenarioDefinition[] = [
       createdSaveId = data.saveId;
       createdSaveUrl = uniqueUrl;
 
-      // Register cleanup: soft-delete the save after all scenarios
+      // Register cleanup: soft-delete the save after all scenarios.
+      // Use jwtAuth() and getClient() at execution time to avoid stale tokens.
       if (registerCleanupFn) {
         registerCleanupFn(async () => {
           try {
-            await client.delete(`/saves/${createdSaveId}`, { auth });
+            const freshAuth = jwtAuth();
+            await getClient().delete(`/saves/${createdSaveId}`, {
+              auth: freshAuth,
+            });
           } catch {
             // Cleanup errors are non-fatal
           }

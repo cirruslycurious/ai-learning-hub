@@ -46,12 +46,12 @@ export const savesValidationScenarios: ScenarioDefinition[] = [
   // SV3: Nonexistent ULID → 404 NOT_FOUND
   {
     id: "SV3",
-    name: "GET /saves/01JNOTREAL000000000000000 → 404 NOT_FOUND",
+    name: "GET /saves/00000000000000000000000000 → 404 NOT_FOUND",
     async run() {
       const client = getClient();
       const auth = jwtAuth();
 
-      const res = await client.get("/saves/01JNOTREAL000000000000000", {
+      const res = await client.get("/saves/00000000000000000000000000", {
         auth,
       });
       assertStatus(res.status, 404, "SV3: GET nonexistent save");
