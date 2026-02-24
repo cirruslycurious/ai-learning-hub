@@ -137,5 +137,5 @@ async function savesUpdateHandler(ctx: HandlerContext) {
 
 export const handler = wrapHandler(savesUpdateHandler, {
   requireAuth: true,
-  requiredScope: "saves:write",
+  requiredScope: "*",
 });

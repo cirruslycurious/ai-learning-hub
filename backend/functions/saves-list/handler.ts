@@ -204,4 +204,7 @@ async function savesListHandler(ctx: HandlerContext) {
   };
 }
 
-export const handler = wrapHandler(savesListHandler, { requireAuth: true });
+export const handler = wrapHandler(savesListHandler, {
+  requireAuth: true,
+  requiredScope: "*",
+});

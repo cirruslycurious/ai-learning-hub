@@ -888,4 +888,51 @@ describe("Saves List Handler — GET /saves", () => {
       expect(page2Body.data.hasMore).toBe(false);
     });
   });
+
+  // ──────────────────────────────────────────────────────────────
+  // Story 3.1.7 — API key scope enforcement tests
+  // ──────────────────────────────────────────────────────────────
+
+  describe("AC6: API key scope enforcement", () => {
+    it("rejects capture-only key (saves:write) with 403 SCOPE_INSUFFICIENT", async () => {
+      const event = createMockEvent({
+        method: "GET",
+        path: "/saves",
+        userId: "user_123",
+        authMethod: "api-key",
+        scopes: ["saves:write"],
+      });
+      const result = await handler(event, mockContext);
+
+      assertADR008Error(result, ErrorCode.SCOPE_INSUFFICIENT, 403);
+    });
+
+    it("rejects API key with empty scopes with 403 SCOPE_INSUFFICIENT", async () => {
+      const event = createMockEvent({
+        method: "GET",
+        path: "/saves",
+        userId: "user_123",
+        authMethod: "api-key",
+        scopes: [],
+      });
+      const result = await handler(event, mockContext);
+
+      assertADR008Error(result, ErrorCode.SCOPE_INSUFFICIENT, 403);
+    });
+
+    it("allows full-access key (*) to GET /saves", async () => {
+      mockQueryAllItems.mockResolvedValueOnce({ items: [] });
+
+      const event = createMockEvent({
+        method: "GET",
+        path: "/saves",
+        userId: "user_123",
+        authMethod: "api-key",
+        scopes: ["*"],
+      });
+      const result = await handler(event, mockContext);
+
+      expect(result.statusCode).toBe(200);
+    });
+  });
 });

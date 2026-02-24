@@ -85,6 +85,18 @@ export const ROUTE_REGISTRY: RouteEntry[] = [
     epic: "Epic-2",
   },
   // Epic 3 — Save URLs (Core CRUD)
+  //
+  // API key scope matrix (Story 3.1.7):
+  //   POST   /saves                  → requiredScope: "saves:write" (capture-only keys CAN create)
+  //   GET    /saves                  → requiredScope: "*"           (capture-only keys CANNOT list)
+  //   GET    /saves/{saveId}         → requiredScope: "*"           (capture-only keys CANNOT read)
+  //   PATCH  /saves/{saveId}         → requiredScope: "*"           (capture-only keys CANNOT update)
+  //   DELETE /saves/{saveId}         → requiredScope: "*"           (capture-only keys CANNOT delete)
+  //   POST   /saves/{saveId}/restore → requiredScope: "*"           (capture-only keys CANNOT restore)
+  //
+  // Scope enforced in each handler via wrapHandler({ requiredScope }).
+  // JWT users bypass scope checks (all scopes implicitly granted).
+  //
   {
     path: "/saves",
     methods: ["POST"],
