@@ -9,6 +9,7 @@ import * as cdk from "aws-cdk-lib";
 import * as events from "aws-cdk-lib/aws-events";
 import * as targets from "aws-cdk-lib/aws-events-targets";
 import * as logs from "aws-cdk-lib/aws-logs";
+import { NagSuppressions } from "cdk-nag";
 import { Construct } from "constructs";
 
 export interface EventsStackProps extends cdk.StackProps {
@@ -62,6 +63,32 @@ export class EventsStack extends cdk.Stack {
     logAllEventsRule.addTarget(
       new targets.CloudWatchLogGroup(this.eventLogGroup)
     );
+
+    // --- CDK Nag Suppressions for auto-generated custom resource Lambda ---
+    // targets.CloudWatchLogGroup creates a custom resource to manage the
+    // CloudWatch Logs resource policy. The Lambda and IAM role are CDK-internal
+    // constructs that we cannot configure directly.
+    NagSuppressions.addStackSuppressions(this, [
+      {
+        id: "AwsSolutions-IAM4",
+        reason:
+          "CDK-managed custom resource Lambda for CloudWatch Logs resource policy uses AWS managed execution role",
+        appliesTo: [
+          "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+        ],
+      },
+      {
+        id: "AwsSolutions-IAM5",
+        reason:
+          "CDK-managed custom resource for CloudWatch Logs resource policy requires wildcard to manage log group policies",
+        appliesTo: ["Resource::*"],
+      },
+      {
+        id: "AwsSolutions-L1",
+        reason:
+          "CDK-managed custom resource Lambda runtime is controlled by CDK internals, not user code",
+      },
+    ]);
 
     // --- Stack Outputs ---
     new cdk.CfnOutput(this, "EventBusName", {
