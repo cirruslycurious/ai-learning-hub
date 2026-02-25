@@ -107,16 +107,17 @@ Scale is intentionally boutique: 10-20 invite-only users, no monetization throug
 - **No Lambda-to-Lambda calls (ADR-005):** All cross-service communication goes through API Gateway or EventBridge. No hidden coupling.
 - **Processed search index (ADR-010):** V1 search queries a pre-processed DynamoDB substrate, not raw text. API abstraction enables a future OpenSearch swap without re-architecture.
 - **EventBridge + Step Functions for async (ADR-003):** Enrichment, notes processing, and search sync run as decoupled async pipelines.
-- **Standardized error handling (ADR-008):** Every Lambda returns typed `ApiSuccessResponse<T>` or `ApiErrorResponse` with `ErrorCode` enum. Enforced by tests in all 6 handler suites.
+- **Standardized error handling (ADR-008):** Every Lambda returns typed `ApiSuccessResponse<T>` or `ApiErrorResponse` with `ErrorCode` enum. Enforced by tests in all 12 handler suites.
 
 ## Repo Layout
 
 ```
 ai-learning-hub/
 ├── backend/
-│   ├── functions/           # Lambda handlers (6 implemented: jwt-authorizer,
+│   ├── functions/           # Lambda handlers (12 implemented: jwt-authorizer,
 │   │                        #   api-key-authorizer, api-keys, users-me,
-│   │                        #   validate-invite, invite-codes)
+│   │                        #   validate-invite, invite-codes, saves, saves-list,
+│   │                        #   saves-get, saves-update, saves-delete, saves-restore)
 │   ├── shared/              # @ai-learning-hub/* packages
 │   │   ├── db/              # DynamoDB client, query helpers, rate limiter
 │   │   ├── events/          # EventBridge client and typed emitter
@@ -129,11 +130,11 @@ ai-learning-hub/
 ├── frontend/                # React 18 + Vite 5 + Tailwind CSS 3.4 (scaffold stage)
 ├── infra/
 │   ├── lib/stacks/          # CDK stacks: api-gateway, auth-routes, rate-limiting,
-│   │                        #   auth, tables, buckets, observability
+│   │                        #   saves-routes, auth, tables, buckets, events, observability
 │   ├── config/              # Route registry, environment config, AWS env
 │   └── test/                # CDK synth tests + 5 architecture enforcement suites
 ├── scripts/
-│   ├── smoke-test/          # Deployed-environment smoke tests (5 scenario files)
+│   ├── smoke-test/          # Deployed-environment smoke tests (7 scenario files)
 │   └── eslint-rules/        # Custom ESLint rule: enforce-shared-imports
 ├── test/                    # Root-level tests: CI workflow validation, hook tests (14 files)
 ├── .claude/
@@ -170,8 +171,12 @@ ai-learning-hub/
 ([Completion Report](docs/progress/epic-2.1-completion-report.md) | [Adversarial Review](docs/adversarial-architecture-review-2026-02-20.md))
 
 **Epic 3: Save URLs, Core CRUD** (In Progress)
-2 stories completed so far: save validation modules (URL normalizer, content type detector, Zod schemas) and EventBridge shared package (`@ai-learning-hub/events` at 97% coverage). Remaining: create/list/get/update/delete save APIs, filtering and sorting, iOS Shortcut capture, PWA share target, UI foundation, saves list page, and save actions feedback.
+6 stories completed. Delivered the full saves API backend: save validation modules (URL normalizer, content type detector, Zod schemas), EventBridge shared package (`@ai-learning-hub/events` at 97% coverage), create/list/get/update/delete/restore save APIs across 6 Lambda handlers, filtering by content type, project linkage, and tutorial status, sorting by date and title, and duplicate URL detection with 409 Conflict responses. 27 adversarial review findings fixed across 2 rounds per story. Remaining: iOS Shortcut capture, PWA share target, UI foundation (design system), saves list page, filtering/sorting UI, and save actions feedback.
 ([Epic 3 Plan](docs/progress/epic-3-stories-and-plan.md) | [Completion Report](docs/progress/epic-3-completion-report.md))
+
+**Epic 3.1: Technical Debt — Saves Domain Consolidation** (In Progress)
+7/9 stories completed. Delivered shared schemas and constants extraction (removed cross-handler duplication), shared test utilities for the saves domain, handler and test consolidation, dedup scan agent pipeline, smoke test phase runner infrastructure, saves CRUD and validation smoke scenarios, and saves dedup/filtering/API key smoke scenarios. Remaining: EventBridge observability infrastructure and EventBridge verification smoke scenario.
+([Completion Report](docs/progress/epic-3.1-completion-report.md))
 
 **Epics 4-11** are in backlog. See the [epics breakdown](/_bmad-output/planning-artifacts/epics.md) for the full roadmap.
 
@@ -181,14 +186,14 @@ Every claim in this section is backed by a file path you can verify.
 
 | Practice                     | Detail                                                                                                                                                               | Evidence                                                                                                                                                                                   |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Test files**               | 74 test files across backend, infra, frontend, and root                                                                                                              | `find . -name '*.test.ts' -o -name '*.test.tsx'`                                                                                                                                           |
-| **Test cases**               | 1,147 individual `it()` assertions                                                                                                                                   | `grep -rch 'it("' --include='*.test.ts'`                                                                                                                                                   |
+| **Test files**               | 83 test files across backend, infra, frontend, and root                                                                                                              | `find . -name '*.test.ts' -o -name '*.test.tsx'`                                                                                                                                           |
+| **Test cases**               | 1,373 individual `it()` assertions                                                                                                                                   | `grep -rch 'it(' --include='*.test.ts'`                                                                                                                                                    |
 | **Coverage gate**            | 80% minimum (lines, functions, branches, statements)                                                                                                                 | [`backend/vitest.config.ts`](/backend/vitest.config.ts), each `backend/shared/*/vitest.config.ts`                                                                                          |
 | **CI pipeline**              | 10 stages: lint/format, type-check, unit tests + coverage, CDK synth + CDK Nag, integration tests, contract tests, security scan, deploy-dev, E2E tests, deploy-prod | [`.github/workflows/ci.yml`](/.github/workflows/ci.yml)                                                                                                                                    |
 | **Security scanning**        | npm audit (high/critical), TruffleHog secrets detection on PRs, ESLint security plugin (SAST), gitleaks with 25+ custom rules                                        | [`.github/workflows/ci.yml`](/.github/workflows/ci.yml), [`.gitleaks.toml`](/.gitleaks.toml)                                                                                               |
 | **Architecture enforcement** | 5 CDK test suites: API gateway contract, route completeness, authorizer type correctness, handler miswiring detection, Lambda-route wiring                           | [`infra/test/architecture-enforcement/`](/infra/test/architecture-enforcement/)                                                                                                            |
 | **Import enforcement**       | Custom ESLint rule blocks direct AWS SDK imports; must use `@ai-learning-hub/*` shared packages                                                                      | [`scripts/eslint-rules/enforce-shared-imports.js`](/scripts/eslint-rules/enforce-shared-imports.js), [`backend/test/import-enforcement.test.ts`](/backend/test/import-enforcement.test.ts) |
-| **Smoke tests**              | 5 deployed-environment scenarios: route connectivity, JWT auth, API key auth, rate limiting, user profile                                                            | [`scripts/smoke-test/scenarios/`](/scripts/smoke-test/scenarios/)                                                                                                                          |
+| **Smoke tests**              | 7 deployed-environment scenarios: route connectivity, JWT auth, API key auth, rate limiting, user profile, saves CRUD, saves validation                              | [`scripts/smoke-test/scenarios/`](/scripts/smoke-test/scenarios/)                                                                                                                          |
 | **Type checking**            | `tsc --build` across all workspaces, runs as CI gate before tests                                                                                                    | [`package.json`](/package.json) `type-check` script                                                                                                                                        |
 | **Linting**                  | ESLint 9 flat config with TypeScript-ESLint + security plugin                                                                                                        | [`eslint.config.js`](/eslint.config.js)                                                                                                                                                    |
 | **Formatting**               | Prettier enforced via `format:check` CI gate + Husky pre-commit hook                                                                                                 | [`.prettierrc`](/.prettierrc), [`.husky/pre-commit`](/.husky/pre-commit)                                                                                                                   |
@@ -235,12 +240,17 @@ See [`.claude/docs/secrets-and-config.md`](/.claude/docs/secrets-and-config.md) 
 
 **Epic 3 (In Progress): Save URLs, Core CRUD**
 
-- Create, list, get, update, delete, and restore saves via API
-- URL normalization with duplicate detection (409 Conflict with existing save returned)
-- Content type detection (domain-based at save-time, refined by enrichment)
-- Filtering by type, project linkage, tutorial status; sorting by date and title
+Backend API complete (6/11 stories done):
+
+- ~~Create, list, get, update, delete, and restore saves via API~~ (done)
+- ~~URL normalization with duplicate detection (409 Conflict with existing save returned)~~ (done)
+- ~~Content type detection (domain-based at save-time, refined by enrichment)~~ (done)
+- ~~Filtering by type, project linkage, tutorial status; sorting by date and title~~ (done)
+
+Remaining (5 stories):
+
 - iOS Shortcut capture and PWA share target for mobile
-- UI foundation: design system, saves list page, filtering/sorting UI
+- UI foundation: design system, saves list page, filtering/sorting UI, save actions feedback
 
 **Epic 4 (Next): Project Management**
 
@@ -266,23 +276,25 @@ Epic 9 (Async Processing Pipelines), 10 (Admin and Analytics), and 11 (Onboardin
 
 ## Docs and References
 
-| Document                                                                                                 | What it covers                                 |
-| -------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| [Product Brief](/_bmad-output/planning-artifacts/product-brief-ai-learning-hub-2026-01-31.md)            | Vision, personas, UX principles                |
-| [PRD](/_bmad-output/planning-artifacts/prd.md)                                                           | 69 functional + 28 non-functional requirements |
-| [Architecture](/_bmad-output/planning-artifacts/architecture.md)                                         | 16 ADRs, full technical design                 |
-| [Epics](/_bmad-output/planning-artifacts/epics.md)                                                       | Complete epic and story breakdown              |
-| [Database Schema](/.claude/docs/database-schema.md)                                                      | 7 tables, 10 GSIs, access patterns             |
-| [API Patterns](/.claude/docs/api-patterns.md)                                                            | Error shapes, conventions, middleware          |
-| [Testing Guide](/.claude/docs/testing-guide.md)                                                          | Test structure, conventions, coverage          |
-| [Sprint Status](/_bmad-output/implementation-artifacts/sprint-status.yaml)                               | Live implementation progress                   |
-| [Epic 1 Retrospective](/_bmad-output/implementation-artifacts/epic-1-retro-2026-02-14.md)                | Foundation epic learnings                      |
-| [Epic 2 Retrospective](/_bmad-output/implementation-artifacts/epic-2-retro-2026-02-16.md)                | Auth epic learnings                            |
-| [Epic 2.1 Completion Report](docs/progress/epic-2.1-completion-report.md)                                | Technical debt paydown results                 |
-| [Adversarial Review](docs/adversarial-architecture-review-2026-02-20.md)                                 | Full codebase adversarial review findings      |
-| [System Overview Diagram](/_bmad-output/planning-artifacts/diagrams/01-system-overview.md)               | Mermaid system context diagram                 |
-| [User Flows](/_bmad-output/planning-artifacts/diagrams/02-user-flows.md)                                 | Persona journey diagrams                       |
-| [Agentic Workflow Diagram](/_bmad-output/planning-artifacts/diagrams/07-agentic-development-workflow.md) | How AI agents participate in development       |
+| Document                                                                                                 | What it covers                            |
+| -------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| [Product Brief](/_bmad-output/planning-artifacts/product-brief-ai-learning-hub-2026-01-31.md)            | Vision, personas, UX principles           |
+| [PRD](/_bmad-output/planning-artifacts/prd.md)                                                           | Functional + non-functional requirements  |
+| [Architecture](/_bmad-output/planning-artifacts/architecture.md)                                         | 16 ADRs, full technical design            |
+| [Epics](/_bmad-output/planning-artifacts/epics.md)                                                       | Complete epic and story breakdown         |
+| [Database Schema](/.claude/docs/database-schema.md)                                                      | 7 tables, 10 GSIs, access patterns        |
+| [API Patterns](/.claude/docs/api-patterns.md)                                                            | Error shapes, conventions, middleware     |
+| [Testing Guide](/.claude/docs/testing-guide.md)                                                          | Test structure, conventions, coverage     |
+| [Sprint Status](/_bmad-output/implementation-artifacts/sprint-status.yaml)                               | Live implementation progress              |
+| [Epic 1 Retrospective](/_bmad-output/implementation-artifacts/epic-1-retro-2026-02-14.md)                | Foundation epic learnings                 |
+| [Epic 2 Retrospective](/_bmad-output/implementation-artifacts/epic-2-retro-2026-02-16.md)                | Auth epic learnings                       |
+| [Epic 2.1 Completion Report](docs/progress/epic-2.1-completion-report.md)                                | Technical debt paydown results            |
+| [Epic 3 Completion Report](docs/progress/epic-3-completion-report.md)                                    | Saves CRUD implementation results         |
+| [Epic 3.1 Completion Report](docs/progress/epic-3.1-completion-report.md)                                | Saves domain consolidation results        |
+| [Adversarial Review](docs/adversarial-architecture-review-2026-02-20.md)                                 | Full codebase adversarial review findings |
+| [System Overview Diagram](/_bmad-output/planning-artifacts/diagrams/01-system-overview.md)               | Mermaid system context diagram            |
+| [User Flows](/_bmad-output/planning-artifacts/diagrams/02-user-flows.md)                                 | Persona journey diagrams                  |
+| [Agentic Workflow Diagram](/_bmad-output/planning-artifacts/diagrams/07-agentic-development-workflow.md) | How AI agents participate in development  |
 
 ## Contributing and Project Philosophy
 
@@ -340,21 +352,21 @@ Key evidence used to build this README, grouped by category. Every claim above i
 
 **Tests**
 
-- [`backend/functions/*/handler.test.ts`](/backend/functions/) (6 handler test suites)
+- [`backend/functions/*/handler.test.ts`](/backend/functions/) (12 handler test suites)
 - [`backend/shared/*/test/`](/backend/shared/) (6 shared package test directories)
 - [`infra/test/architecture-enforcement/`](/infra/test/architecture-enforcement/) (5 architecture enforcement suites)
 - [`infra/test/stacks/`](/infra/test/stacks/) (CDK stack tests)
 - [`test/hooks/`](/test/hooks/) (14 hook test files including 3 integration tests)
-- [`scripts/smoke-test/scenarios/`](/scripts/smoke-test/scenarios/) (5 deployed-environment scenarios)
+- [`scripts/smoke-test/scenarios/`](/scripts/smoke-test/scenarios/) (7 deployed-environment scenarios)
 
 **Infrastructure**
 
-- [`infra/lib/stacks/`](/infra/lib/stacks/) (7 CDK stacks: api-gateway, auth-routes, rate-limiting, auth, tables, buckets, observability)
+- [`infra/lib/stacks/`](/infra/lib/stacks/) (9 CDK stacks: api-gateway, auth-routes, rate-limiting, saves-routes, auth, tables, buckets, events, observability)
 - [`infra/config/route-registry.ts`](/infra/config/route-registry.ts) (single source of truth for API routes)
 
 **Backend**
 
-- [`backend/functions/`](/backend/functions/) (6 Lambda handlers implemented, 6 placeholder directories)
+- [`backend/functions/`](/backend/functions/) (12 Lambda handlers implemented, 6 placeholder directories)
 - [`backend/shared/`](/backend/shared/) (6 packages: db, events, logging, middleware, types, validation)
 - [`backend/vitest.config.ts`](/backend/vitest.config.ts) (80% coverage thresholds)
 
@@ -377,5 +389,6 @@ Key evidence used to build this README, grouped by category. Every claim above i
 - [`_bmad-output/implementation-artifacts/epic-2-retro-2026-02-16.md`](/_bmad-output/implementation-artifacts/epic-2-retro-2026-02-16.md)
 - [`docs/progress/epic-2.1-completion-report.md`](/docs/progress/epic-2.1-completion-report.md)
 - [`docs/progress/epic-3-completion-report.md`](/docs/progress/epic-3-completion-report.md)
+- [`docs/progress/epic-3.1-completion-report.md`](/docs/progress/epic-3.1-completion-report.md)
 - [`docs/adversarial-architecture-review-2026-02-20.md`](/docs/adversarial-architecture-review-2026-02-20.md)
 - [`docs/progress/`](/docs/progress/) (30+ review findings files across all stories)
