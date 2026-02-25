@@ -64,7 +64,7 @@ export class ApiDeploymentStack extends cdk.Stack {
       ],
     });
 
-    // Construct the stage ARN for WAF association
+    // Construct the stage ARN for WAF association and cross-stack references.
     this.stageArn = cdk.Arn.format(
       {
         service: "apigateway",
@@ -75,10 +75,17 @@ export class ApiDeploymentStack extends cdk.Stack {
     );
 
     // --- WAF Association (AC2) ---
-    new wafv2.CfnWebACLAssociation(this, "WebAclAssociation", {
-      resourceArn: this.stageArn,
-      webAclArn: webAcl.attrArn,
-    });
+    const wafAssociation = new wafv2.CfnWebACLAssociation(
+      this,
+      "WebAclAssociation",
+      {
+        resourceArn: this.stageArn,
+        webAclArn: webAcl.attrArn,
+      }
+    );
+    // Explicit DependsOn: WAF association requires the stage to exist.
+    // CloudFormation can't infer this from the string-based stageArn.
+    wafAssociation.addDependency(stage);
 
     // --- CDK Nag Suppressions ---
     NagSuppressions.addResourceSuppressions(

@@ -54,7 +54,10 @@ export async function waitForLogEvent(
     await import("@aws-sdk/client-cloudwatch-logs");
 
   const cwlClient = new CloudWatchLogsClient({});
-  const filterPattern = `{ $.detail.saveId = "${saveId}" && $["detail-type"] = "${detailType}" }`;
+  // CloudWatch Logs filter patterns do not support bracket notation for
+  // hyphenated keys like "detail-type". Filter by saveId only, then match
+  // detail-type in application code after parsing.
+  const filterPattern = `{ $.detail.saveId = "${saveId}" }`;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     if (attempt > 1) {
@@ -81,28 +84,25 @@ export async function waitForLogEvent(
     }
 
     const events = result.events ?? [];
-    if (events.length > 0) {
-      // Parse the first matching log event
-      const message = events[0].message;
-      if (!message) {
-        throw new Error(
-          `CloudWatch log event has no message field (attempt ${attempt})`
-        );
-      }
+    // Find the event matching the requested detail-type
+    for (const logEvent of events) {
+      const message = logEvent.message;
+      if (!message) continue;
 
       let parsed;
       try {
         parsed = JSON.parse(message);
       } catch {
-        throw new Error(
-          `Failed to parse CloudWatch log event as JSON (attempt ${attempt}): ${message.slice(0, 200)}`
-        );
+        continue;
       }
-      return {
-        detailType: parsed["detail-type"],
-        source: parsed.source,
-        detail: parsed.detail,
-      };
+
+      if (parsed["detail-type"] === detailType) {
+        return {
+          detailType: parsed["detail-type"],
+          source: parsed.source,
+          detail: parsed.detail,
+        };
+      }
     }
   }
 
