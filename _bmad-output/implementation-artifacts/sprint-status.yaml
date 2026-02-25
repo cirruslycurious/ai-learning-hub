@@ -112,6 +112,19 @@ development_status:
   3-1-9-eventbridge-verification: ready-for-dev
   epic-3-1-retrospective: optional
 
+  # Epic 3.2: Agent-Native API Foundation (9 stories)
+  epic-3-2: in-progress
+  3-2-1-idempotency-concurrency-middleware: backlog
+  3-2-2-error-contract-response-envelope: backlog
+  3-2-3-event-history-infrastructure: ready-for-dev
+  3-2-4-agent-identity-context-rate-limit: backlog
+  3-2-5-cursor-based-pagination: backlog
+  3-2-6-scoped-api-key-permissions: backlog
+  3-2-7-saves-domain-retrofit: backlog
+  3-2-8-auth-domain-retrofit: backlog
+  3-2-9-health-readiness-batch: backlog
+  epic-3-2-retrospective: optional
+
   # Epic 4: Project Management (stories TBD)
   epic-4: backlog
   epic-4-retrospective: optional
