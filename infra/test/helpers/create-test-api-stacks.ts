@@ -14,9 +14,11 @@ import * as events from "aws-cdk-lib/aws-events";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as wafv2 from "aws-cdk-lib/aws-wafv2";
 import { Template } from "aws-cdk-lib/assertions";
+
 import { ApiGatewayStack } from "../../lib/stacks/api/api-gateway.stack";
 import { AuthRoutesStack } from "../../lib/stacks/api/auth-routes.stack";
 import { SavesRoutesStack } from "../../lib/stacks/api/saves-routes.stack";
+import { ApiDeploymentStack } from "../../lib/stacks/api/api-deployment.stack";
 import { getAwsEnv } from "../../config/aws-env";
 
 /**
@@ -99,9 +101,11 @@ export interface TestApiStacks {
   apiGatewayStack: ApiGatewayStack;
   authRoutesStack: AuthRoutesStack;
   savesRoutesStack: SavesRoutesStack;
+  apiDeploymentStack: ApiDeploymentStack;
   apiGwTemplate: Template;
   routesTemplate: Template;
   savesRoutesTemplate: Template;
+  deploymentTemplate: Template;
   /** All route templates combined for searching across all route stacks */
   allRouteTemplates: Template[];
 }
@@ -130,16 +134,6 @@ export function createTestApiStacks(): TestApiStacks {
 
   const depsStack = new Stack(app, "ArchTestDeps", { env: awsEnv });
 
-  const webAcl = new wafv2.CfnWebACL(depsStack, "TestWebAcl", {
-    scope: "REGIONAL",
-    defaultAction: { allow: {} },
-    visibilityConfig: {
-      cloudWatchMetricsEnabled: true,
-      metricName: "ArchTestMetric",
-      sampledRequestsEnabled: true,
-    },
-  });
-
   // Use env or synthesize a dummy account (split to avoid secrets-scan false positive)
   const testAccount = awsEnv.account ?? `${"123456"}789012`;
   const testRegion = awsEnv.region ?? "us-east-2";
@@ -152,7 +146,6 @@ export function createTestApiStacks(): TestApiStacks {
     env: awsEnv,
     jwtAuthorizerFunctionArn: makeArn("JwtAuthFn"),
     apiKeyAuthorizerFunctionArn: makeArn("ApiKeyAuthFn"),
-    webAcl,
   });
 
   const authRoutesStack = new AuthRoutesStack(app, "ArchTestAuthRoutes", {
@@ -196,18 +189,43 @@ export function createTestApiStacks(): TestApiStacks {
     eventBus,
   });
 
+  // WAF WebACL for ApiDeploymentStack
+  const webAcl = new wafv2.CfnWebACL(depsStack, "TestWebAcl", {
+    scope: "REGIONAL",
+    defaultAction: { allow: {} },
+    visibilityConfig: {
+      cloudWatchMetricsEnabled: true,
+      metricName: "ArchTestMetric",
+      sampledRequestsEnabled: true,
+    },
+  });
+
+  const apiDeploymentStack = new ApiDeploymentStack(
+    app,
+    "ArchTestApiDeployment",
+    {
+      env: awsEnv,
+      restApiId: apiGatewayStack.restApi.restApiId,
+      stageName: "dev",
+      webAcl,
+    }
+  );
+
   const apiGwTemplate = Template.fromStack(apiGatewayStack);
   const routesTemplate = Template.fromStack(authRoutesStack);
   const savesRoutesTemplate = Template.fromStack(savesRoutesStack);
+  const deploymentTemplate = Template.fromStack(apiDeploymentStack);
 
   const result: TestApiStacks = {
     app,
     apiGatewayStack,
     authRoutesStack,
     savesRoutesStack,
+    apiDeploymentStack,
     apiGwTemplate,
     routesTemplate,
     savesRoutesTemplate,
+    deploymentTemplate,
     allRouteTemplates: [routesTemplate, savesRoutesTemplate],
   };
 

@@ -14,11 +14,13 @@ import { createTestApiStacks } from "../helpers/create-test-api-stacks";
 describe("T1: API Gateway Contract", () => {
   let apiGwTemplate: Template;
   let routesTemplate: Template;
+  let deploymentTemplate: Template;
 
   beforeAll(() => {
     const stacks = createTestApiStacks();
     apiGwTemplate = stacks.apiGwTemplate;
     routesTemplate = stacks.routesTemplate;
+    deploymentTemplate = stacks.deploymentTemplate;
   });
 
   describe("AC1: Every non-OPTIONS method has AuthorizationType != NONE", () => {
@@ -161,14 +163,16 @@ describe("T1: API Gateway Contract", () => {
   });
 
   describe("AC4: WAF WebACL Association", () => {
-    it("has a CfnWebACLAssociation linking WAF to the RestApi stage", () => {
-      const associations = apiGwTemplate.findResources(
+    it("has a CfnWebACLAssociation linking WAF to the RestApi stage (in ApiDeploymentStack)", () => {
+      // WAF association is managed by ApiDeploymentStack (owns the Stage),
+      // not ApiGatewayStack (which only creates the RestApi + authorizers).
+      const associations = deploymentTemplate.findResources(
         "AWS::WAFv2::WebACLAssociation"
       );
 
       expect(
         Object.keys(associations).length,
-        "Expected exactly 1 WebACLAssociation"
+        "Expected exactly 1 WebACLAssociation in ApiDeploymentStack"
       ).toBe(1);
     });
   });

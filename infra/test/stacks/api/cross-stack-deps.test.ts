@@ -9,7 +9,6 @@
  */
 import { App, Stack } from "aws-cdk-lib";
 import * as lambda from "aws-cdk-lib/aws-lambda";
-import * as wafv2 from "aws-cdk-lib/aws-wafv2";
 import { Template } from "aws-cdk-lib/assertions";
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
@@ -31,16 +30,6 @@ describe("T7: Cross-Stack Dependency Validation", () => {
 
       const depsStack = new Stack(app, "SynthTestDepsStack", { env: awsEnv });
 
-      const webAcl = new wafv2.CfnWebACL(depsStack, "TestWebAcl", {
-        scope: "REGIONAL",
-        defaultAction: { allow: {} },
-        visibilityConfig: {
-          cloudWatchMetricsEnabled: true,
-          metricName: "TestMetric",
-          sampledRequestsEnabled: true,
-        },
-      });
-
       const testAccount = awsEnv.account ?? "123456789012";
       const testRegion = awsEnv.region ?? "us-east-2";
       const makeArn = (name: string) =>
@@ -55,7 +44,6 @@ describe("T7: Cross-Stack Dependency Validation", () => {
           env: awsEnv,
           jwtAuthorizerFunctionArn: makeArn("JwtAuthFn"),
           apiKeyAuthorizerFunctionArn: makeArn("ApiKeyAuthFn"),
-          webAcl,
         }
       );
 
@@ -90,20 +78,10 @@ describe("T7: Cross-Stack Dependency Validation", () => {
       ).toBeGreaterThanOrEqual(7);
     });
 
-    it("ApiGatewayStack template exports RestApiId and RestApiUrl", () => {
+    it("ApiGatewayStack template exports RestApiId and RestApiRootResourceId", () => {
       const app = new App();
       const awsEnv = getAwsEnv();
       const depsStack = new Stack(app, "OutputTestDeps", { env: awsEnv });
-
-      const webAcl = new wafv2.CfnWebACL(depsStack, "TestWebAcl", {
-        scope: "REGIONAL",
-        defaultAction: { allow: {} },
-        visibilityConfig: {
-          cloudWatchMetricsEnabled: true,
-          metricName: "TestMetric",
-          sampledRequestsEnabled: true,
-        },
-      });
 
       const testAccount = awsEnv.account ?? "123456789012";
       const testRegion = awsEnv.region ?? "us-east-2";
@@ -116,7 +94,6 @@ describe("T7: Cross-Stack Dependency Validation", () => {
         env: awsEnv,
         jwtAuthorizerFunctionArn: makeArn("JwtAuthFn"),
         apiKeyAuthorizerFunctionArn: makeArn("ApiKeyAuthFn"),
-        webAcl,
       });
 
       // Create routes stack so authorizers are consumed (required for synth)
@@ -136,20 +113,22 @@ describe("T7: Cross-Stack Dependency Validation", () => {
       template.hasOutput("RestApiId", {
         Export: { Name: "AiLearningHub-RestApiId" },
       });
-      template.hasOutput("RestApiUrl", {
-        Export: { Name: "AiLearningHub-RestApiUrl" },
+      template.hasOutput("RestApiRootResourceId", {
+        Export: { Name: "AiLearningHub-RestApiRootResourceId" },
       });
     });
   });
 
   describe("Stack instantiation order (source-text supplementary)", () => {
-    it("instantiates stacks in correct ADR-006 order: Core -> Auth -> API -> AuthRoutes", () => {
+    it("instantiates stacks in correct order: Core -> Auth -> API -> Routes -> Deployment", () => {
       const tablesPos = appSource.indexOf("new TablesStack");
       const bucketsPos = appSource.indexOf("new BucketsStack");
       const authPos = appSource.indexOf("new AuthStack");
       const rateLimitPos = appSource.indexOf("new RateLimitingStack");
       const apiGatewayPos = appSource.indexOf("new ApiGatewayStack");
       const authRoutesPos = appSource.indexOf("new AuthRoutesStack");
+      const savesRoutesPos = appSource.indexOf("new SavesRoutesStack");
+      const apiDeploymentPos = appSource.indexOf("new ApiDeploymentStack");
       const observabilityPos = appSource.indexOf("new ObservabilityStack");
 
       // All stacks must exist
@@ -159,6 +138,8 @@ describe("T7: Cross-Stack Dependency Validation", () => {
       expect(rateLimitPos).toBeGreaterThan(-1);
       expect(apiGatewayPos).toBeGreaterThan(-1);
       expect(authRoutesPos).toBeGreaterThan(-1);
+      expect(savesRoutesPos).toBeGreaterThan(-1);
+      expect(apiDeploymentPos).toBeGreaterThan(-1);
       expect(observabilityPos).toBeGreaterThan(-1);
 
       // Core stacks before Auth
@@ -169,6 +150,10 @@ describe("T7: Cross-Stack Dependency Validation", () => {
 
       // API Gateway before Auth Routes
       expect(apiGatewayPos).toBeLessThan(authRoutesPos);
+
+      // Route stacks before Deployment
+      expect(authRoutesPos).toBeLessThan(apiDeploymentPos);
+      expect(savesRoutesPos).toBeLessThan(apiDeploymentPos);
     });
   });
 
@@ -200,6 +185,18 @@ describe("T7: Cross-Stack Dependency Validation", () => {
     it("authRoutesStack depends on authStack", () => {
       expect(appSource).toContain("authRoutesStack.addDependency(authStack)");
     });
+
+    it("apiDeploymentStack depends on authRoutesStack", () => {
+      expect(appSource).toContain(
+        "apiDeploymentStack.addDependency(authRoutesStack)"
+      );
+    });
+
+    it("apiDeploymentStack depends on savesRoutesStack", () => {
+      expect(appSource).toContain(
+        "apiDeploymentStack.addDependency(savesRoutesStack)"
+      );
+    });
   });
 
   describe("No circular dependencies", () => {
@@ -213,6 +210,12 @@ describe("T7: Cross-Stack Dependency Validation", () => {
       );
       expect(appSource).not.toContain(
         "apiGatewayStack.addDependency(authRoutesStack)"
+      );
+      expect(appSource).not.toContain(
+        "authRoutesStack.addDependency(apiDeploymentStack)"
+      );
+      expect(appSource).not.toContain(
+        "savesRoutesStack.addDependency(apiDeploymentStack)"
       );
     });
   });
@@ -231,7 +234,7 @@ describe("T7: Cross-Stack Dependency Validation", () => {
       );
     });
 
-    it("ApiGatewayStack receives WAF WebACL from RateLimitingStack via props", () => {
+    it("ApiDeploymentStack receives WAF WebACL from RateLimitingStack via props", () => {
       expect(appSource).toContain("webAcl: rateLimitingStack.webAcl");
     });
 
@@ -296,7 +299,16 @@ describe("T7: Cross-Stack Dependency Validation", () => {
       );
       expect(apiGatewaySource).toContain("CfnOutput");
       expect(apiGatewaySource).toContain("AiLearningHub-RestApiId");
-      expect(apiGatewaySource).toContain("AiLearningHub-RestApiUrl");
+      expect(apiGatewaySource).toContain("AiLearningHub-RestApiRootResourceId");
+    });
+
+    it("ApiDeploymentStack exports REST API URL via CfnOutput", () => {
+      const deploymentSource = readFileSync(
+        join(__dirname, "../../../lib/stacks/api/api-deployment.stack.ts"),
+        "utf-8"
+      );
+      expect(deploymentSource).toContain("CfnOutput");
+      expect(deploymentSource).toContain("AiLearningHub-RestApiUrl");
     });
   });
 });

@@ -7,7 +7,6 @@
  */
 import { App, Stack } from "aws-cdk-lib";
 import * as lambda from "aws-cdk-lib/aws-lambda";
-import * as wafv2 from "aws-cdk-lib/aws-wafv2";
 import { Template } from "aws-cdk-lib/assertions";
 import { describe, it, expect, beforeAll } from "vitest";
 import { ApiGatewayStack } from "../../../lib/stacks/api/api-gateway.stack";
@@ -26,16 +25,6 @@ describe("AuthRoutesStack", () => {
 
     const depsStack = new Stack(app, "TestDepsStack", { env: awsEnv });
 
-    const webAcl = new wafv2.CfnWebACL(depsStack, "TestWebAcl", {
-      scope: "REGIONAL",
-      defaultAction: { allow: {} },
-      visibilityConfig: {
-        cloudWatchMetricsEnabled: true,
-        metricName: "TestMetric",
-        sampledRequestsEnabled: true,
-      },
-    });
-
     const testAccount = awsEnv.account ?? "123456789012";
     const testRegion = awsEnv.region ?? "us-east-2";
     const makeArn = (name: string) =>
@@ -47,7 +36,6 @@ describe("AuthRoutesStack", () => {
       env: awsEnv,
       jwtAuthorizerFunctionArn: makeArn("JwtAuthFn"),
       apiKeyAuthorizerFunctionArn: makeArn("ApiKeyAuthFn"),
-      webAcl,
     });
 
     const authRoutesStack = new AuthRoutesStack(app, "TestAuthRoutesStack", {

@@ -1,9 +1,10 @@
 /**
- * API Gateway Stack -- REST API with shared authorizers, CORS, WAF, Gateway Responses
+ * API Gateway Stack -- REST API with shared authorizers, CORS, Gateway Responses
  *
- * Creates the central RestApi resource with authorizers, CORS config,
- * ADR-008 Gateway Responses, and WAF association. Does NOT create routes --
- * route stacks (e.g., AuthRoutesStack) consume restApi and authorizers via props.
+ * Creates the central RestApi resource with authorizers, CORS config, and
+ * ADR-008 Gateway Responses. Does NOT create routes or deployments --
+ * route stacks (e.g., AuthRoutesStack) consume restApi and authorizers via props,
+ * and ApiDeploymentStack manages the Deployment + Stage + WAF association.
  *
  * Extensibility (AC11): Future epics add routes by creating separate route stacks
  * and passing restApi + authorizers via props. The restApi, jwtAuthorizer, and
@@ -17,7 +18,7 @@
 import * as cdk from "aws-cdk-lib";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as lambda from "aws-cdk-lib/aws-lambda";
-import * as wafv2 from "aws-cdk-lib/aws-wafv2";
+// wafv2 import removed — WAF association moved to ApiDeploymentStack
 import { NagSuppressions } from "cdk-nag";
 import { Construct } from "constructs";
 
@@ -28,10 +29,7 @@ export interface ApiGatewayStackProps extends cdk.StackProps {
   /** API Key authorizer Lambda ARN (from AuthStack.apiKeyAuthorizerFunction.functionArn).
    *  Passed as string to avoid CDK cross-stack permission grants that create cycles. */
   apiKeyAuthorizerFunctionArn: string;
-  /** WAF WebACL (from RateLimitingStack) */
-  webAcl: wafv2.CfnWebACL;
-  /** API Gateway deployment stage name (e.g., "dev", "staging", "prod"). Defaults to "dev". */
-  stageName?: string;
+  // WAF WebACL and stageName moved to ApiDeploymentStack
 }
 
 export class ApiGatewayStack extends cdk.Stack {
@@ -45,12 +43,7 @@ export class ApiGatewayStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: ApiGatewayStackProps) {
     super(scope, id, props);
 
-    const {
-      jwtAuthorizerFunctionArn,
-      apiKeyAuthorizerFunctionArn,
-      webAcl,
-      stageName = "dev",
-    } = props;
+    const { jwtAuthorizerFunctionArn, apiKeyAuthorizerFunctionArn } = props;
 
     // Import authorizer Lambdas by ARN to avoid CDK cross-stack permission
     // grants. When real Lambda constructs are passed across stacks, CDK
@@ -69,15 +62,14 @@ export class ApiGatewayStack extends cdk.Stack {
     );
 
     // --- REST API (AC1) ---
+    // deploy: false — Deployment and Stage are managed by ApiDeploymentStack,
+    // which deploys AFTER all route stacks, ensuring every route is included.
+    // See: CDK cross-stack deployment issue — routes added via fromRestApiAttributes()
+    // in separate stacks are not visible to the RestApi's auto-deployment hash.
     this.restApi = new apigateway.RestApi(this, "RestApi", {
       restApiName: "ai-learning-hub-api",
       description: "AI Learning Hub REST API (Epic 2.1-D1)",
-      deployOptions: {
-        stageName,
-        throttlingRateLimit: 100,
-        throttlingBurstLimit: 200,
-        tracingEnabled: true,
-      },
+      deploy: false,
       defaultCorsPreflightOptions: {
         allowOrigins: apigateway.Cors.ALL_ORIGINS,
         allowMethods: apigateway.Cors.ALL_METHODS,
@@ -202,11 +194,7 @@ export class ApiGatewayStack extends cdk.Stack {
       sourceArn: this.apiKeyAuthorizer.authorizerArn,
     });
 
-    // --- WAF Association (AC2) ---
-    new wafv2.CfnWebACLAssociation(this, "WebAclAssociation", {
-      resourceArn: this.restApi.deploymentStage.stageArn,
-      webAclArn: webAcl.attrArn,
-    });
+    // WAF Association is managed by ApiDeploymentStack (owns the Stage).
 
     // --- CDK Nag Suppressions ---
     NagSuppressions.addResourceSuppressions(
@@ -231,17 +219,7 @@ export class ApiGatewayStack extends cdk.Stack {
       true
     );
 
-    NagSuppressions.addResourceSuppressions(
-      this.restApi.deploymentStage,
-      [
-        {
-          id: "AwsSolutions-APIG3",
-          reason:
-            "WAF is associated via CfnWebACLAssociation. CDK Nag does not detect CfnWebACLAssociation automatically.",
-        },
-      ],
-      true
-    );
+    // APIG3 suppression moved to ApiDeploymentStack (owns the Stage).
 
     NagSuppressions.addStackSuppressions(this, [
       {
@@ -261,10 +239,12 @@ export class ApiGatewayStack extends cdk.Stack {
       exportName: "AiLearningHub-RestApiId",
     });
 
-    new cdk.CfnOutput(this, "RestApiUrl", {
-      value: this.restApi.url,
-      description: "REST API URL (dev stage)",
-      exportName: "AiLearningHub-RestApiUrl",
+    // REST API URL output moved to ApiDeploymentStack (which owns the Stage).
+    // Export rootResourceId for route stacks.
+    new cdk.CfnOutput(this, "RestApiRootResourceId", {
+      value: this.restApi.restApiRootResourceId,
+      description: "REST API root resource ID",
+      exportName: "AiLearningHub-RestApiRootResourceId",
     });
   }
 }
