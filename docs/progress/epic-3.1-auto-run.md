@@ -1,9 +1,9 @@
 ---
 epic_id: Epic-3.1
 status: in-progress
-scope: ["3.1.1", "3.1.2", "3.1.3", "3.1.5", "3.1.7", "3.1.6"]
+scope: ["3.1.1", "3.1.2", "3.1.3", "3.1.5", "3.1.7", "3.1.6", "3.1.8"]
 started: "2026-02-23T00:00:00Z"
-last_updated: "2026-02-24T22:30:00Z"
+last_updated: "2026-02-25T12:00:00Z"
 stories:
   "3.1.1":
     {
@@ -75,20 +75,28 @@ stories:
       reviewRounds: 3,
       reviewResult: APPROVE,
     }
+  "3.1.8":
+    {
+      status: in-progress,
+      issue: 215,
+      branch: story-3-1-8-eventbridge-observability-infra,
+      startedAt: "2026-02-25T12:00:00Z",
+    }
 ---
 
 <!-- Human-readable display below (generated from frontmatter) -->
 
 # Epic 3.1 Auto-Run Progress
 
-| Story | Status      | PR   | Review Rounds | Result  | Duration |
-| ----- | ----------- | ---- | ------------- | ------- | -------- |
-| 3.1.1 | ✅ Complete | #194 | 1             | APPROVE | -        |
-| 3.1.2 | ✅ Complete | #196 | 1             | APPROVE | 55m      |
-| 3.1.3 | ✅ Complete | #198 | 1             | APPROVE | -        |
-| 3.1.5 | ✅ Complete | #202 | 1             | APPROVE | -        |
-| 3.1.7 | ✅ Complete | #204 | 1             | APPROVE | -        |
-| 3.1.6 | ✅ Complete | #206 | 3             | APPROVE | 1h 3m    |
+| Story | Status         | PR   | Review Rounds | Result  | Duration |
+| ----- | -------------- | ---- | ------------- | ------- | -------- |
+| 3.1.1 | ✅ Complete    | #194 | 1             | APPROVE | -        |
+| 3.1.2 | ✅ Complete    | #196 | 1             | APPROVE | 55m      |
+| 3.1.3 | ✅ Complete    | #198 | 1             | APPROVE | -        |
+| 3.1.5 | ✅ Complete    | #202 | 1             | APPROVE | -        |
+| 3.1.7 | ✅ Complete    | #204 | 1             | APPROVE | -        |
+| 3.1.6 | ✅ Complete    | #206 | 3             | APPROVE | 1h 3m    |
+| 3.1.8 | 🔄 In Progress | —    | —             | —       | —        |
 
 ## Activity Log
 
@@ -117,3 +125,5 @@ stories:
 - [24:18:33] Story 3.1.6 complete (5/6 stories done in scope — 3.1.5 was completed externally via PR #202)
 - [24:22:21] Story 3.1.7: Completed externally — PR #204 merged, issue #203 closed
 - [24:22:30] All stories in scope complete (6/6). Remaining epic stories: 3.1.8, 3.1.9
+- [25:12:00] Epic 3.1 auto-run resumed — adding Story 3.1.8 to scope
+- [25:12:00] Story 3.1.8: Issue #215 created, branch story-3-1-8-eventbridge-observability-infra created, implementation starting
