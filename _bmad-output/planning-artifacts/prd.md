@@ -11,6 +11,13 @@ stepsCompleted:
   - step-09-functional
   - step-10-nonfunctional
   - step-11-polish
+  - step-e-01-discovery
+  - step-e-02-review
+  - step-e-03-edit
+  - step-v-01-through-v-12 (full validation)
+  - step-e-01-discovery (round 2)
+  - step-e-02-review (round 2)
+  - step-e-03-edit (round 2 — validation fixes)
 inputDocuments:
   - _bmad-output/planning-artifacts/product-brief-ai-learning-hub-2026-01-31.md
   - _bmad-output/planning-artifacts/research/domain-ai-genai-learning-workflows-research-2026-02-02.md
@@ -28,6 +35,12 @@ classification:
   domain: 'edtech'
   complexity: 'medium'
   projectContext: 'greenfield'
+lastEdited: '2026-02-24'
+editHistory:
+  - date: '2026-02-24'
+    changes: 'Added agent-native API patterns: 16 new FRs (FR92-FR107) covering CQRS, state machine enforcement, idempotency, optimistic concurrency, operation resources, consistent error contract, event history, agent identity, cursor pagination, batch operations, health endpoints. Added 7 new NFRs (NFR-AN1-AN7). Updated API design principles, authentication model (scoped permissions), core endpoints (query/command split), error handling, rate limiting. Updated processing pipelines with operation resources. Documented V2 deferred patterns (dry-run, webhooks, sparse fieldsets, declarative state).'
+  - date: '2026-02-24'
+    changes: 'Post-validation fixes: Rewrote 4 subjective FRs for SMART compliance (FR50, FR57, FR65, FR66). Added FR108 (enrichment change detection) and FR109 (admin:content:review-flagged) for brief coverage gaps. Added FR110-FR112 (analytics endpoints, cohort data, persona reports) for traceability gaps. Fixed NFR-P4 target split (desktop/mobile), removed implementation leakage from NFR-O1 and NFR-AN2.'
 ---
 
 # Product Requirements Document - ai-learning-hub
@@ -110,6 +123,7 @@ V2 — The Intelligence Layer:
 - Spaced repetition (highest-value V2 feature per domain research)
 - Data export (Obsidian, JSON — aligns with local-first trend)
 - MCP server implementation for Dev's agentic workflows
+- Agent-native extensions: dry-run/preview for risky commands, webhook subscriptions for operation completion, sparse fieldsets for token-efficient LLM consumption, declarative desired-state layer
 
 ### Vision (Future)
 
@@ -487,8 +501,21 @@ The web app is one client among many. The API is the platform.
 | Method | Use Case | Implementation |
 |--------|----------|----------------|
 | Session auth (Clerk/Auth0) | Web app users | JWT tokens, secure cookies |
-| API keys | Programmatic access | Full-access and capture-only tiers |
-| Rate limiting | Abuse prevention | 100 req/min per key, read/write split |
+| API keys (scoped) | Programmatic access | Permission scopes per key (see tiers below) |
+| Agent identity | Autonomous actor attribution | `X-Agent-ID` header, `actor_type` field on operations |
+| Rate limiting | Abuse prevention | Per-key limits with transparency headers |
+
+#### API Key Permission Scopes
+
+| Scope | Capabilities | Use Case |
+|-------|-------------|----------|
+| `full` | All queries + commands on all entities | Dev persona, trusted agents |
+| `capture` | `POST /saves` only | iOS Shortcut, simple capture bots |
+| `read` | All GET endpoints | Analytics agents, read-only integrations |
+| `saves:write` | Queries + commands on saves and links | Learning Scout Agent (save + tag + link) |
+| `projects:write` | Queries + commands on projects | Project management integrations |
+
+Keys specify one or more scopes at creation time. Server rejects operations outside granted scopes with `403 INSUFFICIENT_SCOPE` including `required_scope` and `granted_scopes`.
 
 #### API Design Principles
 
@@ -496,36 +523,71 @@ The web app is one client among many. The API is the platform.
 - **JSON throughout** — request and response bodies
 - **OpenAPI spec** — generated from contract tests, serves as documentation
 - **No URL versioning** — additive-only changes; breaking changes coordinated directly at boutique scale (AWS-style approach)
+- **Command/Query separation (CQRS-lite)** — side-effectful actions use explicit command endpoints (`POST /resource/:id:action`); reads use standard GET with no side effects. CRUD field-patching of state-bearing fields is not permitted — clients use purpose-built commands
+- **Idempotency-by-default** — all command endpoints require `Idempotency-Key` header; server stores (actor, key, command) → result mapping and returns cached result on retry. Retries are safe by design
+- **Optimistic concurrency** — all mutable resources include `version` field; update commands require `If-Match` header with current version. Concurrent writes fail explicitly (409) rather than silently overwriting
+- **State machine enforcement** — domain entities with lifecycle states (projects, tutorials) define explicit allowed transitions; server rejects illegal transitions with `INVALID_STATE_TRANSITION` error including `current_state` and `allowed_actions`
+- **Cursor-based pagination** — all list endpoints use opaque cursor tokens (`?cursor=...`), not offset/page numbers. Stable under concurrent inserts/deletes
+- **Consistent response envelope** — all responses follow `{ data, meta: { cursor, total, rate_limit }, links: { self, next } }`. Agents parse one pattern
+- **Agent identity** — API requests from autonomous actors include `X-Agent-ID` header; operations record `actor_type` (`human` | `agent`) for attribution, audit, and per-actor rate limiting
 - **MCP-ready / Agentic-ready** — consistent naming, typed schemas, predictable patterns that translate to MCP tools in V2
 
 #### Core Endpoints (V1)
 
+**Query Endpoints (no side effects):**
+
 | Resource | Endpoints | Notes |
 |----------|-----------|-------|
-| Saves | CRUD + list/filter/search | Paginated, filterable by type/status/project |
-| Projects | CRUD + list/filter | Folder support, status transitions |
-| Tutorials | CRUD + status updates | Lifecycle: saved → started → completed |
-| Tags | CRUD + bulk operations | User-scoped |
-| Links | Create/delete (save↔project) | Many-to-many relationship |
-| User | Profile, settings, API keys | Self-service key management |
-| Admin | Analytics, user activity, system status | Internal APIs for operator workflows |
+| Saves | `GET /saves`, `GET /saves/:id`, `GET /saves/:id/events` | Cursor-paginated, filterable by type/status/project |
+| Projects | `GET /projects`, `GET /projects/:id`, `GET /projects/:id/summary`, `GET /projects/:id/events` | Filterable by status/folder |
+| Tutorials | `GET /tutorials`, `GET /tutorials/:id`, `GET /tutorials/:id/events` | Filterable by status |
+| Tags | `GET /tags`, `GET /tags/:id` | User-scoped |
+| Links | `GET /projects/:id/links`, `GET /saves/:id/links` | By project or by save |
+| User | `GET /user/profile`, `GET /user/settings`, `GET /user/keys` | Self-service |
+| Operations | `GET /operations/:id` | Status: queued, running, succeeded, failed |
+| Health | `GET /health`, `GET /ready` | Pre-flight checks for agents |
+| Admin | `GET /admin/analytics`, `GET /admin/users/:id/activity`, `GET /admin/system/status` | Operator workflows |
+
+**Command Endpoints (side-effectful, require `Idempotency-Key`):**
+
+| Resource | Commands | Notes |
+|----------|----------|-------|
+| Saves | `POST /saves`, `POST /saves/:id:update-metadata`, `POST /saves/:id:mark-tutorial`, `DELETE /saves/:id` | All require Idempotency-Key |
+| Projects | `POST /projects`, `POST /projects/:id:update`, `POST /projects/:id:transition`, `DELETE /projects/:id` | `:transition` enforces state machine |
+| Tutorials | `POST /tutorials/:id:start`, `POST /tutorials/:id:progress`, `POST /tutorials/:id:complete`, `POST /tutorials/:id:add-notes` | State machine: saved → started → in-progress → completed |
+| Tags | `POST /tags`, `POST /tags:bulk-apply`, `DELETE /tags/:id` | Bulk operations supported |
+| Links | `POST /links`, `POST /links:bulk-create`, `DELETE /links/:id` | Many-to-many, batch-friendly |
+| User | `POST /user:update-settings`, `POST /user:generate-key`, `POST /user:revoke-key` | Key management |
+| Operations | `POST /operations/:id:cancel` | Cancel running async operations |
+| Batch | `POST /batch` | Multiple commands in single request |
+| Admin | Admin commands via CLI auth | Operator workflows |
 
 #### Error Handling
 
-- **Standard HTTP status codes** — 200, 201, 400, 401, 403, 404, 429, 500
-- **Structured error responses** — `{ error: { code, message, details } }`
+- **Standard HTTP status codes** — 200, 201, 202 (async accepted), 400, 401, 403, 404, 409 (version conflict), 422 (validation), 429, 500
+- **Consistent error envelope** — `{ error: { code, message, details, current_state, allowed_actions, required_conditions } }`
+- **State machine rejections** — `INVALID_STATE_TRANSITION` errors include `current_state` and `allowed_actions` so agents know what commands are valid next
+- **Field-level validation** — `{ error: { code: "VALIDATION_ERROR", details: [{ field, code, message, constraint, allowed_values }] } }` — machine-parseable, per-field feedback
+- **Version conflicts** — 409 with current server version; agent retries with fresh state
+- **Scope violations** — 403 `INSUFFICIENT_SCOPE` with `required_scope` and `granted_scopes`
 - **429 responses** include `Retry-After` header for agent-friendly backoff
+- **Rate limit headers** — `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset` on every response
 - **Correlation IDs** in all responses for debugging
+- **Idempotent replay** — duplicate commands (same `Idempotency-Key`) return cached result, not error
 
 #### Rate Limiting
 
 | Tier | Read Limit | Write Limit | Notes |
 |------|------------|-------------|-------|
-| Standard | 100/min | 100/min | Web app users |
-| API Key (full) | 100/min | 100/min | Dev persona |
-| API Key (capture-only) | 100/min | 20/min | Limited write scope |
+| Standard (session) | 100/min | 100/min | Web app users |
+| API Key (full) | 100/min | 100/min | Dev persona, trusted agents |
+| API Key (capture) | 100/min | 20/min | iOS Shortcut, simple capture bots |
+| API Key (read) | 200/min | 0/min | Analytics agents, read-only integrations |
+| API Key (scoped write) | 100/min | 50/min | Entity-scoped write agents |
 
 Separate read/write counters prevent read-heavy agents from blocking saves.
+
+**Rate Limit Transparency:** Every response includes `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` headers. Agents self-throttle proactively rather than discovering limits via 429.
 
 ### Web Application Requirements
 
@@ -812,6 +874,7 @@ Functional requirements define WHAT the system does. Performance, security, and 
 - FR15: Users can delete saves
 - FR16: Users can edit save metadata (title, notes, type)
 - FR17: System automatically enriches saves with metadata (title, favicon, description)
+- FR108: System detects when enrichment source data has changed (e.g., updated OpenGraph tags, new YouTube title) and re-enriches affected saves during the next batch cycle. Change detection uses `Last-Modified` or content hash comparison. Re-enrichment produces a new event in the save's event history
 - FR18: Users can view saves in three domain views (Resource Library, Tutorial Tracker, My Projects)
 - FR19: Users can sort saves by date saved, date last accessed, or title
 
@@ -859,7 +922,7 @@ Functional requirements define WHAT the system does. Performance, security, and 
 
 - FR48: Users can view project workspace with linked resources and notes side-by-side
 - FR49: Users can paste LLM conversations into project notes
-- FR50: Users can view project screenshots optimized for sharing
+- FR50: Users can view a project page that renders at ≥1200px width with title, status, linked resources, and recent notes visible in a single viewport suitable for screenshot sharing
 - FR51: Users can manage all projects from a single dashboard
 
 ### Search & Discovery
@@ -872,7 +935,7 @@ Functional requirements define WHAT the system does. Performance, security, and 
 ### Onboarding
 
 - FR56: New users see seeded starter projects with curated resources
-- FR57: Users can explore starter projects without commitment
+- FR57: Users can view starter project contents (resources, notes, description) without forking or modifying the original
 - FR58: Users can fork starter projects to customize
 - FR59: Onboarding guides users through iOS Shortcut setup
 
@@ -882,12 +945,19 @@ Functional requirements define WHAT the system does. Performance, security, and 
 - FR61: Operators can view system health via admin CLI
 - FR62: Operators can view analytics via admin CLI
 - FR63: Operators can manage rate limits via configuration
+- FR109: Operators can review and resolve flagged content via `admin:content:review-flagged` CLI command. The command lists saves flagged during enrichment (e.g., broken URLs, SSRF-blocked, failed metadata extraction) with flag reason, timestamp, and suggested resolution
+
+### Analytics & Reporting
+
+- FR110: System exposes analytics query endpoints: `GET /analytics/saves-per-day`, `GET /analytics/projects-by-status`, `GET /analytics/tutorials-by-completion` returning aggregated metrics for operator dashboards and success-criteria measurement
+- FR111: System maintains per-persona cohort data (Capture-first, Notebook-first, Dev/Agent) based on usage patterns (save frequency, project depth, API key usage). Cohort assignment is queryable via `GET /analytics/cohorts` and recorded in user metadata
+- FR112: Operators can view persona-segmented usage reports via `admin:analytics:cohorts` CLI command, showing retention rates, feature adoption, and engagement metrics per cohort to validate product-brief success criteria
 
 ### User Feedback
 
 - FR64: System provides visual confirmation when save completes successfully
-- FR65: System displays clear error messages when operations fail
-- FR66: System displays helpful empty states when no content exists
+- FR65: System displays error messages that include error code, human-readable description, and suggested next action when operations fail
+- FR66: System displays empty states with a next-action prompt and contextual guidance (e.g., "Save your first resource" with action button) when no content exists
 - FR67: System indicates offline status when network unavailable
 
 ### Notes Processing
@@ -971,6 +1041,61 @@ Based on comprehensive research (sources: HumanLayer, Cursor, Addy Osmani, Anthr
 - FR90: Specialist subagent prompt library in .claude/agents/ with full templates for code-reviewer (security focus), test-expert (TDD specialist), debugger (systematic problem solver), architect (system design), and production-validator (pre-deployment quality gate for TODO detection, placeholder text, hardcoded secrets, debug statements); each template includes model assignment, tool restrictions (read-only for validators/reviewers, edit access for implementers), and structured output format; includes /agents command usage documentation
 - FR91: Context management guide documented in .claude/docs/context-management.md including /clear vs /compact decision matrix, context pollution prevention patterns, and recommended /clear frequency per task type
 
+### Agent-Native API Patterns (16 FRs)
+
+The API must be safe and inspectable for autonomous AI agents operating under retry, partial failure, and unknown workflow ordering. The server is the referee, ledger, and executor — correctness does not depend on client behavior. These patterns apply to all domain entities (saves, projects, tutorials, tags, links, user).
+
+**Command/Query Separation (2 FRs)**
+
+- FR92: All side-effectful API operations use explicit command endpoints (`POST /resource/:id:action`), separate from query endpoints (GET). CRUD field-patching of state-bearing fields (status, lifecycle) is not permitted — clients use purpose-built commands that make workflow boundaries explicit
+- FR93: Query endpoints (GET) have no side effects and are safe to call at any frequency. Command endpoints carry explicit intent (`:transition`, `:link`, `:start`, `:complete`) and enforce validation, authorization, and state machine rules before executing
+
+**State Machine Enforcement (2 FRs)**
+
+- FR94: All domain entities with lifecycle states define explicit server-enforced state machines: projects (`exploring → building → paused → completed`), tutorials (`saved → started → in-progress → completed`). Server rejects illegal transitions with `INVALID_STATE_TRANSITION` error including `current_state`, `allowed_actions`, and `required_conditions`
+- FR95: State transition commands check preconditions/invariants before executing. Agents can explore legal actions by inspecting `allowed_actions` in error responses or entity summary endpoints — the server guides without controlling
+
+**Idempotency & Concurrency (2 FRs)**
+
+- FR96: All command endpoints require an `Idempotency-Key` header. Server stores (actor, key, command) → result mapping and returns the cached result on duplicate requests. Keys expire after 24 hours. Agents retry blindly without creating duplicates
+- FR97: All mutable resources include a `version` field. Update and transition commands require `If-Match` header with current version. Server returns 409 Conflict with the current server version on mismatch, enabling the agent to re-read and retry
+
+**Operation Resource (2 FRs)**
+
+- FR98: Async or long-running operations (enrichment, batch operations, notes processing) return `202 Accepted` with `{ operation_id }`. Clients poll `GET /operations/:id` for status (`queued`, `running`, `succeeded`, `failed`), step progress, error details, and outputs
+- FR99: Operations support cancellation via `POST /operations/:id:cancel` for in-progress operations. Completed operations retain results for query. Operation resources serve as the single source of truth for async workflow progress
+
+**Error Contract (2 FRs)**
+
+- FR100: All API error responses follow a consistent contract: `{ error: { code, message, details, current_state, allowed_actions, required_conditions } }`. State machine rejections include `current_state` and `allowed_actions`. The error response tells the agent what went wrong, what state the entity is in, and what it can do next
+- FR101: Validation errors include field-level detail: `{ error: { code: "VALIDATION_ERROR", details: [{ field, code, message, constraint, allowed_values }] } }`. Agents receive machine-parseable, per-field feedback to correct invalid input without guessing
+
+**Event History & Reconciliation (1 FR)**
+
+- FR102: All domain entities expose an event history endpoint: `GET /:entity/:id/events?since=...` returning an ordered list of state changes, commands executed, actor attribution (`human` | `agent`), timestamps, and context metadata. Enables audit, debugging, and agent reconciliation after failures
+
+**Agent Identity & Context (2 FRs)**
+
+- FR103: API requests from autonomous agents include `X-Agent-ID` header identifying the specific agent. All command operations record `actor_type` (`human` | `agent`) and agent identity. Event history distinguishes human-initiated from agent-initiated actions
+- FR104: Command endpoints accept an optional `context` metadata object: `{ context: { trigger, source, confidence, upstream_ref } }`. Context flows into the event history log for debugging autonomous agent behavior and understanding why an agent took an action
+
+**Infrastructure & Consumption (3 FRs)**
+
+- FR105: All list endpoints use cursor-based pagination with opaque cursor tokens. Responses include `next_cursor` (null if last page). Offset/page-number pagination is not supported — cursor pagination is stable under concurrent mutations
+- FR106: Batch endpoints accept multiple commands in a single request: `POST /batch` with array of operations. Each operation includes its own `Idempotency-Key`. Response returns per-operation results. Batch operations are not transactional — partial success is reported per-operation
+- FR107: `GET /health` returns service availability. `GET /ready` returns readiness including downstream dependency checks (database, auth provider). Agents pre-flight check before starting multi-step workflows
+
+#### Agent-Native V2 Roadmap
+
+The following patterns are designed-for in V1 data model and API shape, but implemented in V2:
+
+| Pattern | V1 Foundation | V2 Implementation |
+|---------|---------------|-------------------|
+| Dry-run / preview | Command endpoints accept `?dry_run=true` parameter (returns 501 in V1) | Returns proposed changes, affected resources, validation results without executing |
+| Webhook subscriptions | Operation resource stores completion state | `POST /webhooks` to register callback URLs; operations push completion events |
+| Sparse fieldsets | Consistent response envelope with `data` wrapper | `?fields=id,title,status` parameter reduces response payload for token-efficient LLM consumption |
+| Declarative desired-state | State machine defines valid states | Thin layer accepting `{ desired_state: "completed" }` that resolves to correct transition command |
+
 ## API-First Processing Pipelines
 
 AI Learning Hub is **API-driven internally and externally**. The web and mobile UIs are "skins" over API calls — they never invoke backend processing directly. All operations flow through API Gateway.
@@ -991,22 +1116,25 @@ This ensures:
 When users save or update project notes:
 
 ```
-User/UI → PUT /projects/:id/notes → Notes Lambda
+User/UI → POST /projects/:id:update-notes → Notes Lambda → 202 { operation_id }
               ↓
          SQS event (async)
               ↓
-         POST /processing/notes → Processing Lambda
+         Processing Lambda (Operation status → running)
               ↓
          POST /search/index → Search Index Lambda
+              ↓
+         Operation status → succeeded
               ↓
          GET /search → Search API (query processed content)
 ```
 
 **Key points:**
-- Notes Lambda accepts the write, returns success, enqueues processing
+- Notes Lambda accepts the command, returns 202 with `operation_id`, enqueues processing
 - Processing API extracts searchable content from raw Markdown
 - Search Index API updates the search index with processed content
 - All steps are API calls, not direct Lambda invocations
+- **Agent polling:** `GET /operations/{operation_id}` returns processing progress. Agents updating notes and immediately searching can poll for indexing completion
 - V2's AI enrichment will consume processed notes via the same APIs
 
 ### Enrichment Pipeline
@@ -1014,19 +1142,22 @@ User/UI → PUT /projects/:id/notes → Notes Lambda
 When saves are created:
 
 ```
-User/UI → POST /saves → Saves Lambda
+User/UI → POST /saves → Saves Lambda → 202 { operation_id } (enrichment pending)
               ↓
          SQS event (async, hourly batch)
               ↓
-         POST /enrichment/process → Enrichment Lambda
+         Enrichment Lambda (Operation status → running)
               ↓
-         PATCH /saves/:id → Saves Lambda (update metadata)
+         POST /saves/:id:update-metadata → Saves Lambda (command endpoint, idempotent)
+              ↓
+         Operation status → succeeded { enriched_fields }
 ```
 
 **Key points:**
 - Enrichment Lambda fetches metadata via external APIs (YouTube, OpenGraph)
-- Results written back via Saves API, not direct DynamoDB access
+- Results written back via Saves command endpoint, not direct DynamoDB access
 - SSRF protection enforced at Enrichment Lambda (private IP blocking, timeout, scheme validation)
+- **Agent polling:** `GET /operations/{operation_id}` returns enrichment progress. Agents that need enriched metadata can poll instead of guessing when it's ready
 
 ### Why This Matters
 
@@ -1051,7 +1182,7 @@ NFRs define HOW WELL the system must perform. Priority order for AI Learning Hub
 | NFR-P1: Mobile save latency | < 3 seconds | E2E test |
 | NFR-P2: API response time (95th percentile) | < 1 second | CloudWatch metrics |
 | NFR-P3: Search response time | < 2 seconds | E2E test |
-| NFR-P4: Web app Time to Interactive | < 4 seconds | Lighthouse |
+| NFR-P4: Web app Time to Interactive | < 4 seconds on desktop, < 5 seconds on 4G mobile | Lighthouse (desktop + mobile profiles) |
 | NFR-P5: Search index sync lag | < 15 minutes | CloudWatch custom metric |
 
 *Note: Lambda cold starts may add 1-3 seconds on first request after idle period. This is documented and accepted.*
@@ -1094,7 +1225,7 @@ NFRs define HOW WELL the system must perform. Priority order for AI Learning Hub
 
 | Requirement | Target | Verification |
 |------------|--------|--------------|
-| NFR-O1: Request tracing | Correlation IDs via X-Ray | X-Ray service map |
+| NFR-O1: Request tracing | Correlation IDs across all request/response hops; distributed trace spans for each processing stage | Service map review + trace completeness tests |
 | NFR-O2: Structured logging | JSON logs with correlation IDs | CloudWatch Logs Insights |
 | NFR-O3: Alerting tiers | Critical (phone), Warning (email), Info (dashboard) | Alert configuration |
 | NFR-O4: Dashboard coverage | 4 operational + 5 analytics dashboards | Dashboard checklist |
@@ -1114,11 +1245,24 @@ NFRs define HOW WELL the system must perform. Priority order for AI Learning Hub
 |------------|--------|--------------|
 | NFR-UX1: Graceful degradation | Clear error messages with retry option, no silent failures | E2E error scenario tests |
 
+### Agent-Native
+
+| Requirement | Target | Verification |
+|------------|--------|--------------|
+| NFR-AN1: Idempotency deduplication window | 24 hours minimum; cached results returned within window | Integration tests with duplicate Idempotency-Key |
+| NFR-AN2: Optimistic concurrency enforcement | Version conflicts detected within single conditional write; no distributed locking | Concurrent write integration tests |
+| NFR-AN3: Operation resource retention | Completed operations retained 7 days; status queryable within 500ms | Operation lifecycle integration tests |
+| NFR-AN4: Event history retention | Per-entity events retained 90 days; single-entity event query within 1 second | Event query performance tests |
+| NFR-AN5: Batch operation throughput | Up to 25 operations per batch request; batch completes within 5 seconds | Batch load tests |
+| NFR-AN6: Idempotency storage overhead | < 1% of total DynamoDB capacity | DynamoDB capacity monitoring |
+| NFR-AN7: Error contract completeness | 100% of error responses include `code`, `message`; state machine errors include `allowed_actions` | Contract tests in CI |
+
 ### NFR Summary
 
 | Priority | Category | Key Targets |
 |----------|----------|-------------|
 | 1 | Security | 9 NFRs: encryption, isolation, SSRF protection, key management |
 | 2 | Reliability | 99% uptime, < 2 hours MTTR, < 10 minutes rollback |
-| 3 | Cost | < $50/month total, < $4/user |
-| 4 | Performance | < 3 seconds save, < 2 seconds search (cold starts accepted) |
+| 3 | Agent-Native | 7 NFRs: idempotency, concurrency, operations, events, batch, error contract |
+| 4 | Cost | < $50/month total, < $4/user |
+| 5 | Performance | < 3 seconds save, < 2 seconds search (cold starts accepted) |
