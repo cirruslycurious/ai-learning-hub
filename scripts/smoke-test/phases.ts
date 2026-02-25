@@ -9,6 +9,8 @@
  *   Phase 2: Saves CRUD Lifecycle (SC1–SC8)
  *   Phase 3: (reserved for future)
  *   Phase 4: Saves Validation Errors (SV1–SV4)
+ *   Phases 5–6: (reserved for future)
+ *   Phase 7: EventBridge Verification (EB1–EB3)
  */
 
 import type { ScenarioDefinition, CleanupFn } from "./types.js";
@@ -38,6 +40,10 @@ import {
   initSavesCrudCleanup,
 } from "./scenarios/saves-crud.js";
 import { savesValidationScenarios } from "./scenarios/saves-validation.js";
+import {
+  eventBridgeVerifyScenarios,
+  initEventBridgeCleanup,
+} from "./scenarios/eventbridge-verify.js";
 
 export const phases: Phase[] = [
   {
@@ -67,6 +73,15 @@ export const phases: Phase[] = [
     id: 4,
     name: "Saves Validation Errors",
     scenarios: [...savesValidationScenarios],
+  },
+  // Phases 5–6 reserved for future use
+  {
+    id: 7,
+    name: "EventBridge Verification",
+    scenarios: [...eventBridgeVerifyScenarios],
+    init: (registerCleanup) => {
+      initEventBridgeCleanup(registerCleanup);
+    },
   },
 ];
 

@@ -1,9 +1,9 @@
 ---
 epic_id: Epic-3.1
-status: in-progress
-scope: ["3.1.1", "3.1.2", "3.1.3", "3.1.5", "3.1.7", "3.1.6", "3.1.8"]
+status: done
+scope: ["3.1.1", "3.1.2", "3.1.3", "3.1.5", "3.1.7", "3.1.6", "3.1.8", "3.1.9"]
 started: "2026-02-23T00:00:00Z"
-last_updated: "2026-02-25T12:00:00Z"
+last_updated: "2026-02-25T19:15:00Z"
 stories:
   "3.1.1":
     {
@@ -77,10 +77,29 @@ stories:
     }
   "3.1.8":
     {
-      status: in-progress,
+      status: done,
       issue: 215,
+      pr: 216,
       branch: story-3-1-8-eventbridge-observability-infra,
+      commit: 95359b8,
       startedAt: "2026-02-25T12:00:00Z",
+      completedAt: "2026-02-25T16:00:00Z",
+      duration: "4h",
+      reviewRounds: 1,
+      reviewResult: APPROVE,
+    }
+  "3.1.9":
+    {
+      status: done,
+      issue: 217,
+      pr: 218,
+      branch: story-3-1-9-eventbridge-verification-smoke,
+      commit: 0f00529,
+      startedAt: "2026-02-25T18:30:00Z",
+      completedAt: "2026-02-25T19:15:00Z",
+      duration: "45m",
+      reviewRounds: 2,
+      reviewResult: APPROVE,
     }
 ---
 
@@ -88,15 +107,16 @@ stories:
 
 # Epic 3.1 Auto-Run Progress
 
-| Story | Status         | PR   | Review Rounds | Result  | Duration |
-| ----- | -------------- | ---- | ------------- | ------- | -------- |
-| 3.1.1 | ✅ Complete    | #194 | 1             | APPROVE | -        |
-| 3.1.2 | ✅ Complete    | #196 | 1             | APPROVE | 55m      |
-| 3.1.3 | ✅ Complete    | #198 | 1             | APPROVE | -        |
-| 3.1.5 | ✅ Complete    | #202 | 1             | APPROVE | -        |
-| 3.1.7 | ✅ Complete    | #204 | 1             | APPROVE | -        |
-| 3.1.6 | ✅ Complete    | #206 | 3             | APPROVE | 1h 3m    |
-| 3.1.8 | 🔄 In Progress | —    | —             | —       | —        |
+| Story | Status      | PR   | Review Rounds | Result  | Duration |
+| ----- | ----------- | ---- | ------------- | ------- | -------- |
+| 3.1.1 | ✅ Complete | #194 | 1             | APPROVE | -        |
+| 3.1.2 | ✅ Complete | #196 | 1             | APPROVE | 55m      |
+| 3.1.3 | ✅ Complete | #198 | 1             | APPROVE | -        |
+| 3.1.5 | ✅ Complete | #202 | 1             | APPROVE | -        |
+| 3.1.7 | ✅ Complete | #204 | 1             | APPROVE | -        |
+| 3.1.6 | ✅ Complete | #206 | 3             | APPROVE | 1h 3m    |
+| 3.1.8 | ✅ Complete | #216 | 1             | APPROVE | 4h       |
+| 3.1.9 | ✅ Complete | #218 | 2             | APPROVE | 45m      |
 
 ## Activity Log
 
@@ -127,3 +147,13 @@ stories:
 - [24:22:30] All stories in scope complete (6/6). Remaining epic stories: 3.1.8, 3.1.9
 - [25:12:00] Epic 3.1 auto-run resumed — adding Story 3.1.8 to scope
 - [25:12:00] Story 3.1.8: Issue #215 created, branch story-3-1-8-eventbridge-observability-infra created, implementation starting
+- [25:16:00] Story 3.1.8: Completed externally — PR #216 merged to main
+- [25:18:30] Epic 3.1 auto-run resumed — adding Story 3.1.9 to scope
+- [25:18:30] Story 3.1.9: Creating issue and branch, implementation starting
+- [25:18:31] Story 3.1.9: Issue #217 created, branch story-3-1-9-eventbridge-verification-smoke created
+- [25:18:45] Story 3.1.9: Implementation complete — cloudwatch-helpers.ts, eventbridge-verify.ts, phases.ts updated
+- [25:18:50] Story 3.1.9: Quality gates passed (lint, type-check, tests 98%+ coverage, AC verification, secrets scan)
+- [25:19:00] Story 3.1.9: Review Round 1 — 1 Critical (filter pattern injection), 4 Important, fixer addressed all
+- [25:19:10] Story 3.1.9: Review Round 2 — APPROVE (0 Critical, 0 Important, 1 Minor only)
+- [25:19:12] Story 3.1.9: All CI checks passed, PR #218 ready
+- [25:19:15] Story 3.1.9 complete (9/9 stories done). Epic 3.1 complete.
