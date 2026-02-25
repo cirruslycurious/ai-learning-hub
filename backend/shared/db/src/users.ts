@@ -358,6 +358,8 @@ export async function listApiKeys(
         ":skPrefix": "APIKEY#",
       },
       filterExpression: "attribute_not_exists(revokedAt)",
+      consistentRead: true,
+      scanIndexForward: false, // Newest keys first (ULID sort key is time-ordered)
       limit,
       cursor,
     },

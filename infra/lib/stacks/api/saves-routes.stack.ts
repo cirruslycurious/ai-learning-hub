@@ -28,6 +28,8 @@ export interface SavesRoutesStackProps extends cdk.StackProps {
   savesTable: dynamodb.Table;
   /** Users DynamoDB table (required for rate limiting) */
   usersTable: dynamodb.Table;
+  /** Invite codes DynamoDB table (required by @ai-learning-hub/db barrel import) */
+  inviteCodesTable: dynamodb.Table;
   /** EventBridge event bus */
   eventBus: events.EventBus;
 }
@@ -49,6 +51,7 @@ export class SavesRoutesStack extends cdk.Stack {
       apiKeyAuthorizer,
       savesTable,
       usersTable,
+      inviteCodesTable,
       eventBus,
     } = props;
 
@@ -93,6 +96,7 @@ export class SavesRoutesStack extends cdk.Stack {
         environment: {
           SAVES_TABLE_NAME: savesTable.tableName,
           USERS_TABLE_NAME: usersTable.tableName,
+          INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
           EVENT_BUS_NAME: eventBus.eventBusName,
           NODE_OPTIONS: "--enable-source-maps",
         },
@@ -139,6 +143,8 @@ export class SavesRoutesStack extends cdk.Stack {
         tracing: lambda.Tracing.ACTIVE,
         environment: {
           SAVES_TABLE_NAME: savesTable.tableName,
+          USERS_TABLE_NAME: usersTable.tableName,
+          INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
           NODE_OPTIONS: "--enable-source-maps",
         },
         bundling: {
@@ -172,6 +178,8 @@ export class SavesRoutesStack extends cdk.Stack {
         tracing: lambda.Tracing.ACTIVE,
         environment: {
           SAVES_TABLE_NAME: savesTable.tableName,
+          USERS_TABLE_NAME: usersTable.tableName,
+          INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
           NODE_OPTIONS: "--enable-source-maps",
         },
         bundling: {
@@ -207,6 +215,7 @@ export class SavesRoutesStack extends cdk.Stack {
         environment: {
           SAVES_TABLE_NAME: savesTable.tableName,
           USERS_TABLE_NAME: usersTable.tableName,
+          INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
           EVENT_BUS_NAME: eventBus.eventBusName,
           NODE_OPTIONS: "--enable-source-maps",
         },
@@ -251,6 +260,7 @@ export class SavesRoutesStack extends cdk.Stack {
         environment: {
           SAVES_TABLE_NAME: savesTable.tableName,
           USERS_TABLE_NAME: usersTable.tableName,
+          INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
           EVENT_BUS_NAME: eventBus.eventBusName,
           NODE_OPTIONS: "--enable-source-maps",
         },
@@ -295,6 +305,7 @@ export class SavesRoutesStack extends cdk.Stack {
         environment: {
           SAVES_TABLE_NAME: savesTable.tableName,
           USERS_TABLE_NAME: usersTable.tableName,
+          INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
           EVENT_BUS_NAME: eventBus.eventBusName,
           NODE_OPTIONS: "--enable-source-maps",
         },

@@ -100,6 +100,18 @@ describe("Saves Get Handler — GET /saves/:saveId", () => {
       );
     });
 
+    it("includes lastAccessedAt in response body", async () => {
+      const item = createTestSaveItem(VALID_SAVE_ID, SAVE_OVERRIDES);
+      mockGetItem.mockResolvedValueOnce(item);
+
+      const event = createGetEvent();
+      const result = await handler(event, mockContext);
+
+      const body = JSON.parse(result.body);
+      expect(body.data.lastAccessedAt).toBeDefined();
+      expect(typeof body.data.lastAccessedAt).toBe("string");
+    });
+
     it("returns 200 even when lastAccessedAt update fails", async () => {
       const item = createTestSaveItem(VALID_SAVE_ID, SAVE_OVERRIDES);
       mockGetItem.mockResolvedValueOnce(item);
@@ -112,6 +124,8 @@ describe("Saves Get Handler — GET /saves/:saveId", () => {
       expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
       expect(body.data.saveId).toBe(VALID_SAVE_ID);
+      // lastAccessedAt should be absent when the update fails
+      expect(body.data.lastAccessedAt).toBeUndefined();
     });
   });
 

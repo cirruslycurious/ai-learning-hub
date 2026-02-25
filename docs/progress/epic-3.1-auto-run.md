@@ -3,7 +3,7 @@ epic_id: Epic-3.1
 status: in-progress
 scope: ["3.1.1", "3.1.2", "3.1.3", "3.1.5", "3.1.7", "3.1.6"]
 started: "2026-02-23T00:00:00Z"
-last_updated: "2026-02-23T22:00:00Z"
+last_updated: "2026-02-24T22:30:00Z"
 stories:
   "3.1.1":
     {
@@ -42,9 +42,39 @@ stories:
       reviewRounds: 1,
       reviewResult: APPROVE,
     }
-  "3.1.5": { status: pending }
-  "3.1.7": { status: pending }
-  "3.1.6": { status: pending }
+  "3.1.5":
+    {
+      status: done,
+      issue: 201,
+      pr: 202,
+      branch: story-3-1-5-phase-runner-infrastructure,
+      commit: 4564412,
+      reviewRounds: 1,
+      reviewResult: APPROVE,
+    }
+  "3.1.7":
+    {
+      status: done,
+      issue: 203,
+      pr: 204,
+      branch: story-3-1-7-dedup-filtering-api-key,
+      commit: f42af99,
+      reviewRounds: 1,
+      reviewResult: APPROVE,
+    }
+  "3.1.6":
+    {
+      status: done,
+      issue: 205,
+      pr: 206,
+      branch: story-3-1-6-saves-crud-validation,
+      commit: cc87fcc,
+      startedAt: "2026-02-24T17:30:00Z",
+      completedAt: "2026-02-24T18:33:00Z",
+      duration: "1h 3m",
+      reviewRounds: 3,
+      reviewResult: APPROVE,
+    }
 ---
 
 <!-- Human-readable display below (generated from frontmatter) -->
@@ -56,9 +86,9 @@ stories:
 | 3.1.1 | ✅ Complete | #194 | 1             | APPROVE | -        |
 | 3.1.2 | ✅ Complete | #196 | 1             | APPROVE | 55m      |
 | 3.1.3 | ✅ Complete | #198 | 1             | APPROVE | -        |
-| 3.1.5 | ⏳ Pending  | -    | -             | -       | -        |
-| 3.1.7 | ⏳ Pending  | -    | -             | -       | -        |
-| 3.1.6 | ⏳ Pending  | -    | -             | -       | -        |
+| 3.1.5 | ✅ Complete | #202 | 1             | APPROVE | -        |
+| 3.1.7 | ✅ Complete | #204 | 1             | APPROVE | -        |
+| 3.1.6 | ✅ Complete | #206 | 3             | APPROVE | 1h 3m    |
 
 ## Activity Log
 
@@ -77,3 +107,13 @@ stories:
 - [21:52] Epic 3.1 auto-run complete — all 3 stories done
 - [22:00] Epic 3.1 auto-run resumed — adding Stories 3.1.5, 3.1.7, 3.1.6 to scope
 - [22:00] External deps verified: 3.1.4 (PR #200 merged), 3.4 (PR #190 merged)
+- [24:17:30] Story 3.1.6: Resumed — implementation already complete (uncommitted), running pipeline
+- [24:17:33] Story 3.1.6: AC verification passed, secrets scan clean, committed + pushed
+- [24:17:35] Story 3.1.6: PR #206 created
+- [24:17:38] Story 3.1.6: Review Round 1 — 4 Important findings, fixer addressed all
+- [24:18:08] Story 3.1.6: Review Round 2 — 1 Critical (SV3 25-char ULID), 2 Important, fixer addressed all
+- [24:18:30] Story 3.1.6: Review Round 3 — APPROVE (0 Critical, 0 Important, 1 Minor doc-only)
+- [24:18:33] Story 3.1.6: All CI checks passed, merged with main, tests pass, PR #206 ready
+- [24:18:33] Story 3.1.6 complete (5/6 stories done in scope — 3.1.5 was completed externally via PR #202)
+- [24:22:21] Story 3.1.7: Completed externally — PR #204 merged, issue #203 closed
+- [24:22:30] All stories in scope complete (6/6). Remaining epic stories: 3.1.8, 3.1.9

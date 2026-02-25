@@ -39,6 +39,7 @@ async function savesGetHandler(ctx: HandlerContext) {
   }
 
   // Update lastAccessedAt — awaited but non-throwing (AC4).
+  const now = new Date().toISOString();
   try {
     await updateItem(
       client,
@@ -46,10 +47,12 @@ async function savesGetHandler(ctx: HandlerContext) {
       {
         key: { PK: `USER#${userId}`, SK: `SAVE#${saveId}` },
         updateExpression: "SET lastAccessedAt = :now",
-        expressionAttributeValues: { ":now": new Date().toISOString() },
+        expressionAttributeValues: { ":now": now },
       },
       logger
     );
+    // Reflect the update in the response so callers always see lastAccessedAt
+    item.lastAccessedAt = now;
   } catch (err) {
     logger.error("Failed to update lastAccessedAt (non-fatal)", err as Error, {
       saveId,

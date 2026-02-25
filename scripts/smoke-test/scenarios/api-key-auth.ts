@@ -19,29 +19,60 @@ export function initApiKeyCleanup(register: (fn: CleanupFn) => void): void {
   registerCleanupFn = register;
 }
 
+/** Simple sleep helper */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Create an API key with retry-on-429 resilience.
+ * Smoke tests create several keys in rapid succession, which can trip
+ * the rate limiter. Backing off and retrying is the standard approach.
+ */
 async function createKey(
   jwt: string,
   scopes: string[],
   name = "smoke-test-key"
 ): Promise<{ id: string; keyValue: string }> {
-  const res = await getClient().post(
-    "/users/api-keys",
-    { name, scopes },
-    { auth: { type: "jwt", token: jwt } }
-  );
-  assertStatus(res.status, 201, "POST /users/api-keys");
-  const body = res.body as Record<string, unknown>;
-  const data =
-    (body.data as Record<string, unknown> | undefined) ??
-    (body as Record<string, unknown>);
-  // API returns "key" (not "keyValue") as the plaintext API key
-  const keyValue = data.keyValue ?? data.key;
-  if (!data.id || !keyValue) {
-    throw new Error(
-      `API key response missing id or key: ${JSON.stringify(body)}`
+  const maxRetries = 3;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const res = await getClient().post(
+      "/users/api-keys",
+      { name, scopes },
+      { auth: { type: "jwt", token: jwt } }
     );
+
+    if (res.status === 429) {
+      if (attempt === maxRetries) {
+        throw new Error(
+          `POST /users/api-keys still 429 after ${maxRetries} retries — rate limit not clearing`
+        );
+      }
+      const delayMs = 2000 * (attempt + 1); // 2s, 4s, 6s
+      console.log(
+        `    ⏳ Rate limited (429) on key creation, retrying in ${delayMs / 1000}s...`
+      );
+      await sleep(delayMs);
+      continue;
+    }
+
+    assertStatus(res.status, 201, "POST /users/api-keys");
+    const body = res.body as Record<string, unknown>;
+    const data =
+      (body.data as Record<string, unknown> | undefined) ??
+      (body as Record<string, unknown>);
+    // API returns "key" (not "keyValue") as the plaintext API key
+    const keyValue = data.keyValue ?? data.key;
+    if (!data.id || !keyValue) {
+      throw new Error(
+        `API key response missing id or key: ${JSON.stringify(body)}`
+      );
+    }
+    return { id: String(data.id), keyValue: String(keyValue) };
   }
-  return { id: String(data.id), keyValue: String(keyValue) };
+
+  // Unreachable, but TypeScript needs it
+  throw new Error("createKey: unexpected fallthrough");
 }
 
 async function deleteKey(id: string, jwt: string): Promise<number> {
@@ -71,23 +102,39 @@ export const apiKeyScenarios: ScenarioDefinition[] = [
         }
 
         // Step 2: list → new key must appear
-        const listRes = await getClient().get("/users/api-keys", {
-          auth: { type: "jwt", token: jwt },
-        });
-        assertStatus(listRes.status, 200, "GET /users/api-keys");
-        const listBody = listRes.body as Record<string, unknown>;
-        // wrapHandler wraps result → { data: { items: [...], hasMore, nextCursor } }
-        const listData = (listBody.data ?? listBody) as Record<string, unknown>;
-        const items = ((listData as Record<string, unknown>).items ??
-          listData) as unknown[];
-        const found =
-          Array.isArray(items) &&
-          items.some((k) => {
-            const kk = k as Record<string, unknown>;
-            return kk.id === keyId;
+        // DynamoDB GSI is eventually consistent — retry with short delay
+        let found = false;
+        for (let listAttempt = 0; listAttempt < 3; listAttempt++) {
+          if (listAttempt > 0) {
+            console.log(
+              `    ⏳ Key not yet in GSI, retrying in 1s (attempt ${listAttempt + 1}/3)...`
+            );
+            await sleep(1000);
+          }
+          const listRes = await getClient().get("/users/api-keys", {
+            auth: { type: "jwt", token: jwt },
           });
+          assertStatus(listRes.status, 200, "GET /users/api-keys");
+          const listBody = listRes.body as Record<string, unknown>;
+          // wrapHandler wraps result → { data: { items: [...], hasMore, nextCursor } }
+          const listData = (listBody.data ?? listBody) as Record<
+            string,
+            unknown
+          >;
+          const items = ((listData as Record<string, unknown>).items ??
+            listData) as unknown[];
+          found =
+            Array.isArray(items) &&
+            items.some((k) => {
+              const kk = k as Record<string, unknown>;
+              return kk.id === keyId;
+            });
+          if (found) break;
+        }
         if (!found)
-          throw new Error(`Key ${keyId} not found in list after creation`);
+          throw new Error(
+            `Key ${keyId} not found in list after creation (3 retries)`
+          );
 
         // Step 3: delete
         const deleteStatus = await deleteKey(keyId, jwt);

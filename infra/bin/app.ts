@@ -42,6 +42,7 @@ const authStack = new AuthStack(app, "AiLearningHubAuth", {
     "Authentication stack for ai-learning-hub (JWT authorizer, API key authorizer, invite validation)",
   usersTable: tablesStack.usersTable,
   inviteCodesTable: tablesStack.inviteCodesTable,
+  savesTable: tablesStack.savesTable,
 });
 authStack.addDependency(tablesStack);
 
@@ -122,6 +123,7 @@ const savesRoutesStack = new SavesRoutesStack(app, "AiLearningHubSavesRoutes", {
   apiKeyAuthorizer: apiGatewayStack.apiKeyAuthorizer,
   savesTable: tablesStack.savesTable,
   usersTable: tablesStack.usersTable,
+  inviteCodesTable: tablesStack.inviteCodesTable,
   eventBus: eventsStack.eventBus,
 });
 savesRoutesStack.addDependency(apiGatewayStack);

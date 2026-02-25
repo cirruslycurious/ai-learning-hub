@@ -29,11 +29,17 @@ describe("AuthStack", () => {
         sortKey: { name: "SK", type: dynamodb.AttributeType.STRING },
       }
     );
+    const savesTable = new dynamodb.Table(tablesStack, "SavesTable", {
+      tableName: "ai-learning-hub-saves",
+      partitionKey: { name: "PK", type: dynamodb.AttributeType.STRING },
+      sortKey: { name: "SK", type: dynamodb.AttributeType.STRING },
+    });
 
     const stack = new AuthStack(app, "TestAuthStack", {
       env: awsEnv,
       usersTable,
       inviteCodesTable,
+      savesTable,
     });
     template = Template.fromStack(stack);
   });

@@ -19,6 +19,7 @@ const CLERK_SECRET_KEY_PARAM = "/ai-learning-hub/clerk-secret-key";
 export interface AuthStackProps extends cdk.StackProps {
   usersTable: dynamodb.ITable;
   inviteCodesTable: dynamodb.ITable;
+  savesTable: dynamodb.ITable;
 }
 
 export class AuthStack extends cdk.Stack {
@@ -32,7 +33,7 @@ export class AuthStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: AuthStackProps) {
     super(scope, id, props);
 
-    const { usersTable, inviteCodesTable } = props;
+    const { usersTable, inviteCodesTable, savesTable } = props;
 
     // JWT Authorizer Lambda (ADR-013)
     this.jwtAuthorizerFunction = new lambdaNode.NodejsFunction(
@@ -55,6 +56,7 @@ export class AuthStack extends cdk.Stack {
           CLERK_SECRET_KEY_PARAM: CLERK_SECRET_KEY_PARAM,
           USERS_TABLE_NAME: usersTable.tableName,
           INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
+          SAVES_TABLE_NAME: savesTable.tableName,
         },
         bundling: {
           minify: true,
@@ -160,6 +162,7 @@ export class AuthStack extends cdk.Stack {
           CLERK_SECRET_KEY_PARAM: CLERK_SECRET_KEY_PARAM,
           USERS_TABLE_NAME: usersTable.tableName,
           INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
+          SAVES_TABLE_NAME: savesTable.tableName,
         },
         bundling: {
           minify: true,
@@ -265,6 +268,7 @@ export class AuthStack extends cdk.Stack {
         environment: {
           USERS_TABLE_NAME: usersTable.tableName,
           INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
+          SAVES_TABLE_NAME: savesTable.tableName,
         },
         bundling: {
           minify: true,
@@ -347,6 +351,7 @@ export class AuthStack extends cdk.Stack {
           CLERK_SECRET_KEY_PARAM: CLERK_SECRET_KEY_PARAM,
           INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
           USERS_TABLE_NAME: usersTable.tableName,
+          SAVES_TABLE_NAME: savesTable.tableName,
         },
         bundling: {
           minify: true,
@@ -450,6 +455,7 @@ export class AuthStack extends cdk.Stack {
         environment: {
           USERS_TABLE_NAME: usersTable.tableName,
           INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
+          SAVES_TABLE_NAME: savesTable.tableName,
         },
         bundling: {
           minify: true,
@@ -531,6 +537,7 @@ export class AuthStack extends cdk.Stack {
         environment: {
           INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
           USERS_TABLE_NAME: usersTable.tableName,
+          SAVES_TABLE_NAME: savesTable.tableName,
         },
         bundling: {
           minify: true,
