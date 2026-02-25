@@ -32,27 +32,66 @@ so that **we have observability into event flow and Story 3.1.9 can verify Event
   - [ ] 2.1 Create `events.Rule` matching `source: [{ prefix: "ai-learning-hub" }]`
   - [ ] 2.2 Add `CloudWatchLogGroup` target pointing to the log group
   - [ ] 2.3 CDK handles the resource policy automatically via `targets.CloudWatchLogGroup`
-- [ ] Task 3: Handle CDK Nag (AC: #5)
-  - [ ] 3.1 Run `cdk synth` and check for Nag findings
-  - [ ] 3.2 Add suppressions with documented reasons if needed
-- [ ] Task 4: Verify (AC: #6, #7)
-  - [ ] 4.1 Run `npm test` — passes
-  - [ ] 4.2 Run `npm run lint` — passes
-  - [ ] 4.3 Run `cdk synth` — succeeds without errors
-  - [ ] 4.4 After deploy: create a save via API, check CloudWatch Log Group for matching event entry
+- [ ] Task 3: Add CDK stack tests (AC: #7)
+  - [ ] 3.1 Create `infra/test/stacks/core/events.stack.test.ts` (no existing test file for EventsStack)
+  - [ ] 3.2 Assert template contains `AWS::Logs::LogGroup` with correct retention
+  - [ ] 3.3 Assert template contains `AWS::Events::Rule` with source prefix pattern
+  - [ ] 3.4 Assert template contains `AWS::CloudFormation::Output` for log group name
+- [ ] Task 4: Handle CDK Nag (AC: #5)
+  - [ ] 4.1 Run `cdk synth` and check for Nag findings
+  - [ ] 4.2 Add suppressions with documented reasons if needed
+- [ ] Task 5: Verify (AC: #6, #7)
+  - [ ] 5.1 Run `npm test` — passes (including new stack tests)
+  - [ ] 5.2 Run `npm run lint` — passes
+  - [ ] 5.3 Run `cdk synth` — succeeds without errors
+  - [ ] 5.4 After deploy: create a save via API, check CloudWatch Log Group for matching event entry
 
 ## Dev Notes
 
 - **Scope:** Infrastructure only. No Lambda handler changes — handlers already call `emitEvent()` fire-and-forget. This story adds CDK to capture those events in CloudWatch Logs.
 - **Location:** All changes in `infra/lib/stacks/core/events.stack.ts`. Do not modify `infra/lib/stacks/observability/observability.stack.ts` — the log group is coupled to the event bus, so it lives with the bus. Observability stack is for cross-cutting dashboards, alarms, X-Ray.
 - **Retention:** 14 days for dev/staging (cost); 90 days for production (incident investigation). Use a stage parameter (CDK context or stack props) to vary retention; document how stage is passed if not already in app.
-- **What gets logged:** Every event on the bus (source prefix `ai-learning-hub`). Detail includes full payload (e.g. `userId`, `saveId`, `normalizedUrl`, `urlHash` for `SaveCreated`). No PII beyond user IDs and URLs.
+- **What gets logged:** Every event on the bus (source prefix `ai-learning-hub`). Detail includes full payload (e.g. `userId`, `saveId`, `normalizedUrl`, `urlHash` for `SaveCreated`). Event payloads include userId and URLs, which may contain sensitive data in query strings. CloudWatch Logs uses AWS-managed encryption at rest by default; CMK encryption and URL redaction are considerations for production hardening (Epic 10).
+- **What this is NOT:** This is infrastructure event logging for operators (NFR-O1/O2), not the per-entity event history API for agents (FR102/NFR-AN4, which is Epic 3.2.3 scope). The 90-day production retention is for incident investigation, not agent-queryable event history.
+- **Known event payload gaps:** Event detail types currently lack `requestId`/`correlationId` (limits tracing events back to originating API requests) and `actor_type` (human vs. agent attribution). These fields will be added when Epic 3.2 builds agent identity middleware (3.2.4). Once enriched, events captured by this log group gain correlation and agent attribution for free — no changes to this infrastructure needed.
+- **Source convention:** The rule matches `source: [{ prefix: "ai-learning-hub" }]`. All event sources MUST follow the `ai-learning-hub.*` convention. The shared events package enforces this via constants (e.g. `SAVES_EVENT_SOURCE = "ai-learning-hub.saves"`).
 - **Bus name:** Current stack uses `eventBusName: "ai-learning-hub-events"`. If the project uses `environmentPrefix` for multi-environment (see review finding in .claude/review-findings-3-1b.md), ensure log group name and rule are consistent with that pattern; otherwise keep as single-bus naming per existing stack.
+- **Cost:** At boutique scale (~100 events/day x ~1KB/event), CloudWatch Logs cost is negligible (<$0.01/month for ingestion and storage). Well within NFR-C1 ($50/month cap).
+- **Future scope:** Alarming on this log group (e.g. dead event bus detection, event throughput metrics) and CloudWatch Logs Insights saved queries are Epic 10 (Admin & Analytics) scope, not this story.
 - **Story 3.1.9 dependency:** This story unblocks 3.1.9 (EventBridge verification smoke scenario). 3.1.9 will use `SMOKE_TEST_EVENT_LOG_GROUP` (or stack output) to query this log group after creating a save.
+
+### 3.1.9 Contract: CloudWatch Logs Event Envelope
+
+When EventBridge delivers events to a CloudWatch Log Group target, each log entry is a JSON object with this structure:
+
+```json
+{
+  "version": "0",
+  "id": "unique-event-id",
+  "detail-type": "SaveCreated",
+  "source": "ai-learning-hub.saves",
+  "account": "<aws-account-id>",
+  "time": "2026-02-25T10:30:00Z",
+  "region": "us-east-1",
+  "resources": [],
+  "detail": {
+    "userId": "user_xxx",
+    "saveId": "save_xxx",
+    "url": "https://example.com",
+    "normalizedUrl": "example.com",
+    "urlHash": "abc123",
+    "contentType": "blog"
+  }
+}
+```
+
+- **Query by:** `detail-type` (e.g. `SaveCreated`) and `source` (e.g. `ai-learning-hub.saves`). The `detail` object contains the domain-specific payload matching the event detail types in `backend/shared/events/src/events/saves.ts`.
+- **Expected latency:** EventBridge to CloudWatch Logs delivery is typically 1-5 seconds. 3.1.9 smoke tests should poll with a short retry loop (e.g. 3 attempts, 2-second intervals) rather than a fixed sleep.
+- **CloudWatch Logs Insights query example:** `fields @timestamp, detail.saveId, detail.userId | filter detail-type = "SaveCreated" | sort @timestamp desc | limit 10`
 
 ### Project Structure Notes
 
-- **Touch only:** `infra/lib/stacks/core/events.stack.ts`. Optional: `infra/test/stacks/core/events.stack.test.ts` if the project has stack tests for the events stack.
+- **Touch:** `infra/lib/stacks/core/events.stack.ts` (primary). Create `infra/test/stacks/core/events.stack.test.ts` (no existing CDK stack tests for EventsStack — this story must add them).
 - **Do not touch:** `backend/`, `shared/`, observability stack, Lambda code.
 - **CDK patterns:** Follow existing events stack style (constructs, outputs). Use `aws-cdk-lib/aws-logs` for `LogGroup`, `aws-cdk-lib/aws-events-targets` for `CloudWatchLogGroup` target.
 
@@ -77,7 +116,7 @@ so that **we have observability into event flow and Story 3.1.9 can verify Event
 
 - **ADR-003:** EventBridge for async; this story adds observability of that bus (logging), not new event producers.
 - **ADR-006:** CDK multi-stack; changes stay in core events stack, not observability stack.
-- **File guard:** `infra/` is ESCALATE — ask before modifying; this story explicitly scopes edits to `infra/lib/stacks/core/events.stack.ts` (and optional events stack test).
+- **File guard:** `infra/` is ESCALATE — ask before modifying; this story explicitly scopes edits to `infra/lib/stacks/core/events.stack.ts` and `infra/test/stacks/core/events.stack.test.ts`.
 
 ### Library / Framework Requirements
 
@@ -85,12 +124,12 @@ so that **we have observability into event flow and Story 3.1.9 can verify Event
 
 ### File Structure Requirements
 
-- **Modified:** `infra/lib/stacks/core/events.stack.ts` only (and optional `infra/test/stacks/core/events.stack.test.ts` if present).
-- **New files:** None required; all additions in the existing events stack file.
+- **Modified:** `infra/lib/stacks/core/events.stack.ts`.
+- **Created:** `infra/test/stacks/core/events.stack.test.ts` (no existing test file — must be added).
 
 ### Testing Requirements
 
-- **Unit tests:** No new Lambda code, so no new handler unit tests. If the repo has CDK stack tests for `EventsStack`, add assertions for the new LogGroup and Rule (e.g. template contains LogGroup and EventBridge Rule).
+- **CDK stack tests (required):** Create `infra/test/stacks/core/events.stack.test.ts`. Assert: LogGroup exists with correct retention, EventBridge Rule exists with `ai-learning-hub` source prefix pattern, CloudWatchLogGroup target is wired, stack output for log group name is exported. No existing CDK test file for EventsStack — this story adds the first one.
 - **Lint/build:** `npm run lint` and `npm test` must pass. `cdk synth` must succeed.
 - **Manual verification:** After deploy, `POST /saves` and confirm a log entry appears in `/aws/events/ai-learning-hub-events` (AC6).
 
