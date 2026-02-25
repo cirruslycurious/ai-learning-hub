@@ -11,7 +11,6 @@
 import { describe, it, expect } from "vitest";
 import { App, Stack } from "aws-cdk-lib";
 import * as lambda from "aws-cdk-lib/aws-lambda";
-import * as wafv2 from "aws-cdk-lib/aws-wafv2";
 import { Template } from "aws-cdk-lib/assertions";
 import { ApiGatewayStack } from "../../lib/stacks/api/api-gateway.stack";
 import { AuthRoutesStack } from "../../lib/stacks/api/auth-routes.stack";
@@ -28,16 +27,6 @@ describe("Miswiring Detection", () => {
     const awsEnv = getAwsEnv();
     const depsStack = new Stack(app, "MiswiringDeps", { env: awsEnv });
 
-    const webAcl = new wafv2.CfnWebACL(depsStack, "TestWebAcl", {
-      scope: "REGIONAL",
-      defaultAction: { allow: {} },
-      visibilityConfig: {
-        cloudWatchMetricsEnabled: true,
-        metricName: "MiswiringMetric",
-        sampledRequestsEnabled: true,
-      },
-    });
-
     const testAccount = awsEnv.account ?? `${"123456"}789012`;
     const testRegion = awsEnv.region ?? "us-east-2";
     const makeArn = (name: string) =>
@@ -49,7 +38,6 @@ describe("Miswiring Detection", () => {
       env: awsEnv,
       jwtAuthorizerFunctionArn: makeArn("JwtAuthFn"),
       apiKeyAuthorizerFunctionArn: makeArn("ApiKeyAuthFn"),
-      webAcl,
     });
 
     // INTENTIONAL MISWIRING: swap usersMeFunction and apiKeysFunction

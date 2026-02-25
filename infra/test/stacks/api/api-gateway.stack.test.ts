@@ -2,7 +2,10 @@
  * ApiGatewayStack Tests (AC1-AC6, AC12)
  *
  * Tests the shared REST API infrastructure: RestApi, CORS, Gateway Responses,
- * WAF association, authorizers, and stack outputs.
+ * authorizers, and stack outputs.
+ *
+ * Stage, Deployment, and WAF association are tested in api-deployment.stack.test.ts
+ * (managed by ApiDeploymentStack).
  *
  * Since CDK authorizers must be attached to at least one method to synthesize,
  * this test also creates an AuthRoutesStack to consume the authorizers.
@@ -10,7 +13,6 @@
  */
 import { App, Stack } from "aws-cdk-lib";
 import * as lambda from "aws-cdk-lib/aws-lambda";
-import * as wafv2 from "aws-cdk-lib/aws-wafv2";
 import { Template, Match } from "aws-cdk-lib/assertions";
 import { describe, it, expect, beforeAll } from "vitest";
 import { ApiGatewayStack } from "../../../lib/stacks/api/api-gateway.stack";
@@ -26,16 +28,6 @@ describe("ApiGatewayStack", () => {
 
     const depsStack = new Stack(app, "TestDepsStack", { env: awsEnv });
 
-    const webAcl = new wafv2.CfnWebACL(depsStack, "TestWebAcl", {
-      scope: "REGIONAL",
-      defaultAction: { allow: {} },
-      visibilityConfig: {
-        cloudWatchMetricsEnabled: true,
-        metricName: "TestMetric",
-        sampledRequestsEnabled: true,
-      },
-    });
-
     const testAccount = awsEnv.account ?? "123456789012";
     const testRegion = awsEnv.region ?? "us-east-2";
     const makeArn = (name: string) =>
@@ -43,12 +35,12 @@ describe("ApiGatewayStack", () => {
     const importFn = (stack: Stack, name: string) =>
       lambda.Function.fromFunctionArn(stack, name, makeArn(name));
 
-    // ApiGatewayStack now accepts ARN strings, matching the real app.ts pattern.
+    // ApiGatewayStack accepts ARN strings, matching the real app.ts pattern.
+    // Stage, Deployment, and WAF are managed by ApiDeploymentStack.
     const apiGatewayStack = new ApiGatewayStack(app, "TestApiGatewayStack", {
       env: awsEnv,
       jwtAuthorizerFunctionArn: makeArn("JwtAuthFn"),
       apiKeyAuthorizerFunctionArn: makeArn("ApiKeyAuthFn"),
-      webAcl,
     });
 
     // CDK authorizers must be attached to at least one method to synthesize.
@@ -79,33 +71,9 @@ describe("ApiGatewayStack", () => {
       });
     });
 
-    it("creates a stage deployment with dev stage", () => {
-      template.hasResourceProperties("AWS::ApiGateway::Stage", {
-        StageName: "dev",
-      });
-    });
-
-    it("configures stage throttling (100 req/s, burst 200)", () => {
-      template.hasResourceProperties("AWS::ApiGateway::Stage", {
-        MethodSettings: Match.arrayWith([
-          Match.objectLike({
-            ThrottlingRateLimit: 100,
-            ThrottlingBurstLimit: 200,
-          }),
-        ]),
-      });
-    });
-
-    it("enables X-Ray tracing on the stage", () => {
-      template.hasResourceProperties("AWS::ApiGateway::Stage", {
-        TracingEnabled: true,
-      });
-    });
-  });
-
-  describe("WAF Association (AC2)", () => {
-    it("creates a WAF WebACL association", () => {
-      template.resourceCountIs("AWS::WAFv2::WebACLAssociation", 1);
+    it("does NOT create a Stage or Deployment (managed by ApiDeploymentStack)", () => {
+      template.resourceCountIs("AWS::ApiGateway::Stage", 0);
+      template.resourceCountIs("AWS::ApiGateway::Deployment", 0);
     });
   });
 
@@ -307,9 +275,9 @@ describe("ApiGatewayStack", () => {
       });
     });
 
-    it("exports REST API URL", () => {
-      template.hasOutput("RestApiUrl", {
-        Export: { Name: "AiLearningHub-RestApiUrl" },
+    it("exports REST API root resource ID", () => {
+      template.hasOutput("RestApiRootResourceId", {
+        Export: { Name: "AiLearningHub-RestApiRootResourceId" },
       });
     });
   });

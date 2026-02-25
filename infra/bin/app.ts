@@ -12,6 +12,7 @@ import { ApiGatewayStack } from "../lib/stacks/api/api-gateway.stack";
 import { AuthRoutesStack } from "../lib/stacks/api/auth-routes.stack";
 import { EventsStack } from "../lib/stacks/core/events.stack";
 import { SavesRoutesStack } from "../lib/stacks/api/saves-routes.stack";
+import { ApiDeploymentStack } from "../lib/stacks/api/api-deployment.stack";
 
 const app = new cdk.App();
 
@@ -75,15 +76,13 @@ const rateLimitingStack = new RateLimitingStack(
 const apiGatewayStack = new ApiGatewayStack(app, "AiLearningHubApiGateway", {
   env: awsEnv,
   description:
-    "API Gateway REST API for ai-learning-hub (authorizers, CORS, WAF)",
+    "API Gateway REST API for ai-learning-hub (authorizers, CORS, gateway responses)",
   jwtAuthorizerFunctionArn: cdk.Fn.importValue(
     "AiLearningHub-JwtAuthorizerFunctionArn"
   ),
   apiKeyAuthorizerFunctionArn: cdk.Fn.importValue(
     "AiLearningHub-ApiKeyAuthorizerFunctionArn"
   ),
-  webAcl: rateLimitingStack.webAcl,
-  stageName,
 });
 apiGatewayStack.addDependency(rateLimitingStack);
 
@@ -131,6 +130,24 @@ savesRoutesStack.addDependency(apiGatewayStack);
 savesRoutesStack.addDependency(tablesStack);
 savesRoutesStack.addDependency(eventsStack);
 
+// API Deployment Stack -- Deployment + Stage + WAF (after all route stacks)
+// Solves the CDK cross-stack deployment problem: ensures the deployed stage
+// includes routes from ALL route stacks, not just the ApiGatewayStack scope.
+const apiDeploymentStack = new ApiDeploymentStack(
+  app,
+  "AiLearningHubApiDeployment",
+  {
+    env: awsEnv,
+    description:
+      "API Gateway deployment and stage for ai-learning-hub (Deployment, Stage, WAF)",
+    restApiId: apiGatewayStack.restApi.restApiId,
+    stageName,
+    webAcl: rateLimitingStack.webAcl,
+  }
+);
+apiDeploymentStack.addDependency(authRoutesStack);
+apiDeploymentStack.addDependency(savesRoutesStack);
+
 // Export stack instances for future cross-stack references (avoids unused variable lint errors)
 export {
   tablesStack,
@@ -142,6 +159,7 @@ export {
   authRoutesStack,
   eventsStack,
   savesRoutesStack,
+  apiDeploymentStack,
 };
 
 cdk.Tags.of(app).add("Project", "ai-learning-hub");
