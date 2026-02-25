@@ -15,9 +15,9 @@ export interface LogEventMatch {
 }
 
 export interface WaitForLogEventOptions {
-  /** Max number of retries (default: 3) */
+  /** Max number of retries (default: 10) */
   maxRetries?: number;
-  /** Milliseconds between retries (default: 5000) */
+  /** Milliseconds between retries (default: 3000) */
   retryIntervalMs?: number;
 }
 
@@ -39,8 +39,8 @@ export async function waitForLogEvent(
   queryStartEpochMs: number,
   options: WaitForLogEventOptions = {}
 ): Promise<LogEventMatch> {
-  const maxRetries = options.maxRetries ?? 3;
-  const retryIntervalMs = options.retryIntervalMs ?? 5000;
+  const maxRetries = options.maxRetries ?? 10;
+  const retryIntervalMs = options.retryIntervalMs ?? 3000;
 
   // Reject double-quote characters to prevent CloudWatch filter pattern injection
   if (saveId.includes('"') || detailType.includes('"')) {
