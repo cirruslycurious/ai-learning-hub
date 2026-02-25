@@ -9,6 +9,8 @@
  *   Phase 2: Saves CRUD Lifecycle (SC1–SC8)
  *   Phase 3: (reserved for future)
  *   Phase 4: Saves Validation Errors (SV1–SV4)
+ *   Phases 5–6: (reserved for future)
+ *   Phase 7: EventBridge Verification (EB1–EB3)
  */
 
 import type { ScenarioDefinition, CleanupFn } from "./types.js";

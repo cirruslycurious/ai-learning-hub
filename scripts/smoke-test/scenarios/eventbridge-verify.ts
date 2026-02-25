@@ -18,7 +18,6 @@ import { waitForLogEvent } from "../cloudwatch-helpers.js";
 
 // Module-level shared state for the EB1→EB2→EB3 chain
 let createdSaveId: string | null = null;
-let queryStartEpochMs: number | null = null;
 let registerCleanupFn: ((fn: CleanupFn) => void) | null = null;
 
 /**
@@ -52,7 +51,7 @@ export const eventBridgeVerifyScenarios: ScenarioDefinition[] = [
       const uniqueUrl = `https://example.com/eb-smoke-${Date.now()}`;
 
       // Record time before API call to bound the CloudWatch query window
-      queryStartEpochMs = Date.now() - 30_000;
+      const queryStartEpochMs = Date.now() - 30_000;
 
       const res = await client.post("/saves", { url: uniqueUrl }, { auth });
       assertStatus(res.status, 201, "EB1: POST /saves");
@@ -61,7 +60,8 @@ export const eventBridgeVerifyScenarios: ScenarioDefinition[] = [
       const data = (res.body as { data: { saveId: string } }).data;
       createdSaveId = data.saveId;
 
-      // Register cleanup: soft-delete the save after all scenarios
+      // Register cleanup as a safety net: EB3 deletes the save in the happy path,
+      // but if EB2 or EB3 fails/is skipped, cleanup ensures the save is removed.
       if (registerCleanupFn) {
         registerCleanupFn(async () => {
           try {
@@ -82,7 +82,12 @@ export const eventBridgeVerifyScenarios: ScenarioDefinition[] = [
         queryStartEpochMs
       );
 
-      // Verify event envelope
+      // Verify event envelope (belt-and-suspenders: filter pattern already matches saveId)
+      if (event.detail.saveId !== createdSaveId) {
+        throw new Error(
+          `EB1: Expected detail.saveId "${createdSaveId}", got "${event.detail.saveId}"`
+        );
+      }
       if (event.source !== "ai-learning-hub.saves") {
         throw new Error(
           `EB1: Expected source "ai-learning-hub.saves", got "${event.source}"`

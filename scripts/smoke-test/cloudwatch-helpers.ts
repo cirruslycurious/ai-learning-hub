@@ -42,6 +42,13 @@ export async function waitForLogEvent(
   const maxRetries = options.maxRetries ?? 3;
   const retryIntervalMs = options.retryIntervalMs ?? 5000;
 
+  // Reject double-quote characters to prevent CloudWatch filter pattern injection
+  if (saveId.includes('"') || detailType.includes('"')) {
+    throw new Error(
+      "saveId and detailType must not contain double-quote characters"
+    );
+  }
+
   // Dynamic import to avoid hard dependency for non-Phase-7 runs
   const { CloudWatchLogsClient, FilterLogEventsCommand } =
     await import("@aws-sdk/client-cloudwatch-logs");
@@ -64,12 +71,8 @@ export async function waitForLogEvent(
         })
       );
     } catch (err: unknown) {
-      // Detect permission errors on first call and provide helpful message
-      if (
-        attempt === 1 &&
-        err instanceof Error &&
-        err.name === "AccessDeniedException"
-      ) {
+      // Permissions errors are not transient — throw immediately with a helpful message
+      if (err instanceof Error && err.name === "AccessDeniedException") {
         throw new Error(
           "Missing logs:FilterLogEvents permission. Ensure your AWS credentials have CloudWatch Logs read access."
         );
@@ -87,7 +90,14 @@ export async function waitForLogEvent(
         );
       }
 
-      const parsed = JSON.parse(message);
+      let parsed;
+      try {
+        parsed = JSON.parse(message);
+      } catch {
+        throw new Error(
+          `Failed to parse CloudWatch log event as JSON (attempt ${attempt}): ${message.slice(0, 200)}`
+        );
+      }
       return {
         detailType: parsed["detail-type"],
         source: parsed.source,
