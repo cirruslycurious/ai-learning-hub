@@ -409,8 +409,8 @@ The flow follows the **user value chain**:
 flowchart TB
     subgraph Foundation["Epic 1: Foundation & Dev Experience"]
         F1["1.1 Monorepo Scaffold"]
-        F2["1.2 Shared Lambda Layer<br/>(@ai-learning-hub/*)"]
-        F3["1.3 Agentic Instructions<br/>(CLAUDE.md, templates)"]
+        F2["1.2 Shared Lambda Layer"]
+        F3["1.3 Agentic Instructions"]
         F4["1.4 CI/CD Pipeline"]
         F5["1.5 DynamoDB + S3"]
         F6["1.6 Observability Foundation"]
@@ -435,7 +435,7 @@ flowchart TB
     end
 
     subgraph AgentNative["Epic 3.2: Agent-Native API Foundation"]
-        AN1["3.2.1-6 Shared Middleware<br/>(idempotency, concurrency,<br/>error contract, events,<br/>agent identity, pagination,<br/>scoped keys)"]
+        AN1["3.2.1-6 Shared Middleware"]
         AN2["3.2.7 Saves Retrofit"]
         AN3["3.2.8 Auth Retrofit"]
         AN4["3.2.9 Health/Batch"]
@@ -589,12 +589,27 @@ flowchart TB
 
 ---
 
-### Epic 3.1: Tech Debt — Saves Domain DRY Consolidation
-**Goal:** Eliminate cross-handler code duplication from Epic 3 implementation, extract shared utilities, standardize test scaffolding, and add a pipeline-level deduplication scan agent that runs before the adversarial reviewer.
+### Epic 3.1: Tech Debt — Saves Domain DRY Consolidation & Smoke Test Expansion
+**Goal:** Eliminate cross-handler code duplication from Epic 3 implementation, extract shared utilities, standardize test scaffolding, add a pipeline-level deduplication scan agent, and expand the smoke test suite to validate the full saves domain infrastructure end-to-end in the deployed AWS environment.
 
-**User Outcome:** Codebase is DRY across all saves handlers. Future stories are flagged for duplication before review. Developer velocity improves via shared test factories and mock helpers.
+**User Outcome:** Codebase is DRY across all saves handlers. Future stories are flagged for duplication before review. Developer velocity improves via shared test factories and mock helpers. Deployments are validated by a phased smoke test suite proving auth, CRUD, dedup, filtering, API key auth, and EventBridge wiring all work correctly in AWS.
 
 **Pipeline design:** Quality Gates (2.2) → Dedup Scan (2.3b) → Adversarial Review (2.4) → Commit & PR (2.5). Dedup: epic-dedup-scanner + epic-dedup-fixer (max 2 rounds). Review: epic-reviewer + epic-fixer (unchanged, max 3 rounds).
+
+**Story Dependency Diagram:**
+
+```
+Track A — Code Consolidation:
+3.1.1 Shared Schemas & Constants  ──►  3.1.2 Test Utilities  ──►  3.1.3 Handler Consolidation
+                                                                          │
+                                                                          ▼
+                                                              3.1.4 Dedup Scan Agent & Pipeline
+
+Track B — Smoke Test Expansion (independent of Track A):
+3.1.5 Phase Runner Infra  ──►  3.1.6 Saves CRUD & Validation  ──►  3.1.7 Saves Dedup, Filtering & API Key
+                                       │
+3.1.8 EventBridge Observability  ──────┴──►  3.1.9 EventBridge Verification
+```
 
 **Stories:**
 | Story | Description |
@@ -604,6 +619,10 @@ flowchart TB
 | 3.1.3 | Handler & test consolidation — retrofit all 6 saves handlers to shared code; fix saves/handler.ts toPublicSave/deletedAt |
 | 3.1.4 | Dedup scan agent & pipeline — epic-dedup-scanner + epic-dedup-fixer, 2-round loop between quality gates and reviewer |
 | 3.1.5 | Phase runner infrastructure — phase-registry.md + phase-runner.md defining Phase 2 order and execution for orchestrator/automation |
+| 3.1.6 | Saves CRUD & validation smoke scenarios — SC1-SC8 (create, read, update, delete lifecycle) + SV1-SV4 (validation error scenarios) |
+| 3.1.7 | Saves dedup, filtering & API key smoke scenarios — SD1-SD2 (dedup detection), SF1-SF3 (filtering/sorting), SA1 (API key + saves cross-auth) |
+| 3.1.8 | EventBridge observability infrastructure — CDK rule + CloudWatch log group target on event bus for event capture |
+| 3.1.9 | EventBridge verification smoke scenarios — EB1-EB3 (query CloudWatch logs after save creation to verify event delivery) |
 
 **NFRs covered:** NFR-M1 (Maintainability), NFR-R7 (Reliability — toPublicSave divergence)
 
