@@ -108,7 +108,7 @@ development_status:
   3-1-5-phase-runner-infrastructure: in-progress
   3-1-6-saves-crud-validation: ready-for-dev
   3-1-7-dedup-filtering-api-key: ready-for-dev
-  3-1-8-eventbridge-observability-infra: ready-for-dev
+  3-1-8-eventbridge-observability-infra: review
   3-1-9-eventbridge-verification: ready-for-dev
   epic-3-1-retrospective: optional
 

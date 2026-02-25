@@ -110,6 +110,7 @@ authRoutesStack.addDependency(authStack);
 // Events Stack - EventBridge bus for async domain events (ADR-006: Core tier)
 const eventsStack = new EventsStack(app, "AiLearningHubEvents", {
   env: awsEnv,
+  stage: stageName,
   description:
     "EventBridge event bus for ai-learning-hub (async domain events)",
 });

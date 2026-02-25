@@ -1,6 +1,15 @@
-# Story 3.1.8: EventBridge Observability Infrastructure
+---
+id: "3.1.8"
+title: "EventBridge Observability Infrastructure"
+status: review
+depends_on: []
+touches:
+  - infra/lib/stacks/core/events.stack.ts
+  - infra/test/stacks/core/events.stack.test.ts
+risk: low
+---
 
-Status: ready-for-dev
+# Story 3.1.8: EventBridge Observability Infrastructure
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -12,38 +21,38 @@ so that **we have observability into event flow and Story 3.1.9 can verify Event
 
 ## Acceptance Criteria
 
-| #   | Given                                                            | When                                                                | Then                                                                                                                                         |
-| --- | ---------------------------------------------------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| AC1 | EventBridge bus has no rules or targets for logging              | CDK stack updated with a rule + CloudWatch Log Group target         | New `events.Rule` on the bus matches all events (`{ source: [{ prefix: "ai-learning-hub" }] }`) and targets a CloudWatch Log Group           |
-| AC2 | No explicit CloudWatch Log Group exists for event bus logging    | Log group created by CDK                                            | Log group named `/aws/events/ai-learning-hub-events` exists with retention policy of 14 days (dev) / 90 days (prod based on stage param)     |
-| AC3 | EventBridge needs permission to write to CloudWatch Logs          | CDK grants necessary permissions                                    | The rule target has the correct resource policy allowing `events.amazonaws.com` to create log streams and put log events                     |
-| AC4 | Observability stack exists but only has X-Ray sampling           | EventBridge logging added to events stack (not observability stack)  | Changes are in `infra/lib/stacks/core/events.stack.ts` (co-located with the bus); observability stack is not modified                      |
-| AC5 | CDK Nag may flag new resources                                   | `cdk synth` runs                                                    | No new CDK Nag errors; suppressions added with documented reasons if needed                                                                  |
-| AC6 | Infrastructure deploys cleanly                                    | `cdk deploy` runs                                                   | Stack deploys without errors; CloudWatch Log Group visible in AWS Console; creating a save via API produces a log entry in the new log group |
-| AC7 | All existing tests pass                                         | After CDK changes                                                   | `npm test` passes; `npm run lint` passes; no changes to Lambda handler code                                                                  |
+| #   | Given                                                         | When                                                                | Then                                                                                                                                         |
+| --- | ------------------------------------------------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| AC1 | EventBridge bus has no rules or targets for logging           | CDK stack updated with a rule + CloudWatch Log Group target         | New `events.Rule` on the bus matches all events (`{ source: [{ prefix: "ai-learning-hub" }] }`) and targets a CloudWatch Log Group           |
+| AC2 | No explicit CloudWatch Log Group exists for event bus logging | Log group created by CDK                                            | Log group named `/aws/events/ai-learning-hub-events` exists with retention policy of 14 days (dev) / 90 days (prod based on stage param)     |
+| AC3 | EventBridge needs permission to write to CloudWatch Logs      | CDK grants necessary permissions                                    | The rule target has the correct resource policy allowing `events.amazonaws.com` to create log streams and put log events                     |
+| AC4 | Observability stack exists but only has X-Ray sampling        | EventBridge logging added to events stack (not observability stack) | Changes are in `infra/lib/stacks/core/events.stack.ts` (co-located with the bus); observability stack is not modified                        |
+| AC5 | CDK Nag may flag new resources                                | `cdk synth` runs                                                    | No new CDK Nag errors; suppressions added with documented reasons if needed                                                                  |
+| AC6 | Infrastructure deploys cleanly                                | `cdk deploy` runs                                                   | Stack deploys without errors; CloudWatch Log Group visible in AWS Console; creating a save via API produces a log entry in the new log group |
+| AC7 | All existing tests pass                                       | After CDK changes                                                   | `npm test` passes; `npm run lint` passes; no changes to Lambda handler code                                                                  |
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Add CloudWatch Log Group to events stack (AC: #2, #4)
-  - [ ] 1.1 Import `aws-cdk-lib/aws-logs` in `events.stack.ts`
-  - [ ] 1.2 Create `LogGroup` with name `/aws/events/ai-learning-hub-events` and appropriate retention
-  - [ ] 1.3 Export log group name as stack output (`AiLearningHub-EventLogGroupName`)
-- [ ] Task 2: Add EventBridge Rule with Log Group target (AC: #1, #3)
-  - [ ] 2.1 Create `events.Rule` matching `source: [{ prefix: "ai-learning-hub" }]`
-  - [ ] 2.2 Add `CloudWatchLogGroup` target pointing to the log group
-  - [ ] 2.3 CDK handles the resource policy automatically via `targets.CloudWatchLogGroup`
-- [ ] Task 3: Add CDK stack tests (AC: #7)
-  - [ ] 3.1 Create `infra/test/stacks/core/events.stack.test.ts` (no existing test file for EventsStack)
-  - [ ] 3.2 Assert template contains `AWS::Logs::LogGroup` with correct retention
-  - [ ] 3.3 Assert template contains `AWS::Events::Rule` with source prefix pattern
-  - [ ] 3.4 Assert template contains `AWS::CloudFormation::Output` for log group name
-- [ ] Task 4: Handle CDK Nag (AC: #5)
-  - [ ] 4.1 Run `cdk synth` and check for Nag findings
-  - [ ] 4.2 Add suppressions with documented reasons if needed
-- [ ] Task 5: Verify (AC: #6, #7)
-  - [ ] 5.1 Run `npm test` — passes (including new stack tests)
-  - [ ] 5.2 Run `npm run lint` — passes
-  - [ ] 5.3 Run `cdk synth` — succeeds without errors
+- [x] Task 1: Add CloudWatch Log Group to events stack (AC: #2, #4)
+  - [x] 1.1 Import `aws-cdk-lib/aws-logs` in `events.stack.ts`
+  - [x] 1.2 Create `LogGroup` with name `/aws/events/ai-learning-hub-events` and appropriate retention
+  - [x] 1.3 Export log group name as stack output (`AiLearningHub-EventLogGroupName`)
+- [x] Task 2: Add EventBridge Rule with Log Group target (AC: #1, #3)
+  - [x] 2.1 Create `events.Rule` matching `source: [{ prefix: "ai-learning-hub" }]`
+  - [x] 2.2 Add `CloudWatchLogGroup` target pointing to the log group
+  - [x] 2.3 CDK handles the resource policy automatically via `targets.CloudWatchLogGroup`
+- [x] Task 3: Add CDK stack tests (AC: #7)
+  - [x] 3.1 Create `infra/test/stacks/core/events.stack.test.ts` (no existing test file for EventsStack)
+  - [x] 3.2 Assert template contains `AWS::Logs::LogGroup` with correct retention
+  - [x] 3.3 Assert template contains `AWS::Events::Rule` with source prefix pattern
+  - [x] 3.4 Assert template contains `AWS::CloudFormation::Output` for log group name
+- [x] Task 4: Handle CDK Nag (AC: #5)
+  - [x] 4.1 Run `cdk synth` and check for Nag findings — no new findings
+  - [x] 4.2 Add suppressions with documented reasons if needed — none needed
+- [x] Task 5: Verify (AC: #6, #7)
+  - [x] 5.1 Run `npm test` — passes (542 tests, 100% infra coverage)
+  - [x] 5.2 Run `npm run lint` — passes
+  - [x] 5.3 Run `cdk synth` — succeeds without errors
   - [ ] 5.4 After deploy: create a save via API, check CloudWatch Log Group for matching event entry
 
 ## Dev Notes
@@ -149,10 +158,20 @@ When EventBridge delivers events to a CloudWatch Log Group target, each log entr
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
 ### Completion Notes List
 
+- All 5 tasks completed: LogGroup, Rule, tests, CDK Nag check, verification
+- TDD approach: wrote 10 CDK assertion tests first (RED), then implemented (GREEN)
+- EventsStackProps interface extends StackProps with optional `stage` for retention control
+- `targets.CloudWatchLogGroup` handles resource policy automatically (AC3)
+- 542 tests pass, 100% infra coverage, `cdk synth` clean
+- Task 5.4 (post-deploy manual verification) left unchecked — requires deployed environment
+
 ### File List
+
+- `infra/lib/stacks/core/events.stack.ts` — Modified: added LogGroup, Rule, CloudWatchLogGroup target, EventLogGroupName output, EventsStackProps
+- `infra/test/stacks/core/events.stack.test.ts` — Created: 10 CDK assertion tests (EventBus, LogGroup retention, Rule pattern, target, bus ref, outputs, prod retention)
