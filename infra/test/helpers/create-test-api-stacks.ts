@@ -180,6 +180,11 @@ export function createTestApiStacks(): TestApiStacks {
     eventBusName: "arch-test-events",
   });
 
+  const inviteCodesTable = new dynamodb.Table(depsStack, "InviteCodesTable", {
+    partitionKey: { name: "PK", type: dynamodb.AttributeType.STRING },
+    sortKey: { name: "SK", type: dynamodb.AttributeType.STRING },
+  });
+
   const savesRoutesStack = new SavesRoutesStack(app, "ArchTestSavesRoutes", {
     env: awsEnv,
     restApiId: apiGatewayStack.restApi.restApiId,
@@ -187,6 +192,7 @@ export function createTestApiStacks(): TestApiStacks {
     apiKeyAuthorizer: apiGatewayStack.apiKeyAuthorizer,
     savesTable,
     usersTable,
+    inviteCodesTable,
     eventBus,
   });
 

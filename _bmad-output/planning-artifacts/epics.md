@@ -306,6 +306,19 @@ This document provides the complete epic and story breakdown for ai-learning-hub
 | FR82-FR85 | Epic 1 | Agentic tool risk & human intervention (risk classification, approval gates, escalation) |
 | FR86-FR88 | Epic 1 | Agentic prompt engineering (7-layer structure, CoT, evaluation tests) |
 | FR89-FR91 | Epic 1 | Agentic model & subagent optimization (model selection, subagent library, context management) |
+| FR92-FR93 | Epic 3.2 | Command/query separation (CQRS-lite) |
+| FR94-FR95 | Epic 3.2 + 4/8 | State machine enforcement (middleware in 3.2; per-entity states in 4, 8) |
+| FR96-FR97 | Epic 3.2 | Idempotency-by-default (middleware + concurrency) |
+| FR98-FR99 | Epic 9 | Operation resources (async pipeline status) |
+| FR100-FR101 | Epic 3.2 | Consistent error contract + field-level validation |
+| FR102 | Epic 3.2 | Event history infrastructure |
+| FR103-FR104 | Epic 3.2 | Agent identity + context metadata pass-through |
+| FR105 | Epic 3.2 | Cursor-based pagination |
+| FR106 | Epic 3.2 | Batch operations endpoint |
+| FR107 | Epic 3.2 | Health & readiness endpoints |
+| FR108 | Epic 9 | Enrichment change detection |
+| FR109 | Epic 10 | admin:content:review-flagged CLI |
+| FR110-FR112 | Epic 10 | Analytics endpoints, cohort data, persona reports |
 
 ---
 
@@ -363,6 +376,7 @@ Per ADRs:
 | **1. Foundation** | Nothing works without infrastructure. Custom scaffold required (ADR-011/012). Shared libraries prevent duplication. Agentic instructions keep agents on rails. | Must be first — everything depends on it |
 | **2. Auth** | Users can't do anything without accounts. API keys enable iOS Shortcut and agent access. | Must follow Foundation — needs tables, Clerk integration |
 | **3. Saves** | Core value prop: save URLs fast. Maya's primary journey. Mobile capture is the hook. | First user-facing value. Proves the platform works. |
+| **3.2 Agent-Native API** | Cross-cutting agent-native patterns (idempotency, concurrency, error contract, events, CQRS). Building middleware before Epics 4-11 means all future domains inherit patterns for free. | After Saves — retrofits 2+3, gates 4+ |
 | **4. Projects** | Organization layer. Marcus's need. No value without saves existing first. | Builds on Saves — projects organize saves |
 | **5. Linking** | The "save-to-build" philosophy. Connects resources to projects. Core differentiator. | Requires both Saves and Projects to exist |
 | **6. Notes/Workspace** | Deep work capability. Marcus's "living notebook." Desktop-focused. | Builds on Projects — notes belong to projects |
@@ -379,6 +393,7 @@ The flow follows the **user value chain**:
 1. **Foundation** → Platform exists
 2. **Auth** → Users exist
 3. **Saves** → Content enters the system (capture)
+3.2. **Agent-Native API** → API becomes agent-safe (middleware + retrofit)
 4. **Projects** → Content gets organized (structure)
 5. **Linking** → Content connects to outcomes (purpose)
 6. **Notes** → Thinking is captured (depth)
@@ -417,6 +432,17 @@ flowchart TB
         S1["Save CRUD API"]
         S2["iOS Shortcut"]
         S3["Filtering/Sorting"]
+    end
+
+    subgraph AgentNative["Epic 3.2: Agent-Native API Foundation"]
+        AN1["3.2.1-6 Shared Middleware<br/>(idempotency, concurrency,<br/>error contract, events,<br/>agent identity, pagination,<br/>scoped keys)"]
+        AN2["3.2.7 Saves Retrofit"]
+        AN3["3.2.8 Auth Retrofit"]
+        AN4["3.2.9 Health/Batch"]
+
+        AN1 --> AN2
+        AN1 --> AN3
+        AN1 --> AN4
     end
 
     subgraph Projects["Epic 4: Projects"]
@@ -464,7 +490,8 @@ flowchart TB
     %% Core Dependencies
     Foundation --> Auth
     Auth --> Saves
-    Saves --> Projects
+    Saves --> AgentNative
+    AgentNative --> Projects
     Projects --> Linking
     Linking --> Notes
     Notes --> Search
@@ -486,11 +513,13 @@ flowchart TB
     %% Styling
     classDef foundation fill:#e8f5e9,stroke:#2e7d32
     classDef userValue fill:#e3f2fd,stroke:#1565c0
+    classDef agentNative fill:#fce4ec,stroke:#c62828
     classDef intelligence fill:#fff3e0,stroke:#ef6c00
     classDef ops fill:#f3e5f5,stroke:#7b1fa2
 
     class Foundation foundation
     class Auth,Saves,Projects,Linking,Notes,Search,Tutorials userValue
+    class AgentNative agentNative
     class Pipelines intelligence
     class Admin,Onboarding ops
 ```
@@ -574,8 +603,52 @@ flowchart TB
 | 3.1.2 | Shared test utilities (save-factories, mock-events, mock-db, assertADR008Error) in backend/test-utils/ |
 | 3.1.3 | Handler & test consolidation — retrofit all 6 saves handlers to shared code; fix saves/handler.ts toPublicSave/deletedAt |
 | 3.1.4 | Dedup scan agent & pipeline — epic-dedup-scanner + epic-dedup-fixer, 2-round loop between quality gates and reviewer |
+| 3.1.5 | Phase runner infrastructure — phase-registry.md + phase-runner.md defining Phase 2 order and execution for orchestrator/automation |
 
 **NFRs covered:** NFR-M1 (Maintainability), NFR-R7 (Reliability — toPublicSave divergence)
+
+---
+
+### Epic 3.2: Agent-Native API Foundation
+**Goal:** Build shared agent-native API middleware and retrofit Epics 2 (Auth) and 3 (Saves) so all existing and future endpoints conform to the agent-native API patterns defined in the PRD (FR92-FR107, NFR-AN1-AN7).
+
+**User Outcome:** AI agents can safely retry commands (idempotency), detect concurrent conflicts (optimistic concurrency), understand what went wrong and what to do next (error contract), query entity history (events), and identify themselves (agent identity). All existing saves and auth endpoints conform to the new patterns. Future epics inherit these patterns automatically via shared middleware.
+
+**Why now:** The agent-native patterns are cross-cutting — every entity needs them. Building the middleware layer now (before Epics 4-11) means Projects, Linking, Tutorials, and all future domains get idempotency, concurrency, error contracts, and event history for free. Retrofitting later would mean touching every handler twice.
+
+**Stories:**
+
+| Story | Description | Dependencies |
+|-------|-------------|--------------|
+| 3.2.1 | **Idempotency & optimistic concurrency middleware** — Shared middleware in `@ai-learning-hub/middleware`: Idempotency-Key header extraction, DynamoDB-backed dedup storage with 24-hour TTL, cached result replay on retry. Version field pattern for DynamoDB items, If-Match header validation, 409 conflict response with current version and allowed retry. | None (shared infra) |
+| 3.2.2 | **Consistent error contract & response envelope** — Extend `@ai-learning-hub/middleware` error builder: all errors include `{ code, message, details, current_state, allowed_actions, required_conditions }`. State machine rejections include `current_state` and `allowed_actions`. Field-level validation errors include `{ field, code, message, constraint, allowed_values }`. Wrap all responses in `{ data, meta: { cursor, total, rate_limit }, links: { self, next } }` envelope. | None (shared infra) |
+| 3.2.3 | **Event history infrastructure** — Events storage pattern (DynamoDB events partition per entity, `PK=EVENTS#{entityType}#{entityId}`). Base handler generator for `GET /:entity/:id/events?since=...`. Records state changes, commands executed, actor attribution (`human` \| `agent`), timestamps, and context metadata. 90-day retention policy. | None (shared infra) |
+| 3.2.4 | **Agent identity, context & rate limit transparency** — `X-Agent-ID` header middleware: extract, validate, record `actor_type` (`human` \| `agent`) on all operations. Context metadata pass-through on commands: `{ context: { trigger, source, confidence, upstream_ref } }` flows into event history. Rate limit transparency headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`) on all responses. | None (shared infra) |
+| 3.2.5 | **Cursor-based pagination** — Shared pagination helper in `@ai-learning-hub/db`: opaque cursor encoding/decoding wrapping DynamoDB `LastEvaluatedKey`, `next_cursor` (null if last page). Retrofit all existing list endpoints (saves list, saves filter, saves sort) to use cursor tokens instead of any offset/page patterns. | None (shared infra) |
+| 3.2.6 | **Scoped API key permissions** — Extend API key creation to support 5 permission tiers (`full`, `capture`, `read`, `saves:write`, `projects:write`). Add scope validation middleware that checks operation against granted scopes. Reject with `403 INSUFFICIENT_SCOPE` including `required_scope` and `granted_scopes`. Update key storage schema to persist scopes. | None (shared infra) |
+| 3.2.7 | **Command endpoint pattern & saves domain retrofit** — Establish CQRS-lite command endpoint convention (`POST /:entity/:id:action`). Add command endpoints for saves: `POST /saves/:id:update-metadata`. Split existing mutation endpoints into query (GET, no side effects) and command (POST, requires Idempotency-Key). Apply idempotency (3.2.1), concurrency (3.2.1), error contract (3.2.2), event history (3.2.3), agent identity (3.2.4), cursor pagination (3.2.5), and response envelope (3.2.2) to all saves handlers. | 3.2.1, 3.2.2, 3.2.3, 3.2.4, 3.2.5 |
+| 3.2.8 | **Auth domain retrofit** — Apply response envelope (3.2.2), error contract (3.2.2), agent identity (3.2.4), scoped permissions (3.2.6), and rate limit transparency (3.2.4) to all auth domain handlers. Update API key creation/revocation to use command pattern with idempotency. | 3.2.1, 3.2.2, 3.2.4, 3.2.6 |
+| 3.2.9 | **Health, readiness & batch operations** — `GET /health` returns service availability. `GET /ready` returns readiness including downstream dependency checks (DynamoDB, auth provider). `POST /batch` accepts array of operations with per-operation `Idempotency-Key`, returns per-operation results. Batch is not transactional — partial success reported per-operation. Up to 25 operations per batch. | 3.2.1, 3.2.2 |
+
+**Story Dependency Diagram:**
+
+```
+Track A — Shared Infrastructure (parallelizable):
+3.2.1 Idempotency & Concurrency ─┐
+3.2.2 Error Contract & Envelope ──┤
+3.2.3 Event History ──────────────┼──► 3.2.7 Saves Domain Retrofit
+3.2.4 Agent Identity & Rate Limit ┤           │
+3.2.5 Cursor Pagination ──────────┘           │
+                                              ▼
+3.2.6 Scoped API Keys ────────────────► 3.2.8 Auth Domain Retrofit
+
+3.2.1 + 3.2.2 ────────────────────────► 3.2.9 Health, Readiness & Batch
+```
+
+**FRs covered:** FR92, FR93, FR94 (middleware only — per-entity states in Epics 4, 8), FR95, FR96, FR97, FR100, FR101, FR102, FR103, FR104, FR105, FR106, FR107
+**NFRs covered:** NFR-AN1, NFR-AN2, NFR-AN4, NFR-AN5, NFR-AN6, NFR-AN7
+
+**Note:** FR94-FR95 (state machine enforcement) middleware is built here, but the actual per-entity state definitions and allowed transitions are implemented in their respective epics: projects (Epic 4, FR25), tutorials (Epic 8, FR40). FR98-FR99 (operation resources) remain in Epic 9 (async pipelines). FR108-FR112 remain in Epics 9 and 10.
 
 ---
 
