@@ -38,6 +38,10 @@ import {
   initSavesCrudCleanup,
 } from "./scenarios/saves-crud.js";
 import { savesValidationScenarios } from "./scenarios/saves-validation.js";
+import {
+  eventBridgeVerifyScenarios,
+  initEventBridgeCleanup,
+} from "./scenarios/eventbridge-verify.js";
 
 export const phases: Phase[] = [
   {
@@ -67,6 +71,15 @@ export const phases: Phase[] = [
     id: 4,
     name: "Saves Validation Errors",
     scenarios: [...savesValidationScenarios],
+  },
+  // Phases 5–6 reserved for future use
+  {
+    id: 7,
+    name: "EventBridge Verification",
+    scenarios: [...eventBridgeVerifyScenarios],
+    init: (registerCleanup) => {
+      initEventBridgeCleanup(registerCleanup);
+    },
   },
 ];
 
