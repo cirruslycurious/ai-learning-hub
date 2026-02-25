@@ -44,6 +44,24 @@ describe("EventsStack", () => {
         RetentionInDays: 90,
       });
     });
+
+    it("should have DESTROY removal policy for non-prod (ephemeral observability data)", () => {
+      template.hasResource("AWS::Logs::LogGroup", {
+        DeletionPolicy: "Delete",
+      });
+    });
+
+    it("should have RETAIN removal policy for prod stage", () => {
+      const prodApp = new App();
+      const prodStack = new EventsStack(prodApp, "ProdEventsStack", {
+        env: awsEnv,
+        stage: "prod",
+      });
+      const prodTemplate = Template.fromStack(prodStack);
+      prodTemplate.hasResource("AWS::Logs::LogGroup", {
+        DeletionPolicy: "Retain",
+      });
+    });
   });
 
   describe("EventBridge Rule (AC1, AC3)", () => {

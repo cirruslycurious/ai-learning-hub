@@ -34,16 +34,26 @@ export class EventsStack extends cdk.Stack {
         ? logs.RetentionDays.THREE_MONTHS
         : logs.RetentionDays.TWO_WEEKS;
 
+    // DESTROY is acceptable for dev/staging: the log group holds ephemeral
+    // observability data with built-in retention expiry. For prod, RETAIN
+    // protects event logs from accidental stack teardown during incidents.
+    const removalPolicy =
+      props?.stage === "prod"
+        ? cdk.RemovalPolicy.RETAIN
+        : cdk.RemovalPolicy.DESTROY;
+
     this.eventLogGroup = new logs.LogGroup(this, "EventLogGroup", {
       logGroupName: "/aws/events/ai-learning-hub-events",
       retention,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      removalPolicy,
     });
 
     // --- EventBridge Rule: capture all ai-learning-hub events (Story 3.1.8, AC1, AC3) ---
     const logAllEventsRule = new events.Rule(this, "LogAllEventsRule", {
       eventBus: this.eventBus,
       eventPattern: {
+        // CDK types do not model EventBridge prefix matching; cast is safe --
+        // CloudFormation natively supports { prefix: "..." } in event patterns.
         source: [{ prefix: "ai-learning-hub" }] as unknown as string[],
       },
       description: "Routes all ai-learning-hub events to CloudWatch Logs",
