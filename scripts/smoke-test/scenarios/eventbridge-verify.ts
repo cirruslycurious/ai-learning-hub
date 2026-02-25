@@ -18,6 +18,12 @@ import { waitForLogEvent } from "../cloudwatch-helpers.js";
 
 // Module-level shared state for the EB1→EB2→EB3 chain
 let createdSaveId: string | null = null;
+// Flush save: a second save used to "thaw" each Lambda context after the main
+// API call. Lambda's fire-and-forget emitEvent runs in a detached async IIFE;
+// the runtime may freeze the process before PutEvents completes. A follow-up
+// request to the same Lambda unfreezes the context and lets the pending HTTP
+// call finish. The flush save is created in EB1, patched in EB2, deleted in EB3.
+let flushSaveId: string | null = null;
 let registerCleanupFn: ((fn: CleanupFn) => void) | null = null;
 
 /**
@@ -60,16 +66,28 @@ export const eventBridgeVerifyScenarios: ScenarioDefinition[] = [
       const data = (res.body as { data: { saveId: string } }).data;
       createdSaveId = data.saveId;
 
-      // Register cleanup as a safety net: EB3 deletes the save in the happy path,
-      // but if EB2 or EB3 fails/is skipped, cleanup ensures the save is removed.
+      // Flush: hit SavesCreateFunction again to thaw the Lambda context and let
+      // the fire-and-forget PutEvents from the main request complete.
+      const flushUrl = `https://example.com/eb-flush-${Date.now()}`;
+      const flushRes = await client.post("/saves", { url: flushUrl }, { auth });
+      if (flushRes.status === 201) {
+        flushSaveId = (flushRes.body as { data: { saveId: string } }).data
+          .saveId;
+      }
+
+      // Register cleanup as a safety net: EB3 deletes the saves in the happy path,
+      // but if EB2 or EB3 fails/is skipped, cleanup ensures they are removed.
       if (registerCleanupFn) {
         registerCleanupFn(async () => {
-          try {
-            await getClient().delete(`/saves/${createdSaveId}`, {
-              auth: jwtAuth(),
-            });
-          } catch {
-            // Cleanup errors are non-fatal
+          const cleanupAuth = jwtAuth();
+          const cleanupClient = getClient();
+          for (const id of [createdSaveId, flushSaveId]) {
+            if (!id) continue;
+            try {
+              await cleanupClient.delete(`/saves/${id}`, { auth: cleanupAuth });
+            } catch {
+              // Cleanup errors are non-fatal
+            }
           }
         });
       }
@@ -125,6 +143,15 @@ export const eventBridgeVerifyScenarios: ScenarioDefinition[] = [
       );
       assertStatus(res.status, 200, "EB2: PATCH /saves/:saveId");
 
+      // Flush: hit SavesUpdateFunction again to thaw context
+      if (flushSaveId) {
+        await client.patch(
+          `/saves/${flushSaveId}`,
+          { title: "EB2 Flush" },
+          { auth }
+        );
+      }
+
       // Poll CloudWatch Logs for the SaveUpdated event
       const event = await waitForLogEvent(
         logGroupName,
@@ -165,6 +192,12 @@ export const eventBridgeVerifyScenarios: ScenarioDefinition[] = [
 
       const res = await client.delete(`/saves/${createdSaveId}`, { auth });
       assertStatus(res.status, 204, "EB3: DELETE /saves/:saveId");
+
+      // Flush: hit SavesDeleteFunction again to thaw context
+      if (flushSaveId) {
+        await client.delete(`/saves/${flushSaveId}`, { auth });
+        flushSaveId = null; // already cleaned up
+      }
 
       // Poll CloudWatch Logs for the SaveDeleted event
       const event = await waitForLogEvent(
