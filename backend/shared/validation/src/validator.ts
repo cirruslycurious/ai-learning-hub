@@ -5,23 +5,44 @@ import { z, ZodError, ZodSchema } from "zod";
 import { AppError, ErrorCode } from "@ai-learning-hub/types";
 
 /**
- * Validation error details
+ * Validation error details (AC6: enhanced with constraint and allowed_values)
  */
 export interface ValidationErrorDetail {
   field: string;
   message: string;
   code: string;
+  constraint?: string;
+  allowed_values?: string[];
 }
 
 /**
- * Format Zod errors into a structured array
+ * Format Zod errors into a structured array (AC7: constraint extraction)
  */
 export function formatZodErrors(error: ZodError): ValidationErrorDetail[] {
-  return error.errors.map((err) => ({
-    field: err.path.join(".") || "root",
-    message: err.message,
-    code: err.code,
-  }));
+  return error.errors.map((err) => {
+    const detail: ValidationErrorDetail = {
+      field: err.path.join(".") || "root",
+      message: err.message,
+      code: err.code,
+    };
+
+    // Extract constraint info from Zod error metadata (AC7)
+    if (err.code === "too_small") {
+      detail.constraint = `minimum ${(err as z.ZodTooSmallIssue).minimum}`;
+    } else if (err.code === "too_big") {
+      detail.constraint = `maximum ${(err as z.ZodTooBigIssue).maximum}`;
+    } else if (err.code === "invalid_enum_value") {
+      detail.allowed_values = (err as z.ZodInvalidEnumValueIssue)
+        .options as string[];
+    } else if (err.code === "invalid_string") {
+      const validation = (err as z.ZodInvalidStringIssue).validation;
+      if (typeof validation === "string") {
+        detail.constraint = `expected ${validation}`;
+      }
+    }
+
+    return detail;
+  });
 }
 
 /**
@@ -34,7 +55,7 @@ export function validate<T>(schema: ZodSchema<T>, data: unknown): T {
   if (!result.success) {
     const details = formatZodErrors(result.error);
     throw new AppError(ErrorCode.VALIDATION_ERROR, "Validation failed", {
-      errors: details,
+      fields: details,
     });
   }
 

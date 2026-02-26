@@ -26,6 +26,9 @@ export enum ErrorCode {
   PRECONDITION_REQUIRED = "PRECONDITION_REQUIRED",
   IDEMPOTENCY_KEY_CONFLICT = "IDEMPOTENCY_KEY_CONFLICT",
 
+  // Agent-native API errors (Story 3.2.2)
+  INVALID_STATE_TRANSITION = "INVALID_STATE_TRANSITION",
+
   // Server errors (5xx)
   INTERNAL_ERROR = "INTERNAL_ERROR",
   SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE",
@@ -54,6 +57,7 @@ export const ErrorCodeToStatus: Record<ErrorCode, number> = {
   [ErrorCode.VERSION_CONFLICT]: 409,
   [ErrorCode.PRECONDITION_REQUIRED]: 428,
   [ErrorCode.IDEMPOTENCY_KEY_CONFLICT]: 409,
+  [ErrorCode.INVALID_STATE_TRANSITION]: 409,
   [ErrorCode.INTERNAL_ERROR]: 500,
   [ErrorCode.SERVICE_UNAVAILABLE]: 503,
   [ErrorCode.EXTERNAL_SERVICE_ERROR]: 502,
@@ -86,16 +90,46 @@ export class AppError extends Error {
 
   /**
    * Convert to API error response shape per ADR-008
+   * Promotes currentState, allowedActions, requiredConditions from details to top-level (AC1, AC5)
    */
   toApiError(requestId: string): ApiErrorResponse {
+    const promoted: Pick<
+      ApiErrorBody,
+      "currentState" | "allowedActions" | "requiredConditions"
+    > = {};
+    let remainingDetails: Record<string, unknown> | undefined;
+
+    if (this.details) {
+      const { currentState, allowedActions, requiredConditions, ...rest } =
+        this.details;
+
+      if (typeof currentState === "string")
+        promoted.currentState = currentState;
+      if (Array.isArray(allowedActions))
+        promoted.allowedActions = allowedActions as string[];
+      if (Array.isArray(requiredConditions))
+        promoted.requiredConditions = requiredConditions as string[];
+
+      remainingDetails = Object.keys(rest).length > 0 ? rest : undefined;
+    }
+
     return {
       error: {
         code: this.code,
         message: this.message,
         requestId,
-        ...(this.details && { details: this.details }),
+        ...(remainingDetails && { details: remainingDetails }),
+        ...promoted,
       },
     };
+  }
+
+  /**
+   * Fluent builder factory for enhanced errors (AC3)
+   * Usage: AppError.build(ErrorCode.CONFLICT, "msg").withState("paused", ["resume"]).create()
+   */
+  static build(code: ErrorCode, message: string): AppErrorBuilder {
+    return new AppErrorBuilder(code, message);
   }
 
   /**
@@ -115,6 +149,54 @@ export class AppError extends Error {
 }
 
 /**
+ * Internal fluent builder for enhanced AppError instances (AC3).
+ * Not exported — accessible only via AppError.build().
+ */
+class AppErrorBuilder {
+  private readonly code: ErrorCode;
+  private readonly message: string;
+  private details: Record<string, unknown> = {};
+
+  constructor(code: ErrorCode, message: string) {
+    this.code = code;
+    this.message = message;
+  }
+
+  withState(currentState: string, allowedActions: string[]): this {
+    this.details.currentState = currentState;
+    this.details.allowedActions = allowedActions;
+    return this;
+  }
+
+  withConditions(conditions: string[]): this {
+    this.details.requiredConditions = conditions;
+    return this;
+  }
+
+  /**
+   * Merge additional details into the error.
+   * WARNING: This spreads over existing details. If called after withState() or
+   * withConditions(), keys like `currentState`, `allowedActions`, or
+   * `requiredConditions` in the provided details will overwrite the values set
+   * by those methods. Call withDetails() before withState()/withConditions() to
+   * avoid accidental overwrites.
+   */
+  withDetails(details: Record<string, unknown>): this {
+    this.details = { ...this.details, ...details };
+    return this;
+  }
+
+  create(): AppError {
+    const hasDetails = Object.keys(this.details).length > 0;
+    return new AppError(
+      this.code,
+      this.message,
+      hasDetails ? this.details : undefined
+    );
+  }
+}
+
+/**
  * API error response body per ADR-008
  */
 export interface ApiErrorBody {
@@ -122,6 +204,9 @@ export interface ApiErrorBody {
   message: string;
   requestId: string;
   details?: Record<string, unknown>;
+  currentState?: string;
+  allowedActions?: string[];
+  requiredConditions?: string[];
 }
 
 /**

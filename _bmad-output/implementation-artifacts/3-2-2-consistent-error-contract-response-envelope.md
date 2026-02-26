@@ -1,6 +1,16 @@
-# Story 3.2.2: Consistent Error Contract & Response Envelope
+---
+id: "3.2.2"
+title: "Consistent Error Contract & Response Envelope"
+status: ready-for-dev
+depends_on: []
+touches:
+  - backend/shared/types
+  - backend/shared/validation
+  - backend/shared/middleware
+risk: low
+---
 
-Status: ready-for-dev
+# Story 3.2.2: Consistent Error Contract & Response Envelope
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

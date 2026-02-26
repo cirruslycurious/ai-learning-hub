@@ -209,7 +209,9 @@ async function savesCreateHandler(ctx: HandlerContext) {
     logger
   );
 
-  return createSuccessResponse(toPublicSave(saveItem), requestId, 201);
+  return createSuccessResponse(toPublicSave(saveItem), requestId, {
+    statusCode: 201,
+  });
 }
 
 /**
@@ -302,13 +304,12 @@ async function handleTransactionFailure(
 
       return createSuccessResponse(
         toPublicSave(restored ?? softDeleted),
-        requestId,
-        200
+        requestId
       );
     } catch (error) {
       if (AppError.isAppError(error) && error.code === ErrorCode.NOT_FOUND) {
         // ConditionalCheckFailed means another request already restored it — treat as success
-        return createSuccessResponse(toPublicSave(softDeleted), requestId, 200);
+        return createSuccessResponse(toPublicSave(softDeleted), requestId);
       }
       throw error;
     }

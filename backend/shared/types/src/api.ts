@@ -3,23 +3,65 @@
  */
 
 /**
- * Successful API response wrapper
+ * Rate limit metadata for response envelope (AC11)
  */
-export interface ApiSuccessResponse<T> {
-  data: T;
-  meta?: ApiResponseMeta;
+export interface RateLimitMeta {
+  limit: number;
+  remaining: number;
+  /** ISO 8601 datetime string per ADR-014 */
+  reset: string;
 }
 
 /**
- * Response metadata for pagination and additional info
+ * Response envelope metadata (AC11 — replaces deprecated ApiResponseMeta)
  */
-export interface ApiResponseMeta {
+export interface EnvelopeMeta {
+  cursor?: string | null;
   total?: number;
-  page?: number;
-  pageSize?: number;
-  nextCursor?: string;
-  prevCursor?: string;
+  rateLimit?: RateLimitMeta;
 }
+
+/**
+ * Response links for HATEOAS-lite (AC9)
+ */
+export interface ResponseLinks {
+  self: string;
+  next?: string | null;
+}
+
+/**
+ * Standard response envelope (AC9)
+ */
+export interface ResponseEnvelope<T> {
+  data: T;
+  meta?: EnvelopeMeta;
+  links?: ResponseLinks;
+}
+
+/**
+ * Successful API response wrapper.
+ * @deprecated Use ResponseEnvelope<T> instead, which includes `links` support.
+ */
+export interface ApiSuccessResponse<T> {
+  data: T;
+  meta?: EnvelopeMeta;
+}
+
+/**
+ * Field-level validation error detail (AC14)
+ * Canonical type for individual field validation errors in API responses.
+ * Mirrors ValidationErrorDetail from @ai-learning-hub/validation.
+ */
+export interface FieldValidationError {
+  field: string;
+  message: string;
+  code: string;
+  constraint?: string;
+  allowed_values?: string[];
+}
+
+/** @deprecated Use EnvelopeMeta instead */
+export type ApiResponseMeta = EnvelopeMeta;
 
 /**
  * Pagination request parameters

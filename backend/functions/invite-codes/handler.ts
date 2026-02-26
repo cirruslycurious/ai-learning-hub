@@ -49,7 +49,7 @@ async function handlePost(ctx: HandlerContext) {
   const result = await createInviteCode(client, userId, undefined, logger);
 
   logger.info("Invite code generated", { userId });
-  return createSuccessResponse(result, requestId, 201);
+  return createSuccessResponse(result, requestId, { statusCode: 201 });
 }
 
 /**

@@ -366,6 +366,52 @@ describe("Handler Wrapper", () => {
         expect(result.statusCode).toBe(200);
         expect(result.body).toBe(customBody);
       });
+
+      it("preserves currentState, allowedActions, requiredConditions in 4xx pass-through (AC19)", async () => {
+        const errorBody = {
+          error: {
+            code: "INVALID_STATE_TRANSITION",
+            message: "Cannot complete a paused project",
+            requestId: "test-id",
+            currentState: "paused",
+            allowedActions: ["resume", "delete"],
+            requiredConditions: ["Project must be in building state"],
+          },
+        };
+        const handler = wrapHandler(async () => ({
+          statusCode: 409,
+          headers: {},
+          body: JSON.stringify(errorBody),
+        }));
+
+        const event = createMockEvent();
+        const result = await handler(event, mockContext);
+
+        expect(result.statusCode).toBe(409);
+        const body = JSON.parse(result.body);
+        expect(body.error.currentState).toBe("paused");
+        expect(body.error.allowedActions).toEqual(["resume", "delete"]);
+        expect(body.error.requiredConditions).toEqual([
+          "Project must be in building state",
+        ]);
+      });
+    });
+
+    it("should auto-wrap handler return in { data } envelope (AC13)", async () => {
+      const handler = wrapHandler(async () => ({
+        saveId: "01HX",
+        url: "https://example.com",
+      }));
+
+      const event = createMockEvent();
+      const result = await handler(event, mockContext);
+
+      expect(result.statusCode).toBe(200);
+      const body = JSON.parse(result.body);
+      expect(body.data.saveId).toBe("01HX");
+      expect(body.data.url).toBe("https://example.com");
+      expect(body.meta).toBeUndefined();
+      expect(body.links).toBeUndefined();
     });
   });
 });
