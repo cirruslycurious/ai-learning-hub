@@ -50,3 +50,16 @@ export {
   INITIAL_VERSION,
   nextVersion,
 } from "./entities.js";
+
+// Event history types (Story 3.2.3)
+export {
+  type EventEntityType,
+  type ActorType,
+  type EventContext,
+  type EventChanges,
+  type EntityEvent,
+  type PublicEntityEvent,
+  type RecordEventParams,
+  type EventHistoryQueryOptions,
+  type EventHistoryResponse,
+} from "./events.js";

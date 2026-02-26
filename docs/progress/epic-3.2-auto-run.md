@@ -1,9 +1,9 @@
 ---
 epic_id: Epic-3.2
-status: done
-scope: ["3.2.1", "3.2.2"]
+status: in-progress
+scope: ["3.2.1", "3.2.2", "3.2.3"]
 started: 2026-02-25T12:00:00Z
-last_updated: 2026-02-26T12:00:00Z
+last_updated: 2026-02-26T18:37:00Z
 stories:
   "3.2.1":
     {
@@ -25,6 +25,13 @@ stories:
       completedAt: "2026-02-26T12:00:00Z",
       reviewRounds: 2,
     }
+  "3.2.3":
+    {
+      status: in-progress,
+      issue: 229,
+      branch: story-3-2-3-event-history-infrastructure,
+      startedAt: "2026-02-26T18:37:00Z",
+    }
 ---
 
 <!-- Human-readable display below (generated from frontmatter) -->
@@ -35,6 +42,7 @@ stories:
 | ----- | ------ | ---- | ------------- | -------- |
 | 3.2.1 | Done   | #226 | 1             | ~12h     |
 | 3.2.2 | Done   | #228 | 2             | ~18h     |
+| 3.2.3 | 🔄 In Progress | -   | -             | -        |
 
 ## Activity Log
 
@@ -57,3 +65,6 @@ stories:
 - [11:48] Story 3.2.2: Important findings accepted (spec-level naming decisions)
 - [11:49] Story 3.2.2: Committed, pushed, PR #228 created
 - [12:00] Story 3.2.2: Status → done (PR open for merge)
+- [18:36] Story 3.2.3: Added to scope, Issue #229 created
+- [18:37] Story 3.2.3: Branch story-3-2-3-event-history-infrastructure created
+- [18:37] Story 3.2.3: Implementation started (6 task groups, 8 ACs)

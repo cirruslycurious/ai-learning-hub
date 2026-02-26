@@ -94,5 +94,14 @@ export {
   putItemWithVersion,
 } from "./version-helpers.js";
 
+// Event history operations (Story 3.2.3)
+export {
+  EVENTS_TABLE_CONFIG,
+  recordEvent,
+  queryEntityEvents,
+  buildEventPK,
+  buildEventSK,
+} from "./events.js";
+
 // Re-export DynamoDB types for convenience
 export type { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";

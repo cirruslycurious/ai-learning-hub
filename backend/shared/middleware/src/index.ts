@@ -57,5 +57,11 @@ export {
 // Optimistic concurrency middleware (Story 3.2.1)
 export { extractIfMatch } from "./concurrency.js";
 
+// Event history handler generator (Story 3.2.3)
+export {
+  createEventHistoryHandler,
+  type EventHistoryHandlerConfig,
+} from "./event-history.js";
+
 // SSM utilities
 export { getClerkSecretKey, resetClerkSecretKeyCache } from "./ssm.js";
