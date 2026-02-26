@@ -159,6 +159,23 @@ export interface ApiKey extends BaseEntity {
 }
 
 /**
+ * Versioned entity wrapper for optimistic concurrency (Story 3.2.1)
+ */
+export type VersionedEntity<T> = T & { version: number };
+
+/**
+ * Initial version for newly created entities
+ */
+export const INITIAL_VERSION = 1;
+
+/**
+ * Increment version for optimistic concurrency updates
+ */
+export function nextVersion(current: number): number {
+  return current + 1;
+}
+
+/**
  * Invite code entity (from invite-codes table)
  */
 export interface InviteCode {

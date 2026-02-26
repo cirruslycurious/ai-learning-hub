@@ -15,6 +15,7 @@ export class TablesStack extends cdk.Stack {
   public readonly contentTable: dynamodb.Table;
   public readonly searchIndexTable: dynamodb.Table;
   public readonly inviteCodesTable: dynamodb.Table;
+  public readonly idempotencyTable: dynamodb.Table;
 
   constructor(scope: Construct, id: string, props?: TablesStackProps) {
     super(scope, id, props);
@@ -204,6 +205,20 @@ export class TablesStack extends cdk.Stack {
       projectionType: dynamodb.ProjectionType.ALL,
     });
 
+    // Table 8: idempotency (Story 3.2.1)
+    // PK: IDEMP#<userId>#<idempotencyKey> (pk-only, no sort key)
+    this.idempotencyTable = new dynamodb.Table(this, "IdempotencyTable", {
+      tableName: `${prefix}-ai-learning-hub-idempotency`,
+      partitionKey: { name: "pk", type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      encryption: dynamodb.TableEncryption.AWS_MANAGED,
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true,
+      },
+      timeToLiveAttribute: "expiresAt",
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
     // CloudFormation Outputs (for cross-stack references)
     new cdk.CfnOutput(this, "UsersTableName", {
       value: this.usersTable.tableName,
@@ -245,6 +260,12 @@ export class TablesStack extends cdk.Stack {
       value: this.inviteCodesTable.tableName,
       description: "Invite codes table name",
       exportName: "AiLearningHub-InviteCodesTableName",
+    });
+
+    new cdk.CfnOutput(this, "IdempotencyTableName", {
+      value: this.idempotencyTable.tableName,
+      description: "Idempotency table name",
+      exportName: "AiLearningHub-IdempotencyTableName",
     });
   }
 }

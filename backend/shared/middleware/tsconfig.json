@@ -14,6 +14,7 @@
   "references": [
     { "path": "../types" },
     { "path": "../logging" },
-    { "path": "../validation" }
+    { "path": "../validation" },
+    { "path": "../db" }
   ]
 }

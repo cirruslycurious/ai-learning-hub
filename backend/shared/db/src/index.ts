@@ -79,5 +79,20 @@ export {
 // Transactional write operations
 export { transactWriteItems, TransactionCancelledError } from "./transact.js";
 
+// Idempotency storage (Story 3.2.1)
+export {
+  IDEMPOTENCY_TABLE_CONFIG,
+  storeIdempotencyRecord,
+  getIdempotencyRecord,
+  buildIdempotencyPK,
+} from "./idempotency.js";
+
+// Optimistic concurrency helpers (Story 3.2.1)
+export {
+  VersionConflictError,
+  updateItemWithVersion,
+  putItemWithVersion,
+} from "./version-helpers.js";
+
 // Re-export DynamoDB types for convenience
 export type { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
