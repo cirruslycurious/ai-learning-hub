@@ -27,10 +27,12 @@ stories:
     }
   "3.2.3":
     {
-      status: in-progress,
+      status: pr-open,
       issue: 229,
+      pr: 230,
       branch: story-3-2-3-event-history-infrastructure,
       startedAt: "2026-02-26T18:37:00Z",
+      reviewRounds: 1,
     }
 ---
 
@@ -38,11 +40,11 @@ stories:
 
 # Epic 3.2 Auto-Run Progress
 
-| Story | Status | PR   | Review Rounds | Duration |
-| ----- | ------ | ---- | ------------- | -------- |
-| 3.2.1 | Done   | #226 | 1             | ~12h     |
-| 3.2.2 | Done   | #228 | 2             | ~18h     |
-| 3.2.3 | 🔄 In Progress | -   | -             | -        |
+| Story | Status  | PR   | Review Rounds | Duration |
+| ----- | ------- | ---- | ------------- | -------- |
+| 3.2.1 | Done    | #226 | 1             | ~12h     |
+| 3.2.2 | Done    | #228 | 2             | ~18h     |
+| 3.2.3 | PR Open | #230 | 1             | -        |
 
 ## Activity Log
 
@@ -68,3 +70,7 @@ stories:
 - [18:36] Story 3.2.3: Added to scope, Issue #229 created
 - [18:37] Story 3.2.3: Branch story-3-2-3-event-history-infrastructure created
 - [18:37] Story 3.2.3: Implementation started (6 task groups, 8 ACs)
+- [19:48] Story 3.2.3: All tasks complete, quality gate passed (1,827 tests)
+- [19:50] Story 3.2.3: Code review round 1 — 15 findings (3 critical, 7 important, 5 minor)
+- [19:55] Story 3.2.3: 8 findings fixed (3 critical + 5 important), 7 minor deferred
+- [20:00] Story 3.2.3: Pushed, PR #230 created (Closes #229)
