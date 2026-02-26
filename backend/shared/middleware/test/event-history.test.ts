@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createEventHistoryHandler } from "../src/event-history.js";
 import type { HandlerContext } from "../src/wrapper.js";
 import type { APIGatewayProxyEvent } from "aws-lambda";
-import { AppError, ErrorCode } from "@ai-learning-hub/types";
+import { AppError, ErrorCode, type EntityEvent } from "@ai-learning-hub/types";
 
 // Mock queryEntityEvents
 vi.mock("@ai-learning-hub/db", () => ({
@@ -249,7 +249,7 @@ describe("Event History Handler (Story 3.2.3)", () => {
 
   describe("response envelope", () => {
     it("should return 200 with data array and meta containing cursor, total, and hasMore", async () => {
-      const mockEvents = [
+      const mockEvents: EntityEvent[] = [
         {
           PK: "EVENTS#save#entity-123",
           SK: "EVENT#2026-02-25T12:00:00Z#01HX5A7B",
@@ -299,7 +299,7 @@ describe("Event History Handler (Story 3.2.3)", () => {
     });
 
     it("should strip PK, SK, and ttl from events in response", async () => {
-      const mockEvents = [
+      const mockEvents: EntityEvent[] = [
         {
           PK: "EVENTS#save#entity-123",
           SK: "EVENT#2026-02-25T12:00:00Z#01HX5A7B",
