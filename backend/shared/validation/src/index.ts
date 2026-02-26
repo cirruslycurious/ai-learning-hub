@@ -49,6 +49,7 @@ export {
   validatePathParams,
   formatZodErrors,
   type ValidationErrorDetail,
+  type ValidationErrorDetail as FieldValidationError,
   // Re-export Zod
   z,
   ZodError,

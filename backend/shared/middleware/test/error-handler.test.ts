@@ -139,6 +139,47 @@ describe("Error Handler", () => {
       // Array should be ignored, not crash
       expect(response.headers?.["Allow"]).toBeUndefined();
     });
+    it("should promote currentState and allowedActions to top-level error fields (AC2, AC5)", () => {
+      const error = new AppError(
+        ErrorCode.CONFLICT,
+        "Cannot complete a paused project",
+        {
+          currentState: "paused",
+          allowedActions: ["resume", "delete"],
+        }
+      );
+      const response = createErrorResponse(error, "req-state");
+      const body = JSON.parse(response.body);
+
+      expect(body.error.currentState).toBe("paused");
+      expect(body.error.allowedActions).toEqual(["resume", "delete"]);
+      // Promoted fields removed from details
+      expect(body.error.details).toBeUndefined();
+    });
+
+    it("should promote requiredConditions and keep other details (AC5)", () => {
+      const error = new AppError(ErrorCode.CONFLICT, "Conflict", {
+        currentState: "modified",
+        requiredConditions: ["must resume first"],
+        currentVersion: 5,
+      });
+      const response = createErrorResponse(error, "req-conditions");
+      const body = JSON.parse(response.body);
+
+      expect(body.error.currentState).toBe("modified");
+      expect(body.error.requiredConditions).toEqual(["must resume first"]);
+      expect(body.error.details).toEqual({ currentVersion: 5 });
+    });
+
+    it("should not include promoted fields when not set (AC5 backward compat)", () => {
+      const error = new AppError(ErrorCode.NOT_FOUND, "Not found");
+      const response = createErrorResponse(error, "req-basic");
+      const body = JSON.parse(response.body);
+
+      expect(body.error.currentState).toBeUndefined();
+      expect(body.error.allowedActions).toBeUndefined();
+      expect(body.error.requiredConditions).toBeUndefined();
+    });
   });
 
   describe("normalizeError", () => {
@@ -216,21 +257,70 @@ describe("Error Handler", () => {
       expect(body.data).toEqual(data);
     });
 
-    it("should accept optional meta (pagination etc.)", () => {
+    it("should accept optional meta via options (AC10)", () => {
       const data = { items: [] };
-      const meta = { nextCursor: "abc", pageSize: 20 };
-      const response = createSuccessResponse(data, "req-meta", 200, meta);
+      const meta = { cursor: "abc", total: 42 };
+      const response = createSuccessResponse(data, "req-meta", { meta });
 
       const body = JSON.parse(response.body);
       expect(body.data).toEqual(data);
       expect(body.meta).toEqual(meta);
     });
 
-    it("should accept custom status code", () => {
+    it("should accept custom status code via options (AC10)", () => {
       const data = { id: "456" };
-      const response = createSuccessResponse(data, "req-456", 201);
+      const response = createSuccessResponse(data, "req-456", {
+        statusCode: 201,
+      });
 
       expect(response.statusCode).toBe(201);
+    });
+
+    it("should accept links in options (AC10)", () => {
+      const data = [{ id: "1" }];
+      const links = {
+        self: "/saves?limit=25",
+        next: "/saves?limit=25&cursor=abc",
+      };
+      const response = createSuccessResponse(data, "req-links", { links });
+
+      const body = JSON.parse(response.body);
+      expect(body.links).toEqual(links);
+    });
+
+    it("should omit meta and links when not provided (AC9)", () => {
+      const data = { id: "789" };
+      const response = createSuccessResponse(data, "req-minimal");
+
+      const body = JSON.parse(response.body);
+      expect(body.data).toEqual(data);
+      expect(body.meta).toBeUndefined();
+      expect(body.links).toBeUndefined();
+    });
+
+    it("should accept full envelope with meta and links (AC9)", () => {
+      const data = [{ id: "1" }];
+      const response = createSuccessResponse(data, "req-full", {
+        meta: {
+          cursor: "eyJ...",
+          total: 100,
+          rateLimit: {
+            limit: 200,
+            remaining: 198,
+            reset: "2026-02-25T13:00:00Z",
+          },
+        },
+        links: {
+          self: "/saves?limit=25",
+          next: "/saves?limit=25&cursor=eyJ...",
+        },
+      });
+
+      const body = JSON.parse(response.body);
+      expect(body.data).toEqual(data);
+      expect(body.meta.cursor).toBe("eyJ...");
+      expect(body.meta.rateLimit.limit).toBe(200);
+      expect(body.links.self).toBe("/saves?limit=25");
     });
   });
 

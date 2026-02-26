@@ -63,7 +63,7 @@ async function handlePost(ctx: HandlerContext) {
   const result = await createApiKey(client, userId, name, scopes, logger);
 
   logger.info("API key created", { userId, keyId: result.id });
-  return createSuccessResponse(result, requestId, 201);
+  return createSuccessResponse(result, requestId, { statusCode: 201 });
 }
 
 /**

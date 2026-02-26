@@ -17,6 +17,11 @@ export {
 export {
   type ApiSuccessResponse,
   type ApiResponseMeta,
+  type EnvelopeMeta,
+  type RateLimitMeta,
+  type ResponseLinks,
+  type ResponseEnvelope,
+  type FieldValidationError,
   type PaginationParams,
   type PaginatedResponse,
   type AuthContext,

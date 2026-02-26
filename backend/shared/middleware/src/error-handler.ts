@@ -5,7 +5,8 @@ import type { APIGatewayProxyResult } from "aws-lambda";
 import {
   AppError,
   ErrorCode,
-  type ApiResponseMeta,
+  type EnvelopeMeta,
+  type ResponseLinks,
 } from "@ai-learning-hub/types";
 import { createLogger, type Logger } from "@ai-learning-hub/logging";
 
@@ -103,16 +104,29 @@ export function handleError(
 }
 
 /**
- * Create a success response (optionally with meta for pagination etc.)
+ * Options for createSuccessResponse (AC10)
+ */
+export interface SuccessResponseOptions {
+  statusCode?: number;
+  meta?: EnvelopeMeta;
+  links?: ResponseLinks;
+}
+
+/**
+ * Create a success response with envelope (AC10)
+ * Uses options object pattern for extensibility.
  */
 export function createSuccessResponse<T>(
   data: T,
   requestId: string,
-  statusCode = 200,
-  meta?: ApiResponseMeta
+  options?: SuccessResponseOptions
 ): APIGatewayProxyResult {
-  const body: { data: T; meta?: ApiResponseMeta } = { data };
+  const { statusCode = 200, meta, links } = options ?? {};
+  const body: { data: T; meta?: EnvelopeMeta; links?: ResponseLinks } = {
+    data,
+  };
   if (meta !== undefined) body.meta = meta;
+  if (links !== undefined) body.links = links;
   return {
     statusCode,
     headers: {

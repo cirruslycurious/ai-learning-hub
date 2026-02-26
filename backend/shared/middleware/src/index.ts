@@ -4,14 +4,23 @@
  * Lambda middleware for auth, error handling, and request context
  */
 
-// Error handling
+// Error handling & response envelope (Story 3.2.2)
 export {
   createErrorResponse,
   normalizeError,
   handleError,
   createSuccessResponse,
   createNoContentResponse,
+  type SuccessResponseOptions,
 } from "./error-handler.js";
+
+// Re-export envelope types used by SuccessResponseOptions (AC15)
+export type {
+  EnvelopeMeta,
+  RateLimitMeta,
+  ResponseLinks,
+  ResponseEnvelope,
+} from "@ai-learning-hub/types";
 
 // Authentication
 export {

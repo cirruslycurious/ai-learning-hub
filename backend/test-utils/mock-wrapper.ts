@@ -164,7 +164,11 @@ export interface MockMiddlewareModule {
   createSuccessResponse: (
     data: unknown,
     requestId: string,
-    statusCode?: number
+    options?: {
+      statusCode?: number;
+      meta?: Record<string, unknown>;
+      links?: Record<string, unknown>;
+    }
   ) => { statusCode: number; headers: Record<string, string>; body: string };
   createNoContentResponse: (requestId: string) => {
     statusCode: number;
@@ -345,15 +349,29 @@ export function mockMiddlewareModule(
           }
           // Include details (minus responseHeaders) in body to match production
           // error-handler.ts behavior (D9, AC12)
-          const { responseHeaders: _, ...bodyDetails } = err.details ?? {};
+          // Promote currentState, allowedActions, requiredConditions to top-level
+          // error body fields (matching toApiError() behavior, AC1/AC5)
+          const {
+            responseHeaders: _,
+            currentState,
+            allowedActions,
+            requiredConditions,
+            ...cleanDetails
+          } = err.details ?? {};
           const errorBody: Record<string, unknown> = {
             code,
             message,
             requestId: "test-req-id",
           };
-          if (Object.keys(bodyDetails).length > 0) {
-            errorBody.details = bodyDetails;
+          if (Object.keys(cleanDetails).length > 0) {
+            errorBody.details = cleanDetails;
           }
+          if (typeof currentState === "string")
+            errorBody.currentState = currentState;
+          if (Array.isArray(allowedActions))
+            errorBody.allowedActions = allowedActions;
+          if (Array.isArray(requiredConditions))
+            errorBody.requiredConditions = requiredConditions;
           return {
             statusCode,
             headers,
@@ -367,15 +385,25 @@ export function mockMiddlewareModule(
     createSuccessResponse: (
       data: unknown,
       requestId: string,
-      statusCode = 200
-    ) => ({
-      statusCode,
-      headers: {
-        "Content-Type": "application/json",
-        "X-Request-Id": requestId,
-      },
-      body: JSON.stringify({ data }),
-    }),
+      options?: {
+        statusCode?: number;
+        meta?: Record<string, unknown>;
+        links?: Record<string, unknown>;
+      }
+    ) => {
+      const { statusCode = 200, meta, links } = options ?? {};
+      const body: Record<string, unknown> = { data };
+      if (meta !== undefined) body.meta = meta;
+      if (links !== undefined) body.links = links;
+      return {
+        statusCode,
+        headers: {
+          "Content-Type": "application/json",
+          "X-Request-Id": requestId,
+        },
+        body: JSON.stringify(body),
+      };
+    },
     createNoContentResponse: (requestId: string) => ({
       statusCode: 204,
       headers: {

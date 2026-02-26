@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 import type {
   ApiSuccessResponse,
+  EnvelopeMeta,
+  RateLimitMeta,
+  ResponseLinks,
+  ResponseEnvelope,
+  FieldValidationError,
   PaginationParams,
   PaginatedResponse,
   AuthContext,
@@ -17,18 +22,18 @@ describe("API Types", () => {
       expect(response.data.id).toBe("test-123");
     });
 
-    it("should accept response with meta", () => {
+    it("should accept response with EnvelopeMeta", () => {
       const response: ApiSuccessResponse<string[]> = {
         data: ["a", "b", "c"],
         meta: {
           total: 100,
-          page: 1,
-          pageSize: 10,
+          cursor: "abc123",
         },
       };
 
       expect(response.data.length).toBe(3);
       expect(response.meta?.total).toBe(100);
+      expect(response.meta?.cursor).toBe("abc123");
     });
   });
 
@@ -107,6 +112,128 @@ describe("API Types", () => {
       expect(ctx.requestId).toBe("req-123");
       expect(ctx.traceId).toBe("1-abc-def");
       expect(ctx.auth?.userId).toBe("user_123");
+    });
+  });
+
+  describe("EnvelopeMeta (AC11)", () => {
+    it("should accept cursor and total", () => {
+      const meta: EnvelopeMeta = {
+        cursor: "eyJ...",
+        total: 42,
+      };
+      expect(meta.cursor).toBe("eyJ...");
+      expect(meta.total).toBe(42);
+    });
+
+    it("should accept null cursor (last page)", () => {
+      const meta: EnvelopeMeta = {
+        cursor: null,
+        total: 10,
+      };
+      expect(meta.cursor).toBeNull();
+    });
+
+    it("should accept rateLimit", () => {
+      const meta: EnvelopeMeta = {
+        rateLimit: {
+          limit: 200,
+          remaining: 198,
+          reset: "2026-02-25T13:00:00Z",
+        },
+      };
+      expect(meta.rateLimit?.limit).toBe(200);
+      expect(meta.rateLimit?.remaining).toBe(198);
+    });
+  });
+
+  describe("RateLimitMeta", () => {
+    it("should require all fields", () => {
+      const rl: RateLimitMeta = {
+        limit: 100,
+        remaining: 99,
+        reset: "2026-02-25T13:00:00Z",
+      };
+      expect(rl.limit).toBe(100);
+      expect(rl.reset).toBe("2026-02-25T13:00:00Z");
+    });
+  });
+
+  describe("ResponseLinks (AC9)", () => {
+    it("should accept self and next", () => {
+      const links: ResponseLinks = {
+        self: "/saves?limit=25",
+        next: "/saves?limit=25&cursor=eyJ...",
+      };
+      expect(links.self).toBe("/saves?limit=25");
+      expect(links.next).toContain("cursor=");
+    });
+
+    it("should accept null next (last page)", () => {
+      const links: ResponseLinks = {
+        self: "/saves?limit=25",
+        next: null,
+      };
+      expect(links.next).toBeNull();
+    });
+  });
+
+  describe("ResponseEnvelope (AC9)", () => {
+    it("should accept data only", () => {
+      const envelope: ResponseEnvelope<{ id: string }> = {
+        data: { id: "123" },
+      };
+      expect(envelope.data.id).toBe("123");
+      expect(envelope.meta).toBeUndefined();
+      expect(envelope.links).toBeUndefined();
+    });
+
+    it("should accept full envelope with meta and links", () => {
+      const envelope: ResponseEnvelope<{ id: string }[]> = {
+        data: [{ id: "1" }, { id: "2" }],
+        meta: {
+          cursor: "abc",
+          total: 42,
+          rateLimit: {
+            limit: 200,
+            remaining: 198,
+            reset: "2026-02-25T13:00:00Z",
+          },
+        },
+        links: {
+          self: "/saves?limit=25",
+          next: "/saves?limit=25&cursor=abc",
+        },
+      };
+      expect(envelope.data).toHaveLength(2);
+      expect(envelope.meta?.total).toBe(42);
+      expect(envelope.links?.self).toBe("/saves?limit=25");
+    });
+  });
+
+  describe("FieldValidationError (AC14)", () => {
+    it("should accept minimal field validation error", () => {
+      const err: FieldValidationError = {
+        field: "email",
+        message: "Invalid email address",
+        code: "invalid_string",
+      };
+      expect(err.field).toBe("email");
+      expect(err.message).toBe("Invalid email address");
+      expect(err.code).toBe("invalid_string");
+      expect(err.constraint).toBeUndefined();
+      expect(err.allowed_values).toBeUndefined();
+    });
+
+    it("should accept field validation error with constraint and allowed_values", () => {
+      const err: FieldValidationError = {
+        field: "contentType",
+        message: "Invalid enum value",
+        code: "invalid_enum_value",
+        constraint: "must be one of the allowed values",
+        allowed_values: ["article", "video", "podcast"],
+      };
+      expect(err.constraint).toBe("must be one of the allowed values");
+      expect(err.allowed_values).toEqual(["article", "video", "podcast"]);
     });
   });
 });

@@ -166,7 +166,9 @@ describe("mockMiddlewareModule", () => {
 
   it("createSuccessResponse supports custom status code", () => {
     const mod = mockMiddlewareModule();
-    const response = mod.createSuccessResponse({ id: 1 }, "req-123", 201);
+    const response = mod.createSuccessResponse({ id: 1 }, "req-123", {
+      statusCode: 201,
+    });
 
     expect(response.statusCode).toBe(201);
   });
@@ -406,6 +408,61 @@ describe("mockMiddlewareModule", () => {
       expect(body.error.details).toEqual({ requiredScope: "keys:manage" });
       // responseHeaders must not leak into body
       expect(body.error.details.responseHeaders).toBeUndefined();
+    });
+
+    it("promotes currentState and allowedActions to top-level error fields (AC1/AC5)", async () => {
+      const mod = mockMiddlewareModule();
+      const innerHandler = vi.fn().mockRejectedValue(
+        Object.assign(new Error("Cannot complete a paused project"), {
+          code: "INVALID_STATE_TRANSITION",
+          statusCode: 409,
+          details: {
+            currentState: "paused",
+            allowedActions: ["resume", "delete"],
+          },
+        })
+      );
+      const wrapped = mod.wrapHandler(innerHandler, {});
+
+      const event = createMockEvent({ userId: "user_123" });
+      const result = await wrapped(event, createMockContext());
+
+      expect(result.statusCode).toBe(409);
+      const body = JSON.parse(result.body);
+      expect(body.error.code).toBe("INVALID_STATE_TRANSITION");
+      expect(body.error.currentState).toBe("paused");
+      expect(body.error.allowedActions).toEqual(["resume", "delete"]);
+      // Promoted fields must not remain in details
+      expect(body.error.details).toBeUndefined();
+    });
+
+    it("promotes requiredConditions to top-level error fields (AC1/AC5)", async () => {
+      const mod = mockMiddlewareModule();
+      const innerHandler = vi.fn().mockRejectedValue(
+        Object.assign(new Error("Cannot complete"), {
+          code: "INVALID_STATE_TRANSITION",
+          statusCode: 409,
+          details: {
+            currentState: "paused",
+            allowedActions: ["resume"],
+            requiredConditions: ["Project must be in 'building' state"],
+            extraInfo: "some-value",
+          },
+        })
+      );
+      const wrapped = mod.wrapHandler(innerHandler, {});
+
+      const event = createMockEvent({ userId: "user_123" });
+      const result = await wrapped(event, createMockContext());
+
+      const body = JSON.parse(result.body);
+      expect(body.error.currentState).toBe("paused");
+      expect(body.error.allowedActions).toEqual(["resume"]);
+      expect(body.error.requiredConditions).toEqual([
+        "Project must be in 'building' state",
+      ]);
+      // Non-promoted fields remain in details
+      expect(body.error.details).toEqual({ extraInfo: "some-value" });
     });
 
     it("omits details field from body when error has no details", async () => {

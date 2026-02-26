@@ -40,13 +40,15 @@ describe("Validation Utilities", () => {
       }
     });
 
-    it("should include validation details", () => {
+    it("should include validation details with fields key (AC8)", () => {
       try {
         validate(testSchema, { name: "", age: -1 });
       } catch (error) {
         if (AppError.isAppError(error)) {
-          expect(error.details?.errors).toBeDefined();
-          expect(Array.isArray(error.details?.errors)).toBe(true);
+          expect(error.details?.fields).toBeDefined();
+          expect(Array.isArray(error.details?.fields)).toBe(true);
+          // Old key must not exist
+          expect(error.details?.errors).toBeUndefined();
         }
       }
     });
@@ -160,6 +162,73 @@ describe("Validation Utilities", () => {
       if (!result.success) {
         const formatted = formatZodErrors(result.error);
         expect(formatted[0].field).toBe("user.email");
+      }
+    });
+
+    it("should extract constraint for too_small errors (AC7)", () => {
+      const schema = z.object({ name: z.string().min(3) });
+      const result = schema.safeParse({ name: "ab" });
+
+      if (!result.success) {
+        const formatted = formatZodErrors(result.error);
+        expect(formatted[0].constraint).toBe("minimum 3");
+      }
+    });
+
+    it("should extract constraint for too_big errors (AC7)", () => {
+      const schema = z.object({ count: z.number().max(100) });
+      const result = schema.safeParse({ count: 200 });
+
+      if (!result.success) {
+        const formatted = formatZodErrors(result.error);
+        expect(formatted[0].constraint).toBe("maximum 100");
+      }
+    });
+
+    it("should extract allowed_values for invalid_enum_value errors (AC7)", () => {
+      const schema = z.object({
+        type: z.enum(["article", "video", "podcast"]),
+      });
+      const result = schema.safeParse({ type: "unknown" });
+
+      if (!result.success) {
+        const formatted = formatZodErrors(result.error);
+        expect(formatted[0].allowed_values).toEqual([
+          "article",
+          "video",
+          "podcast",
+        ]);
+      }
+    });
+
+    it("should extract constraint for invalid_string errors (AC7)", () => {
+      const schema = z.object({ email: z.string().email() });
+      const result = schema.safeParse({ email: "not-email" });
+
+      if (!result.success) {
+        const formatted = formatZodErrors(result.error);
+        expect(formatted[0].constraint).toBe("expected email");
+      }
+    });
+
+    it("should extract constraint for uuid format (AC7)", () => {
+      const schema = z.object({ id: z.string().uuid() });
+      const result = schema.safeParse({ id: "not-uuid" });
+
+      if (!result.success) {
+        const formatted = formatZodErrors(result.error);
+        expect(formatted[0].constraint).toBe("expected uuid");
+      }
+    });
+
+    it("should omit constraint when Zod does not expose it", () => {
+      const schema = z.object({ name: z.string() });
+      const result = schema.safeParse({ name: 42 });
+
+      if (!result.success) {
+        const formatted = formatZodErrors(result.error);
+        expect(formatted[0].constraint).toBeUndefined();
+        expect(formatted[0].allowed_values).toBeUndefined();
       }
     });
   });
