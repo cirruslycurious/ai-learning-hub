@@ -17,6 +17,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@ai-learning-hub/db": "*",
     "@ai-learning-hub/logging": "*",
     "@ai-learning-hub/types": "*",
     "@aws-sdk/client-ssm": "^3.990.0"
