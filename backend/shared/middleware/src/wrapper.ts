@@ -10,6 +10,13 @@ import { AppError, ErrorCode, type AuthContext } from "@ai-learning-hub/types";
 import { createLogger, type Logger } from "@ai-learning-hub/logging";
 import { handleError, createSuccessResponse } from "./error-handler.js";
 import { extractAuthContext, requireAuth } from "./auth.js";
+import {
+  extractIdempotencyKey,
+  checkIdempotency,
+  storeIdempotencyResult,
+  type IdempotencyStatus,
+} from "./idempotency.js";
+import { extractIfMatch } from "./concurrency.js";
 import { randomUUID } from "crypto";
 
 /**
@@ -31,6 +38,7 @@ export interface HandlerContext {
   requestId: string;
   logger: Logger;
   startTime: number;
+  expectedVersion?: number;
 }
 
 /**
@@ -47,6 +55,8 @@ export interface WrapperOptions {
   requireAuth?: boolean;
   requiredRoles?: string[];
   requiredScope?: string;
+  idempotent?: boolean;
+  requireVersion?: boolean;
 }
 
 /**
@@ -113,6 +123,9 @@ export function wrapHandler<T = unknown>(
       queryParams: Object.keys(event.queryStringParameters ?? {}),
     });
 
+    // Track idempotency system availability across try/catch (AC9)
+    const idempotencyStatus: IdempotencyStatus = { available: true };
+
     try {
       // Extract auth context
       let auth: AuthContext | null = null;
@@ -155,6 +168,32 @@ export function wrapHandler<T = unknown>(
         }
       }
 
+      // Idempotency check (AC7: before handler execution)
+      let idempotencyKey: string | undefined;
+      if (options.idempotent) {
+        idempotencyKey = extractIdempotencyKey(event);
+        if (auth?.userId) {
+          const cachedResponse = await checkIdempotency(
+            event,
+            auth.userId,
+            idempotencyKey,
+            logger,
+            undefined,
+            idempotencyStatus
+          );
+          if (cachedResponse) {
+            logger.timed("Request completed (idempotent replay)", startTime);
+            return cachedResponse;
+          }
+        }
+      }
+
+      // Extract If-Match version (AC11: before handler execution)
+      let expectedVersion: number | undefined;
+      if (options.requireVersion) {
+        expectedVersion = extractIfMatch(event);
+      }
+
       // Create handler context
       const ctx: HandlerContext = {
         event: event as WrappedEvent,
@@ -163,6 +202,7 @@ export function wrapHandler<T = unknown>(
         requestId,
         logger,
         startTime,
+        ...(expectedVersion !== undefined && { expectedVersion }),
       };
 
       // Execute handler
@@ -173,7 +213,8 @@ export function wrapHandler<T = unknown>(
         statusCode: isApiGatewayResult(result) ? result.statusCode : 200,
       });
 
-      // Return result (auto-wrap if needed)
+      // Build the final response
+      let finalResult: APIGatewayProxyResult;
       if (isApiGatewayResult(result)) {
         // ADR-008 pass-through normalization (D9, AC9):
         // For 4xx/5xx responses, ensure the body conforms to ADR-008 format.
@@ -184,7 +225,7 @@ export function wrapHandler<T = unknown>(
               logger.warn("Non-ADR-008 error response detected, normalizing", {
                 statusCode: result.statusCode,
               });
-              return {
+              finalResult = {
                 ...result,
                 body: JSON.stringify({
                   error: {
@@ -194,10 +235,12 @@ export function wrapHandler<T = unknown>(
                   },
                 }),
               };
+            } else {
+              finalResult = result;
             }
           } catch {
             logger.warn("Non-JSON error response detected, normalizing");
-            return {
+            finalResult = {
               ...result,
               body: JSON.stringify({
                 error: {
@@ -208,13 +251,50 @@ export function wrapHandler<T = unknown>(
               }),
             };
           }
+        } else {
+          finalResult = result;
         }
-        return result;
+      } else {
+        finalResult = createSuccessResponse(result, requestId);
       }
 
-      return createSuccessResponse(result, requestId);
+      // Idempotency store (AC3: after handler execution, cache 2xx only)
+      if (options.idempotent && idempotencyKey && auth?.userId) {
+        finalResult = await storeIdempotencyResult(
+          event,
+          auth.userId,
+          idempotencyKey,
+          finalResult,
+          logger,
+          undefined,
+          idempotencyStatus
+        );
+      }
+
+      // AC9: Add unavailable header when idempotency system had issues (fail-open)
+      if (options.idempotent && !idempotencyStatus.available) {
+        finalResult = {
+          ...finalResult,
+          headers: {
+            ...(finalResult.headers ?? {}),
+            "X-Idempotency-Status": "unavailable",
+          },
+        };
+      }
+
+      return finalResult;
     } catch (error) {
-      return handleError(error, requestId, logger);
+      const errorResponse = handleError(error, requestId, logger);
+
+      // AC9: Add unavailable header only when the idempotency system itself
+      // had issues (fail-open), not for all errors from idempotent handlers.
+      if (options.idempotent && !idempotencyStatus.available) {
+        (errorResponse.headers as Record<string, string>)[
+          "X-Idempotency-Status"
+        ] = "unavailable";
+      }
+
+      return errorResponse;
     }
   };
 }

@@ -21,6 +21,7 @@ export {
   type PaginatedResponse,
   type AuthContext,
   type RequestContext,
+  type IdempotencyRecord,
 } from "./api.js";
 
 // Entity types
@@ -40,4 +41,7 @@ export {
   EnrichmentStatus,
   type ApiKey,
   type InviteCode,
+  type VersionedEntity,
+  INITIAL_VERSION,
+  nextVersion,
 } from "./entities.js";

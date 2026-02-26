@@ -34,9 +34,9 @@ describe("TablesStack", () => {
   const template = Template.fromStack(stack);
 
   describe("DynamoDB Tables", () => {
-    it("should create exactly 7 DynamoDB tables", () => {
+    it("should create exactly 8 DynamoDB tables", () => {
       const tables = template.findResources("AWS::DynamoDB::Table");
-      expect(Object.keys(tables)).toHaveLength(7);
+      expect(Object.keys(tables)).toHaveLength(8);
     });
 
     it("should create users table with correct keys", () => {
@@ -127,6 +127,23 @@ describe("TablesStack", () => {
           { AttributeName: "PK", KeyType: "HASH" },
           { AttributeName: "SK", KeyType: "RANGE" },
         ],
+      });
+    });
+
+    it("should create idempotency table with pk-only key (no sort key)", () => {
+      template.hasResourceProperties("AWS::DynamoDB::Table", {
+        TableName: "dev-ai-learning-hub-idempotency",
+        KeySchema: [{ AttributeName: "pk", KeyType: "HASH" }],
+      });
+    });
+
+    it("should enable TTL on idempotency table with expiresAt attribute", () => {
+      template.hasResourceProperties("AWS::DynamoDB::Table", {
+        TableName: "dev-ai-learning-hub-idempotency",
+        TimeToLiveSpecification: {
+          AttributeName: "expiresAt",
+          Enabled: true,
+        },
       });
     });
 
@@ -291,7 +308,7 @@ describe("TablesStack", () => {
       const outputs = template.findOutputs("*");
       const outputKeys = Object.keys(outputs);
 
-      // Should have outputs for all 7 tables
+      // Should have outputs for all 8 tables
       expect(outputKeys).toContain("UsersTableName");
       expect(outputKeys).toContain("SavesTableName");
       expect(outputKeys).toContain("ProjectsTableName");
@@ -299,6 +316,7 @@ describe("TablesStack", () => {
       expect(outputKeys).toContain("ContentTableName");
       expect(outputKeys).toContain("SearchIndexTableName");
       expect(outputKeys).toContain("InviteCodesTableName");
+      expect(outputKeys).toContain("IdempotencyTableName");
     });
 
     it("should export table names with correct export name format", () => {
@@ -324,6 +342,9 @@ describe("TablesStack", () => {
       );
       expect(outputs.InviteCodesTableName.Export.Name).toBe(
         "AiLearningHub-InviteCodesTableName"
+      );
+      expect(outputs.IdempotencyTableName.Export.Name).toBe(
+        "AiLearningHub-IdempotencyTableName"
       );
     });
   });

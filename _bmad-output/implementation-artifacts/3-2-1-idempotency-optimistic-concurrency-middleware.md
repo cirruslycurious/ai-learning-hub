@@ -1,6 +1,6 @@
 # Story 3.2.1: Idempotency & Optimistic Concurrency Middleware
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -52,70 +52,70 @@ so that **all command endpoints can be safely retried by AI agents without creat
 
 ### Task 1: New Error Codes & Types (AC: #17, #18, #10)
 
-- [ ] 1.1 Add `VERSION_CONFLICT`, `PRECONDITION_REQUIRED`, `IDEMPOTENCY_KEY_CONFLICT` to `ErrorCode` enum in `@ai-learning-hub/types/src/errors.ts`
-- [ ] 1.2 Add status code mappings to `ErrorCodeToStatus` (409, 428, 409)
-- [ ] 1.3 Create `withVersion<T>` utility type, `INITIAL_VERSION` constant, `nextVersion()` helper in `@ai-learning-hub/types/src/entities.ts`
-- [ ] 1.4 Create `IdempotencyRecord` interface in `@ai-learning-hub/types/src/api.ts`
-- [ ] 1.5 Export all new types from package index
-- [ ] 1.6 Write tests for new types and helpers
+- [x] 1.1 Add `VERSION_CONFLICT`, `PRECONDITION_REQUIRED`, `IDEMPOTENCY_KEY_CONFLICT` to `ErrorCode` enum in `@ai-learning-hub/types/src/errors.ts`
+- [x] 1.2 Add status code mappings to `ErrorCodeToStatus` (409, 428, 409)
+- [x] 1.3 Create `withVersion<T>` utility type, `INITIAL_VERSION` constant, `nextVersion()` helper in `@ai-learning-hub/types/src/entities.ts`
+- [x] 1.4 Create `IdempotencyRecord` interface in `@ai-learning-hub/types/src/api.ts`
+- [x] 1.5 Export all new types from package index
+- [x] 1.6 Write tests for new types and helpers
 
 ### Task 2: Idempotency DynamoDB Table (AC: #15, #16)
 
-- [ ] 2.1 Create `idempotency-table.stack.ts` in `infra/lib/stacks/core/` (or extend existing tables stack)
-- [ ] 2.2 Define table: PK = `pk` (string), TTL on `expiresAt`, on-demand billing, encryption, PITR
-- [ ] 2.3 Export table name and add to Lambda environment variable configuration pattern
-- [ ] 2.4 Add `IDEMPOTENCY_TABLE_NAME` to relevant function environment variables in API stacks
-- [ ] 2.5 Verify CDK synth succeeds
-- [ ] 2.6 Update `infra/bin/app.ts` to include the new idempotency table stack in the deployment graph, dependent on the core stack
+- [x] 2.1 Create `idempotency-table.stack.ts` in `infra/lib/stacks/core/` (or extend existing tables stack)
+- [x] 2.2 Define table: PK = `pk` (string), TTL on `expiresAt`, on-demand billing, encryption, PITR
+- [x] 2.3 Export table name and add to Lambda environment variable configuration pattern
+- [ ] 2.4 Add `IDEMPOTENCY_TABLE_NAME` to relevant function environment variables in API stacks _(deferred: wire env var and IAM grants when the first Lambda opts into idempotency in a later story)_
+- [x] 2.5 Verify CDK synth succeeds
+- [x] 2.6 Update `infra/bin/app.ts` to include the new idempotency table stack in the deployment graph, dependent on the core stack
 
 ### Task 3: Idempotency Storage Layer (AC: #2, #4, #5, #6, #8)
 
-- [ ] 3.1 Create `idempotency.ts` in `@ai-learning-hub/db/src/` with table config
-- [ ] 3.2 Implement `storeIdempotencyRecord(client, key, userId, operationPath, response)` — conditional PutItem with `attribute_not_exists(pk)`
-- [ ] 3.3 Implement `getIdempotencyRecord(client, key, userId, operationPath)` — GetItem, returns null if not found OR if `expiresAt < Date.now()` (application-level expiry check, defense-in-depth against DynamoDB TTL lag)
-- [ ] 3.4 Record schema: `{ pk, userId, operationPath, statusCode, responseBody, responseHeaders, createdAt, expiresAt }`
-- [ ] 3.5 Export from `@ai-learning-hub/db` index
-- [ ] 3.6 Write unit tests with mocked DynamoDB client
+- [x] 3.1 Create `idempotency.ts` in `@ai-learning-hub/db/src/` with table config
+- [x] 3.2 Implement `storeIdempotencyRecord(client, key, userId, operationPath, response)` — conditional PutItem with `attribute_not_exists(pk)`
+- [x] 3.3 Implement `getIdempotencyRecord(client, key, userId, operationPath)` — GetItem, returns null if not found OR if `expiresAt < Date.now()` (application-level expiry check, defense-in-depth against DynamoDB TTL lag)
+- [x] 3.4 Record schema: `{ pk, userId, operationPath, statusCode, responseBody, responseHeaders, createdAt, expiresAt }`
+- [x] 3.5 Export from `@ai-learning-hub/db` index
+- [x] 3.6 Write unit tests with mocked DynamoDB client
 
 ### Task 4: Optimistic Concurrency DB Helpers (AC: #13, #14)
 
-- [ ] 4.1 Create `VersionConflictError` class extending `AppError` with `currentVersion` field
-- [ ] 4.2 Implement `updateItemWithVersion(client, config, params, expectedVersion, logger)` in `@ai-learning-hub/db/src/helpers.ts` (or new file)
-- [ ] 4.3 Implement `putItemWithVersion(client, config, item, logger)` — auto-sets `version: 1`
-- [ ] 4.4 Export from `@ai-learning-hub/db` index
-- [ ] 4.5 Write unit tests: version match success, version mismatch error, initial version on create
+- [x] 4.1 Create `VersionConflictError` class extending `AppError` with `currentVersion` field
+- [x] 4.2 Implement `updateItemWithVersion(client, config, params, expectedVersion, logger)` in `@ai-learning-hub/db/src/helpers.ts` (or new file)
+- [x] 4.3 Implement `putItemWithVersion(client, config, item, logger)` — auto-sets `version: 1`
+- [x] 4.4 Export from `@ai-learning-hub/db` index
+- [x] 4.5 Write unit tests: version match success, version mismatch error, initial version on create
 
 ### Task 5: Idempotency Middleware (AC: #1, #3, #7, #8, #9)
 
-- [ ] 5.1 Create `idempotency.ts` in `@ai-learning-hub/middleware/src/`
-- [ ] 5.2 Implement `extractIdempotencyKey(event)` — returns key or throws `VALIDATION_ERROR`
-- [ ] 5.3 Implement idempotency check/store logic as middleware layer within `wrapHandler`
-- [ ] 5.4 Add `idempotent?: boolean` to `WrapperOptions`
-- [ ] 5.5 Wire idempotency middleware into `wrapHandler` flow: after auth, before handler execution
-- [ ] 5.6 Add `X-Idempotent-Replayed: true` header on cached response replay
-- [ ] 5.7 Handle concurrent first-use: catch ConditionalCheckFailed on store → re-read → replay
-- [ ] 5.8 Implement response size guard: if body > 350KB, store tombstone and log warning
-- [ ] 5.9 Implement fail-open: catch idempotency table errors → log warning → execute handler → add `X-Idempotency-Status: unavailable` header
-- [ ] 5.10 Export from `@ai-learning-hub/middleware` index
-- [ ] 5.11 Write unit tests (AC19)
+- [x] 5.1 Create `idempotency.ts` in `@ai-learning-hub/middleware/src/`
+- [x] 5.2 Implement `extractIdempotencyKey(event)` — returns key or throws `VALIDATION_ERROR`
+- [x] 5.3 Implement idempotency check/store logic as middleware layer within `wrapHandler`
+- [x] 5.4 Add `idempotent?: boolean` to `WrapperOptions`
+- [x] 5.5 Wire idempotency middleware into `wrapHandler` flow: after auth, before handler execution
+- [x] 5.6 Add `X-Idempotent-Replayed: true` header on cached response replay
+- [x] 5.7 Handle concurrent first-use: catch ConditionalCheckFailed on store → re-read → replay
+- [x] 5.8 Implement response size guard: if body > 350KB, store tombstone and log warning
+- [x] 5.9 Implement fail-open: catch idempotency table errors → log warning → execute handler → add `X-Idempotency-Status: unavailable` header
+- [x] 5.10 Export from `@ai-learning-hub/middleware` index
+- [x] 5.11 Write unit tests (AC19)
 
 ### Task 6: Optimistic Concurrency Middleware (AC: #11, #12)
 
-- [ ] 6.1 Create `concurrency.ts` in `@ai-learning-hub/middleware/src/`
-- [ ] 6.2 Implement `extractIfMatch(event)` — returns version number or throws `PRECONDITION_REQUIRED`
-- [ ] 6.3 Add `requireVersion?: boolean` to `WrapperOptions`
-- [ ] 6.4 Parse `If-Match` header and attach to `HandlerContext` as `expectedVersion`
-- [ ] 6.5 Wire into `wrapHandler`: extract before handler, provide in context
-- [ ] 6.6 Export from `@ai-learning-hub/middleware` index
-- [ ] 6.7 Write unit tests (AC20)
+- [x] 6.1 Create `concurrency.ts` in `@ai-learning-hub/middleware/src/`
+- [x] 6.2 Implement `extractIfMatch(event)` — returns version number or throws `PRECONDITION_REQUIRED`
+- [x] 6.3 Add `requireVersion?: boolean` to `WrapperOptions`
+- [x] 6.4 Parse `If-Match` header and attach to `HandlerContext` as `expectedVersion`
+- [x] 6.5 Wire into `wrapHandler`: extract before handler, provide in context
+- [x] 6.6 Export from `@ai-learning-hub/middleware` index
+- [x] 6.7 Write unit tests (AC20)
 
 ### Task 7: Integration & Contract Tests (AC: #21)
 
-- [ ] 7.1 Integration test: wrapHandler with `idempotent: true` — full middleware chain
-- [ ] 7.2 Integration test: wrapHandler with `requireVersion: true` — full middleware chain
-- [ ] 7.3 Integration test: backward compatibility — existing handlers unaffected
-- [ ] 7.4 Integration test: combined idempotent + requireVersion on same handler
-- [ ] 7.5 Verify all existing middleware tests still pass
+- [x] 7.1 Integration test: wrapHandler with `idempotent: true` — full middleware chain
+- [x] 7.2 Integration test: wrapHandler with `requireVersion: true` — full middleware chain
+- [x] 7.3 Integration test: backward compatibility — existing handlers unaffected
+- [x] 7.4 Integration test: combined idempotent + requireVersion on same handler
+- [x] 7.5 Verify all existing middleware tests still pass
 
 ## Dev Notes
 
@@ -129,18 +129,18 @@ so that **all command endpoints can be safely retried by AI agents without creat
 
 ### Existing Code to Extend
 
-| Package | File | Changes |
-|---------|------|---------|
-| `@ai-learning-hub/types` | `src/errors.ts` | Add 3 new `ErrorCode` values + status mappings |
-| `@ai-learning-hub/types` | `src/entities.ts` | Add `withVersion<T>`, `INITIAL_VERSION`, `nextVersion()` |
-| `@ai-learning-hub/types` | `src/api.ts` | Add `IdempotencyRecord` interface |
-| `@ai-learning-hub/db` | `src/idempotency.ts` (new) | Idempotency table config + CRUD operations |
-| `@ai-learning-hub/db` | `src/helpers.ts` | Add `updateItemWithVersion`, `putItemWithVersion` |
-| `@ai-learning-hub/middleware` | `src/idempotency.ts` (new) | Idempotency middleware logic |
-| `@ai-learning-hub/middleware` | `src/concurrency.ts` (new) | Optimistic concurrency middleware logic |
-| `@ai-learning-hub/middleware` | `src/wrapper.ts` | Wire idempotency + concurrency into `wrapHandler` |
-| `@ai-learning-hub/middleware` | `src/index.ts` | Export new middleware |
-| `infra/lib/stacks/core/` | `idempotency-table.stack.ts` (new) | CDK stack for idempotency table |
+| Package                       | File                               | Changes                                                  |
+| ----------------------------- | ---------------------------------- | -------------------------------------------------------- |
+| `@ai-learning-hub/types`      | `src/errors.ts`                    | Add 3 new `ErrorCode` values + status mappings           |
+| `@ai-learning-hub/types`      | `src/entities.ts`                  | Add `withVersion<T>`, `INITIAL_VERSION`, `nextVersion()` |
+| `@ai-learning-hub/types`      | `src/api.ts`                       | Add `IdempotencyRecord` interface                        |
+| `@ai-learning-hub/db`         | `src/idempotency.ts` (new)         | Idempotency table config + CRUD operations               |
+| `@ai-learning-hub/db`         | `src/helpers.ts`                   | Add `updateItemWithVersion`, `putItemWithVersion`        |
+| `@ai-learning-hub/middleware` | `src/idempotency.ts` (new)         | Idempotency middleware logic                             |
+| `@ai-learning-hub/middleware` | `src/concurrency.ts` (new)         | Optimistic concurrency middleware logic                  |
+| `@ai-learning-hub/middleware` | `src/wrapper.ts`                   | Wire idempotency + concurrency into `wrapHandler`        |
+| `@ai-learning-hub/middleware` | `src/index.ts`                     | Export new middleware                                    |
+| `infra/lib/stacks/core/`      | `idempotency-table.stack.ts` (new) | CDK stack for idempotency table                          |
 
 ### DynamoDB Idempotency Table Design
 
@@ -173,11 +173,17 @@ interface SaveItemVersioned extends SaveItem {
 }
 
 // Update with version check
-await updateItemWithVersion(client, SAVES_TABLE_CONFIG, {
-  key: { PK: `USER#${userId}`, SK: `SAVE#${saveId}` },
-  updateExpression: "SET title = :title, updatedAt = :now",
-  expressionAttributeValues: { ":title": newTitle, ":now": now },
-}, expectedVersion, logger);
+await updateItemWithVersion(
+  client,
+  SAVES_TABLE_CONFIG,
+  {
+    key: { PK: `USER#${userId}`, SK: `SAVE#${saveId}` },
+    updateExpression: "SET title = :title, updatedAt = :now",
+    expressionAttributeValues: { ":title": newTitle, ":now": now },
+  },
+  expectedVersion,
+  logger
+);
 // Throws VersionConflictError if version mismatch
 ```
 
@@ -234,6 +240,7 @@ Request → Extract Auth → Check Idempotency Cache → Extract If-Match
 ### Git Intelligence
 
 Recent work (Epic 3.1) established patterns for:
+
 - Shared schema extraction to `@ai-learning-hub/*` packages (PR #194)
 - Shared test utilities in `backend/test-utils/` (PR #196)
 - Handler consolidation using shared middleware (PR #198)
@@ -246,10 +253,42 @@ These patterns should be followed for consistency. The scope enforcement middlew
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+- PR: https://github.com/cirruslycurious/ai-learning-hub/pull/226
+- Issue: #224
+
 ### Completion Notes List
 
+- All 21 ACs implemented across 7 task groups
+- Code review round 1: 13 findings (3 critical, 5 important, 5 minor) — 8 fixed, 5 deferred as minor
+- Task 2.4 (IDEMPOTENCY_TABLE_NAME env var wiring) deferred to when first Lambda opts in
+- Context compaction during session caused lost edits; re-applied successfully
+
 ### File List
+
+New files:
+- backend/shared/db/src/idempotency.ts
+- backend/shared/db/src/version-helpers.ts
+- backend/shared/db/test/idempotency.test.ts
+- backend/shared/db/test/version-helpers.test.ts
+- backend/shared/middleware/src/idempotency.ts
+- backend/shared/middleware/src/concurrency.ts
+- backend/shared/middleware/test/idempotency.test.ts
+- backend/shared/middleware/test/concurrency.test.ts
+- backend/shared/middleware/test/idempotency-concurrency.integration.test.ts
+
+Modified files:
+- backend/shared/types/src/errors.ts
+- backend/shared/types/src/entities.ts
+- backend/shared/types/src/api.ts
+- backend/shared/types/src/index.ts
+- backend/shared/db/src/index.ts
+- backend/shared/middleware/src/wrapper.ts
+- backend/shared/middleware/src/index.ts
+- backend/shared/middleware/tsconfig.json
+- backend/shared/middleware/package.json
+- infra/lib/stacks/core/tables.stack.ts
+- infra/test/stacks/core/tables.stack.test.ts

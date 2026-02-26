@@ -60,3 +60,18 @@ export interface RequestContext {
   auth?: AuthContext;
   startTime: number;
 }
+
+/**
+ * Idempotency record stored in DynamoDB (Story 3.2.1)
+ */
+export interface IdempotencyRecord {
+  pk: string;
+  userId: string;
+  operationPath: string;
+  statusCode: number;
+  responseBody: string;
+  responseHeaders: Record<string, string>;
+  createdAt: string;
+  expiresAt: number;
+  oversized?: boolean;
+}

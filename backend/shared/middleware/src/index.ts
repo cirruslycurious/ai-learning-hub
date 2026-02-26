@@ -37,5 +37,16 @@ export {
   type WrapperOptions,
 } from "./wrapper.js";
 
+// Idempotency middleware (Story 3.2.1)
+export {
+  extractIdempotencyKey,
+  checkIdempotency,
+  storeIdempotencyResult,
+  type IdempotencyStatus,
+} from "./idempotency.js";
+
+// Optimistic concurrency middleware (Story 3.2.1)
+export { extractIfMatch } from "./concurrency.js";
+
 // SSM utilities
 export { getClerkSecretKey, resetClerkSecretKeyCache } from "./ssm.js";
