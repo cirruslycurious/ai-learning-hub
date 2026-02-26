@@ -34,9 +34,9 @@ describe("TablesStack", () => {
   const template = Template.fromStack(stack);
 
   describe("DynamoDB Tables", () => {
-    it("should create exactly 8 DynamoDB tables", () => {
+    it("should create exactly 9 DynamoDB tables", () => {
       const tables = template.findResources("AWS::DynamoDB::Table");
-      expect(Object.keys(tables)).toHaveLength(8);
+      expect(Object.keys(tables)).toHaveLength(9);
     });
 
     it("should create users table with correct keys", () => {
@@ -142,6 +142,26 @@ describe("TablesStack", () => {
         TableName: "dev-ai-learning-hub-idempotency",
         TimeToLiveSpecification: {
           AttributeName: "expiresAt",
+          Enabled: true,
+        },
+      });
+    });
+
+    it("should create events table with PK/SK keys (Story 3.2.3)", () => {
+      template.hasResourceProperties("AWS::DynamoDB::Table", {
+        TableName: "dev-ai-learning-hub-events",
+        KeySchema: [
+          { AttributeName: "PK", KeyType: "HASH" },
+          { AttributeName: "SK", KeyType: "RANGE" },
+        ],
+      });
+    });
+
+    it("should enable TTL on events table with ttl attribute", () => {
+      template.hasResourceProperties("AWS::DynamoDB::Table", {
+        TableName: "dev-ai-learning-hub-events",
+        TimeToLiveSpecification: {
+          AttributeName: "ttl",
           Enabled: true,
         },
       });
@@ -308,7 +328,7 @@ describe("TablesStack", () => {
       const outputs = template.findOutputs("*");
       const outputKeys = Object.keys(outputs);
 
-      // Should have outputs for all 8 tables
+      // Should have outputs for all 9 tables
       expect(outputKeys).toContain("UsersTableName");
       expect(outputKeys).toContain("SavesTableName");
       expect(outputKeys).toContain("ProjectsTableName");
@@ -317,6 +337,7 @@ describe("TablesStack", () => {
       expect(outputKeys).toContain("SearchIndexTableName");
       expect(outputKeys).toContain("InviteCodesTableName");
       expect(outputKeys).toContain("IdempotencyTableName");
+      expect(outputKeys).toContain("EventsTableName");
     });
 
     it("should export table names with correct export name format", () => {
@@ -345,6 +366,9 @@ describe("TablesStack", () => {
       );
       expect(outputs.IdempotencyTableName.Export.Name).toBe(
         "AiLearningHub-IdempotencyTableName"
+      );
+      expect(outputs.EventsTableName.Export.Name).toBe(
+        "AiLearningHub-EventsTableName"
       );
     });
   });

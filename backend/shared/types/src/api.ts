@@ -18,6 +18,7 @@ export interface RateLimitMeta {
 export interface EnvelopeMeta {
   cursor?: string | null;
   total?: number;
+  hasMore?: boolean;
   rateLimit?: RateLimitMeta;
 }
 

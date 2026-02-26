@@ -1,3 +1,19 @@
+---
+id: "3.2.3"
+title: "Event History Infrastructure"
+status: ready-for-dev
+depends_on: []
+touches:
+  - backend/shared/types/src/entities
+  - backend/shared/db/src/operations
+  - backend/shared/db/test/operations
+  - backend/shared/middleware/src/handlers
+  - backend/shared/middleware/test/handlers
+  - infra/lib/stacks/core
+  - infra/test/stacks/core
+risk: low
+---
+
 # Story 3.2.3: Event History Infrastructure
 
 Status: ready-for-dev
