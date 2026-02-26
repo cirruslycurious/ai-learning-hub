@@ -1,9 +1,9 @@
 ---
 epic_id: Epic-3.2
-status: in-progress
+status: done
 scope: ["3.2.1", "3.2.2", "3.2.3"]
 started: 2026-02-25T12:00:00Z
-last_updated: 2026-02-26T18:37:00Z
+last_updated: 2026-02-26T20:15:00Z
 stories:
   "3.2.1":
     {
@@ -27,11 +27,12 @@ stories:
     }
   "3.2.3":
     {
-      status: pr-open,
+      status: done,
       issue: 229,
       pr: 230,
       branch: story-3-2-3-event-history-infrastructure,
       startedAt: "2026-02-26T18:37:00Z",
+      completedAt: "2026-02-26T20:15:00Z",
       reviewRounds: 1,
     }
 ---
@@ -40,11 +41,11 @@ stories:
 
 # Epic 3.2 Auto-Run Progress
 
-| Story | Status  | PR   | Review Rounds | Duration |
-| ----- | ------- | ---- | ------------- | -------- |
-| 3.2.1 | Done    | #226 | 1             | ~12h     |
-| 3.2.2 | Done    | #228 | 2             | ~18h     |
-| 3.2.3 | PR Open | #230 | 1             | -        |
+| Story | Status | PR   | Review Rounds | Duration |
+| ----- | ------ | ---- | ------------- | -------- |
+| 3.2.1 | Done   | #226 | 1             | ~12h     |
+| 3.2.2 | Done   | #228 | 2             | ~18h     |
+| 3.2.3 | Done   | #230 | 1             | ~2h      |
 
 ## Activity Log
 
@@ -74,3 +75,6 @@ stories:
 - [19:50] Story 3.2.3: Code review round 1 — 15 findings (3 critical, 7 important, 5 minor)
 - [19:55] Story 3.2.3: 8 findings fixed (3 critical + 5 important), 7 minor deferred
 - [20:00] Story 3.2.3: Pushed, PR #230 created (Closes #229)
+- [20:15] Story 3.2.3: CI green, PR #230 merged to main
+- [20:15] Story 3.2.3: Status → done
+- [20:15] Epic 3.2: All 3 stories complete → status: done
