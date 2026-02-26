@@ -1,6 +1,6 @@
 # Story 3.2.1: Idempotency & Optimistic Concurrency Middleware
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -253,10 +253,42 @@ These patterns should be followed for consistency. The scope enforcement middlew
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+- PR: https://github.com/cirruslycurious/ai-learning-hub/pull/226
+- Issue: #224
+
 ### Completion Notes List
 
+- All 21 ACs implemented across 7 task groups
+- Code review round 1: 13 findings (3 critical, 5 important, 5 minor) — 8 fixed, 5 deferred as minor
+- Task 2.4 (IDEMPOTENCY_TABLE_NAME env var wiring) deferred to when first Lambda opts in
+- Context compaction during session caused lost edits; re-applied successfully
+
 ### File List
+
+New files:
+- backend/shared/db/src/idempotency.ts
+- backend/shared/db/src/version-helpers.ts
+- backend/shared/db/test/idempotency.test.ts
+- backend/shared/db/test/version-helpers.test.ts
+- backend/shared/middleware/src/idempotency.ts
+- backend/shared/middleware/src/concurrency.ts
+- backend/shared/middleware/test/idempotency.test.ts
+- backend/shared/middleware/test/concurrency.test.ts
+- backend/shared/middleware/test/idempotency-concurrency.integration.test.ts
+
+Modified files:
+- backend/shared/types/src/errors.ts
+- backend/shared/types/src/entities.ts
+- backend/shared/types/src/api.ts
+- backend/shared/types/src/index.ts
+- backend/shared/db/src/index.ts
+- backend/shared/middleware/src/wrapper.ts
+- backend/shared/middleware/src/index.ts
+- backend/shared/middleware/tsconfig.json
+- backend/shared/middleware/package.json
+- infra/lib/stacks/core/tables.stack.ts
+- infra/test/stacks/core/tables.stack.test.ts
