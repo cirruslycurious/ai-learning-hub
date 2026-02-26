@@ -1,6 +1,6 @@
 ---
 epic_id: Epic-3.2
-status: in-progress
+status: done
 scope: ["3.2.1", "3.2.2"]
 started: 2026-02-25T12:00:00Z
 last_updated: 2026-02-26T12:00:00Z
