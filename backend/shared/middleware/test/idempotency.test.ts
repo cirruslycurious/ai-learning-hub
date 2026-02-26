@@ -26,7 +26,8 @@ vi.mock("@ai-learning-hub/db", () => ({
     mockGetIdempotencyRecord(...args),
   storeIdempotencyRecord: (...args: unknown[]) =>
     mockStoreIdempotencyRecord(...args),
-  buildIdempotencyPK: (...args: unknown[]) => mockBuildIdempotencyPK(...args),
+  buildIdempotencyPK: (userId: string, key: string) =>
+    mockBuildIdempotencyPK(userId, key),
   getDefaultClient: () => mockGetDefaultClient(),
 }));
 
