@@ -97,7 +97,7 @@ export function createEventHistoryHandler(config: EventHistoryHandlerConfig) {
 
     // Strip DynamoDB internal fields (PK, SK, ttl) before returning
     const publicEvents: PublicEntityEvent[] = result.events.map(
-      ({ PK, SK, ttl, ...rest }) => rest
+      ({ PK: _PK, SK: _SK, ttl: _ttl, ...rest }) => rest
     );
 
     return createSuccessResponse(publicEvents, requestId, {
