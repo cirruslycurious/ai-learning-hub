@@ -277,6 +277,22 @@ export function mockMiddlewareModule(
         }
 
         try {
+          // Extract agent identity with validation (Story 3.2.4)
+          // Inlined to avoid importing from @ai-learning-hub/middleware which
+          // handler tests mock via vi.mock()
+          const rawAgentId =
+            event.headers?.["x-agent-id"] ??
+            event.headers?.["X-Agent-ID"] ??
+            null;
+          if (
+            rawAgentId !== null &&
+            !/^[a-zA-Z0-9_\-.]{1,128}$/.test(rawAgentId)
+          ) {
+            throw new Error(
+              "X-Agent-ID header must be 1-128 characters matching [a-zA-Z0-9_\\-.]"
+            );
+          }
+
           const result = await handler({
             event,
             context,
@@ -284,6 +300,8 @@ export function mockMiddlewareModule(
             requestId: "test-req-id",
             logger: createMockLogger(),
             startTime: Date.now(),
+            agentId: rawAgentId,
+            actorType: rawAgentId ? "agent" : "human",
           });
 
           // If result is already an API Gateway response, return as-is

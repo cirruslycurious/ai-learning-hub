@@ -62,7 +62,8 @@ export class SavesRoutesStack extends cdk.Stack {
       { restApiId, rootResourceId }
     );
 
-    // CORS preflight config
+    // CORS preflight config — must match api-gateway.stack.ts since imported
+    // APIs do NOT inherit defaultCorsPreflightOptions
     const corsOptions: apigateway.CorsOptions = {
       allowOrigins: apigateway.Cors.ALL_ORIGINS,
       allowMethods: apigateway.Cors.ALL_METHODS,
@@ -73,6 +74,19 @@ export class SavesRoutesStack extends cdk.Stack {
         "X-Amz-Date",
         "X-Api-Key",
         "X-Amz-Security-Token",
+        "Idempotency-Key", // Story 3.2.1
+        "If-Match", // Story 3.2.1
+        "X-Agent-ID", // Story 3.2.4
+      ],
+      exposeHeaders: [
+        "X-Request-Id",
+        "X-RateLimit-Limit", // Story 3.2.4
+        "X-RateLimit-Remaining", // Story 3.2.4
+        "X-RateLimit-Reset", // Story 3.2.4
+        "X-Agent-ID", // Story 3.2.4
+        "X-Idempotent-Replayed", // Story 3.2.1
+        "X-Idempotency-Status", // Story 3.2.1
+        "Retry-After", // Story 3.2.4
       ],
       maxAge: cdk.Duration.hours(1),
     };

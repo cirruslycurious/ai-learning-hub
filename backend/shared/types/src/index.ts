@@ -24,6 +24,7 @@ export {
   type FieldValidationError,
   type PaginationParams,
   type PaginatedResponse,
+  type AgentIdentity,
   type AuthContext,
   type RequestContext,
   type IdempotencyRecord,

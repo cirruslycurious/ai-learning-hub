@@ -63,5 +63,20 @@ export {
   type EventHistoryHandlerConfig,
 } from "./event-history.js";
 
+// Agent identity middleware (Story 3.2.4)
+export { extractAgentIdentity } from "./agent-identity.js";
+
+// Re-export AgentIdentity type from types package (Story 3.2.4)
+export type { AgentIdentity } from "@ai-learning-hub/types";
+
+// Rate limit transparency (Story 3.2.4)
+export {
+  addRateLimitHeaders,
+  buildRateLimitHeaders,
+  buildRateLimitMeta,
+  calculateRateLimitReset,
+  type RateLimitMiddlewareConfig,
+} from "./rate-limit-headers.js";
+
 // SSM utilities
 export { getClerkSecretKey, resetClerkSecretKeyCache } from "./ssm.js";
