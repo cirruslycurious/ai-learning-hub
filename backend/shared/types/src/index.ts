@@ -26,6 +26,8 @@ export {
   type PaginationOptions,
   type PaginationParams,
   type PaginatedResponse,
+  type ApiKeyScope,
+  type OperationScope,
   type AgentIdentity,
   type AuthContext,
   type RequestContext,

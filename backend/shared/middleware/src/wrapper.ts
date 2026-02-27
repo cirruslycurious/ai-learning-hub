@@ -11,6 +11,7 @@ import {
   ErrorCode,
   type AuthContext,
   type ActorType,
+  type OperationScope,
 } from "@ai-learning-hub/types";
 import { createLogger, type Logger } from "@ai-learning-hub/logging";
 import {
@@ -21,7 +22,12 @@ import {
   type RateLimitResult,
 } from "@ai-learning-hub/db";
 import { handleError, createSuccessResponse } from "./error-handler.js";
-import { extractAuthContext, requireAuth } from "./auth.js";
+import {
+  extractAuthContext,
+  requireAuth,
+  requireRole,
+  requireScope,
+} from "./auth.js";
 import {
   extractIdempotencyKey,
   checkIdempotency,
@@ -77,7 +83,7 @@ export type WrappedHandler<T = unknown> = (
 export interface WrapperOptions {
   requireAuth?: boolean;
   requiredRoles?: string[];
-  requiredScope?: string;
+  requiredScope?: OperationScope;
   idempotent?: boolean;
   requireVersion?: boolean;
   /** Rate limit configuration — opt-in per handler (Story 3.2.4) */
@@ -185,32 +191,15 @@ export function wrapHandler<T = unknown>(
         auth = requireAuth(event);
         logger.setRequestContext({ userId: auth.userId });
 
-        // Check required roles
+        // Check required roles (delegates to requireRole for consistent error details)
         if (options.requiredRoles && options.requiredRoles.length > 0) {
-          const hasRequiredRole = options.requiredRoles.some((role) =>
-            auth!.roles.includes(role)
-          );
-          if (!hasRequiredRole) {
-            throw new AppError(ErrorCode.FORBIDDEN, "Insufficient permissions");
-          }
+          requireRole(auth, options.requiredRoles);
         }
 
-        // Check required scope for API keys
-        if (options.requiredScope && auth.isApiKey) {
-          const scopes = auth.scopes ?? [];
-          if (
-            !scopes.includes("*") &&
-            !scopes.includes(options.requiredScope)
-          ) {
-            throw new AppError(
-              ErrorCode.SCOPE_INSUFFICIENT,
-              "API key lacks required scope",
-              {
-                requiredScope: options.requiredScope,
-                keyScopes: scopes,
-              }
-            );
-          }
+        // Check required scope for API keys (delegates to requireScope — Story 3.2.6, AC3)
+        // requireScope handles isApiKey check and JWT bypass internally
+        if (options.requiredScope) {
+          requireScope(auth, options.requiredScope);
         }
       } else {
         auth = extractAuthContext(event);

@@ -92,6 +92,39 @@ export interface PaginatedResponse<T> {
 }
 
 /**
+ * Named API key permission tiers (Story 3.2.6, AC15).
+ * Includes legacy values `*` and `saves:read` for backward compatibility.
+ */
+export type ApiKeyScope =
+  | "full"
+  | "capture"
+  | "read"
+  | "saves:write"
+  | "projects:write"
+  | "*"
+  | "saves:read";
+
+/**
+ * Granular operation permissions required by handlers (Story 3.2.6, AC16).
+ * Handlers declare their `requiredScope` using these values.
+ * Tier-to-operation mapping is in `@ai-learning-hub/middleware` scope-resolver.
+ */
+export type OperationScope =
+  | "saves:read"
+  | "saves:write"
+  | "saves:create"
+  | "projects:read"
+  | "projects:write"
+  | "links:read"
+  | "links:write"
+  | "users:read"
+  | "users:write"
+  | "keys:read"
+  | "keys:manage"
+  | "invites:manage"
+  | "*";
+
+/**
  * Lambda handler context with authentication info
  */
 export interface AuthContext {
@@ -99,7 +132,7 @@ export interface AuthContext {
   roles: string[];
   isApiKey: boolean;
   apiKeyId?: string;
-  scopes?: string[];
+  scopes?: ApiKeyScope[];
 }
 
 /**

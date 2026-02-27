@@ -162,17 +162,29 @@ export const userIdSchema = z
   .describe("User identifier from Clerk");
 
 /**
- * API Key scope schema
+ * API Key scope schema (Story 3.2.6, AC1).
+ * 5 named permission tiers + 2 legacy values for backward compatibility.
  */
-export const apiKeyScopeSchema = z.enum(["*", "saves:write", "saves:read"]);
+export const apiKeyScopeSchema = z.enum([
+  "full",
+  "capture",
+  "read",
+  "saves:write",
+  "projects:write",
+  "*",
+  "saves:read",
+]);
 
 /**
- * API Key scopes array (duplicates are automatically removed)
+ * API Key scopes array (Story 3.2.6, AC12).
+ * Normalizes `*` to `full` on creation, deduplicates.
  */
 export const apiKeyScopesSchema = z
   .array(apiKeyScopeSchema)
   .min(1)
-  .transform((scopes) => Array.from(new Set(scopes)))
+  .transform((scopes) =>
+    Array.from(new Set(scopes.map((s) => (s === "*" ? "full" : s))))
+  )
   .describe("API key permission scopes");
 
 /**

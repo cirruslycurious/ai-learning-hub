@@ -8,7 +8,11 @@
  * - AC16: Rate limit exceeded → 429 with Retry-After header
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { AppError, ErrorCode } from "@ai-learning-hub/types";
+import {
+  AppError,
+  ErrorCode,
+  type OperationScope,
+} from "@ai-learning-hub/types";
 import {
   createMockEvent,
   createMockContext,
@@ -240,7 +244,7 @@ describe("Scope Enforcement Integration (AC15)", () => {
     // Wrap with requiredScope
     const wrappedHandler = wrapHandler(innerHandler, {
       requireAuth: true,
-      requiredScope: "admin:manage",
+      requiredScope: "keys:manage",
     });
 
     // API key with only saves:write scope
@@ -271,7 +275,7 @@ describe("Scope Enforcement Integration (AC15)", () => {
 
     const wrappedHandler = wrapHandler(innerHandler, {
       requireAuth: true,
-      requiredScope: "admin:manage",
+      requiredScope: "keys:manage",
     });
 
     // API key with wildcard scope
@@ -299,7 +303,7 @@ describe("Scope Enforcement Integration (AC15)", () => {
 
     const wrappedHandler = wrapHandler(innerHandler, {
       requireAuth: true,
-      requiredScope: "admin:manage",
+      requiredScope: "keys:manage",
     });
 
     // JWT auth (no scopes needed)
@@ -314,5 +318,239 @@ describe("Scope Enforcement Integration (AC15)", () => {
 
     // JWT auth skips scope checks
     expect(result.statusCode).toBe(200);
+  });
+});
+
+/**
+ * Story 3.2.6 — Hierarchical Scope Enforcement Integration (AC21)
+ *
+ * Tests the full wrapHandler chain with scope tier resolution.
+ * Verifies that named permission tiers resolve correctly through middleware.
+ */
+describe("Hierarchical Scope Enforcement Integration (Story 3.2.6, AC21)", () => {
+  it("capture key satisfies saves:create required scope", async () => {
+    const { wrapHandler } = await import("@ai-learning-hub/middleware");
+    const innerHandler = vi.fn().mockResolvedValue({
+      statusCode: 201,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: { id: "save_01" } }),
+    });
+    const wrappedHandler = wrapHandler(innerHandler, {
+      requireAuth: true,
+      requiredScope: "saves:create",
+    });
+    const event = createMockEvent({
+      method: "POST",
+      path: "/saves",
+      userId: "user_1",
+      authMethod: "api-key",
+      scopes: ["capture"],
+    });
+
+    const result = await wrappedHandler(event, createMockContext());
+    expect(result.statusCode).toBe(201);
+  });
+
+  it("capture key rejected for saves:read → 403 with correct error details", async () => {
+    const { wrapHandler } = await import("@ai-learning-hub/middleware");
+    const innerHandler = vi.fn().mockResolvedValue({ statusCode: 200 });
+    const wrappedHandler = wrapHandler(innerHandler, {
+      requireAuth: true,
+      requiredScope: "saves:read",
+    });
+    const event = createMockEvent({
+      method: "GET",
+      path: "/saves",
+      userId: "user_1",
+      authMethod: "api-key",
+      scopes: ["capture"],
+    });
+
+    const result = await wrappedHandler(event, createMockContext());
+    expect(result.statusCode).toBe(403);
+    const body = JSON.parse(result.body);
+    expect(body.error.code).toBe("SCOPE_INSUFFICIENT");
+    expect(body.error.message).toBe("API key lacks required scope: saves:read");
+    expect(body.error.details.required_scope).toBe("saves:read");
+    expect(body.error.details.granted_scopes).toEqual(["capture"]);
+    expect(body.error.allowedActions).toEqual(["request-api-key-with-scope"]);
+  });
+
+  it("read key satisfies saves:read", async () => {
+    const { wrapHandler } = await import("@ai-learning-hub/middleware");
+    const innerHandler = vi.fn().mockResolvedValue({
+      statusCode: 200,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: [] }),
+    });
+    const wrappedHandler = wrapHandler(innerHandler, {
+      requireAuth: true,
+      requiredScope: "saves:read",
+    });
+    const event = createMockEvent({
+      method: "GET",
+      path: "/saves",
+      userId: "user_1",
+      authMethod: "api-key",
+      scopes: ["read"],
+    });
+
+    const result = await wrappedHandler(event, createMockContext());
+    expect(result.statusCode).toBe(200);
+  });
+
+  it("read key rejected for saves:write", async () => {
+    const { wrapHandler } = await import("@ai-learning-hub/middleware");
+    const innerHandler = vi.fn().mockResolvedValue({ statusCode: 200 });
+    const wrappedHandler = wrapHandler(innerHandler, {
+      requireAuth: true,
+      requiredScope: "saves:write",
+    });
+    const event = createMockEvent({
+      method: "PATCH",
+      path: "/saves/01",
+      userId: "user_1",
+      authMethod: "api-key",
+      scopes: ["read"],
+    });
+
+    const result = await wrappedHandler(event, createMockContext());
+    expect(result.statusCode).toBe(403);
+  });
+
+  it("saves:write key satisfies both saves:read and saves:write", async () => {
+    const { wrapHandler } = await import("@ai-learning-hub/middleware");
+    const innerHandler = vi.fn().mockResolvedValue({
+      statusCode: 200,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: {} }),
+    });
+
+    for (const requiredScope of [
+      "saves:read",
+      "saves:write",
+    ] as OperationScope[]) {
+      const wrappedHandler = wrapHandler(innerHandler, {
+        requireAuth: true,
+        requiredScope,
+      });
+      const event = createMockEvent({
+        method: "GET",
+        path: "/saves",
+        userId: "user_1",
+        authMethod: "api-key",
+        scopes: ["saves:write"],
+      });
+      const result = await wrappedHandler(event, createMockContext());
+      expect(result.statusCode).toBe(200);
+    }
+  });
+
+  it("full key satisfies any required scope", async () => {
+    const { wrapHandler } = await import("@ai-learning-hub/middleware");
+    const innerHandler = vi.fn().mockResolvedValue({
+      statusCode: 200,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: {} }),
+    });
+
+    for (const requiredScope of [
+      "saves:create",
+      "saves:read",
+      "keys:manage",
+      "projects:write",
+    ] as OperationScope[]) {
+      const wrappedHandler = wrapHandler(innerHandler, {
+        requireAuth: true,
+        requiredScope,
+      });
+      const event = createMockEvent({
+        method: "POST",
+        path: "/test",
+        userId: "user_1",
+        authMethod: "api-key",
+        scopes: ["full"],
+      });
+      const result = await wrappedHandler(event, createMockContext());
+      expect(result.statusCode).toBe(200);
+    }
+  });
+
+  it("* key satisfies any required scope (backward compat)", async () => {
+    const { wrapHandler } = await import("@ai-learning-hub/middleware");
+    const innerHandler = vi.fn().mockResolvedValue({
+      statusCode: 200,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: {} }),
+    });
+    const wrappedHandler = wrapHandler(innerHandler, {
+      requireAuth: true,
+      requiredScope: "keys:manage",
+    });
+    const event = createMockEvent({
+      method: "POST",
+      path: "/test",
+      userId: "user_1",
+      authMethod: "api-key",
+      scopes: ["*"],
+    });
+    const result = await wrappedHandler(event, createMockContext());
+    expect(result.statusCode).toBe(200);
+  });
+
+  it("combined saves:write + projects:write satisfies both domain scopes", async () => {
+    const { wrapHandler } = await import("@ai-learning-hub/middleware");
+    const innerHandler = vi.fn().mockResolvedValue({
+      statusCode: 200,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: {} }),
+    });
+
+    for (const requiredScope of [
+      "saves:read",
+      "saves:write",
+      "projects:read",
+      "projects:write",
+    ] as OperationScope[]) {
+      const wrappedHandler = wrapHandler(innerHandler, {
+        requireAuth: true,
+        requiredScope,
+      });
+      const event = createMockEvent({
+        method: "POST",
+        path: "/test",
+        userId: "user_1",
+        authMethod: "api-key",
+        scopes: ["saves:write", "projects:write"],
+      });
+      const result = await wrappedHandler(event, createMockContext());
+      expect(result.statusCode, `${requiredScope} should be satisfied`).toBe(
+        200
+      );
+    }
+  });
+
+  it("error response includes required_scope, granted_scopes, allowedActions", async () => {
+    const { wrapHandler } = await import("@ai-learning-hub/middleware");
+    const innerHandler = vi.fn().mockResolvedValue({ statusCode: 200 });
+    const wrappedHandler = wrapHandler(innerHandler, {
+      requireAuth: true,
+      requiredScope: "keys:manage",
+    });
+    const event = createMockEvent({
+      method: "POST",
+      path: "/users/api-keys",
+      userId: "user_1",
+      authMethod: "api-key",
+      scopes: ["read"],
+    });
+
+    const result = await wrappedHandler(event, createMockContext());
+    expect(result.statusCode).toBe(403);
+    const body = JSON.parse(result.body);
+    expect(body.error.code).toBe("SCOPE_INSUFFICIENT");
+    expect(body.error.details.required_scope).toBe("keys:manage");
+    expect(body.error.details.granted_scopes).toEqual(["read"]);
+    expect(body.error.allowedActions).toEqual(["request-api-key-with-scope"]);
   });
 });

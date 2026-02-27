@@ -1,9 +1,9 @@
 ---
 epic_id: Epic-3.2
-status: done
-scope: ["3.2.1", "3.2.2", "3.2.3", "3.2.4", "3.2.5"]
+status: in-progress
+scope: ["3.2.1", "3.2.2", "3.2.3", "3.2.4", "3.2.5", "3.2.6"]
 started: 2026-02-25T12:00:00Z
-last_updated: 2026-02-27T02:16:00Z
+last_updated: 2026-02-27T14:00:00Z
 stories:
   "3.2.1":
     {
@@ -54,6 +54,13 @@ stories:
       startedAt: "2026-02-26T23:30:00Z",
       completedAt: "2026-02-27T02:16:00Z",
       reviewRounds: 1,
+    }
+  "3.2.6":
+    {
+      status: in-progress,
+      issue: 239,
+      branch: story-3-2-6-impl-scoped-api-key-permissions,
+      startedAt: "2026-02-27T14:00:00Z",
     }
 ---
 
