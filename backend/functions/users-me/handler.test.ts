@@ -11,19 +11,20 @@ import {
   createMockContext,
   mockCreateLoggerModule,
   mockMiddlewareModule,
+  mockDbModule,
   assertADR008Error,
 } from "../../test-utils/index.js";
 
 // Mock @ai-learning-hub/db
 const mockGetProfile = vi.fn();
 const mockUpdateProfile = vi.fn();
-const mockGetDefaultClient = vi.fn(() => ({}));
 
-vi.mock("@ai-learning-hub/db", () => ({
-  getDefaultClient: () => mockGetDefaultClient(),
-  getProfile: (...args: unknown[]) => mockGetProfile(...args),
-  updateProfile: (...args: unknown[]) => mockUpdateProfile(...args),
-}));
+vi.mock("@ai-learning-hub/db", () =>
+  mockDbModule({
+    getProfile: (...args: unknown[]) => mockGetProfile(...args),
+    updateProfile: (...args: unknown[]) => mockUpdateProfile(...args),
+  })
+);
 
 // Mock @ai-learning-hub/logging
 vi.mock("@ai-learning-hub/logging", () => mockCreateLoggerModule());

@@ -106,7 +106,7 @@ describe("Validation Schemas", () => {
       const result = paginationSchema.safeParse({});
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.limit).toBe(20);
+        expect(result.data.limit).toBe(25);
       }
     });
 
@@ -138,7 +138,7 @@ describe("Validation Schemas", () => {
       const result = paginationQuerySchema.safeParse({});
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.limit).toBe(20);
+        expect(result.data.limit).toBe(25);
       }
     });
 

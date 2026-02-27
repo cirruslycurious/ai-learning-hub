@@ -220,7 +220,6 @@ describe("getApiKeyByHash", () => {
 
     mockQueryItems.mockResolvedValueOnce({
       items: [mockApiKey],
-      hasMore: false,
     });
 
     const result = await getApiKeyByHash(mockClient, "abc123hash");
@@ -242,7 +241,6 @@ describe("getApiKeyByHash", () => {
   it("returns null when no API key found", async () => {
     mockQueryItems.mockResolvedValueOnce({
       items: [],
-      hasMore: false,
     });
 
     const result = await getApiKeyByHash(mockClient, "nonexistent_hash");
@@ -266,7 +264,6 @@ describe("getApiKeyByHash", () => {
 
     mockQueryItems.mockResolvedValueOnce({
       items: [revokedKey],
-      hasMore: false,
     });
 
     const result = await getApiKeyByHash(mockClient, "abc123hash");
@@ -421,7 +418,6 @@ describe("listApiKeys", () => {
 
     mockQueryItems.mockResolvedValueOnce({
       items: mockKeys,
-      hasMore: false,
     });
 
     const result = await listApiKeys(mockClient, "clerk_123");
@@ -442,7 +438,7 @@ describe("listApiKeys", () => {
   });
 
   it("queries with correct key condition and filter", async () => {
-    mockQueryItems.mockResolvedValueOnce({ items: [], hasMore: false });
+    mockQueryItems.mockResolvedValueOnce({ items: [] });
 
     await listApiKeys(mockClient, "clerk_123", 10, "some-cursor");
 
@@ -478,7 +474,6 @@ describe("listApiKeys", () => {
           updatedAt: "2026-01-01T00:00:00Z",
         },
       ],
-      hasMore: false,
     });
 
     const result = await listApiKeys(mockClient, "clerk_123");

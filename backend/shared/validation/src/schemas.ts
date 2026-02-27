@@ -3,6 +3,12 @@
  */
 import { z } from "zod";
 
+/** Default number of items per page (matches @ai-learning-hub/db) */
+const DEFAULT_PAGE_SIZE = 25;
+
+/** Maximum allowed items per page (matches @ai-learning-hub/db) */
+const MAX_PAGE_SIZE = 100;
+
 /**
  * UUID v4 format validation
  */
@@ -45,6 +51,26 @@ export const nonEmptyStringSchema = z
   .describe("Non-empty string");
 
 /**
+ * Canonical pagination query schema (Story 3.2.5, AC13).
+ * Single schema used across ALL list endpoints. Uses constants from @ai-learning-hub/db.
+ * For API Gateway query params (strings) — limit is coerced from string to number.
+ */
+export const paginationQuerySchema = z.object({
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_PAGE_SIZE)
+    .default(DEFAULT_PAGE_SIZE)
+    .describe(`Number of items per page (1-${MAX_PAGE_SIZE})`),
+  cursor: z
+    .string()
+    .max(2048, "Cursor token too long")
+    .optional()
+    .describe("Cursor for pagination (from previous response)"),
+});
+
+/**
  * Pagination parameters schema (for typed/JSON input; expects numeric limit).
  * For API Gateway query params (where limit is a string), use paginationQuerySchema instead.
  */
@@ -53,30 +79,12 @@ export const paginationSchema = z.object({
     .number()
     .int()
     .min(1)
-    .max(100)
-    .default(20)
-    .describe("Number of items per page (1-100)"),
+    .max(MAX_PAGE_SIZE)
+    .default(DEFAULT_PAGE_SIZE)
+    .describe(`Number of items per page (1-${MAX_PAGE_SIZE})`),
   cursor: z
     .string()
-    .optional()
-    .describe("Cursor for pagination (from previous response)"),
-});
-
-/**
- * Pagination schema for API Gateway query params (strings).
- * Use with validateQueryParams(); limit is coerced from string to number.
- * Prefer this over paginationSchema when validating event.queryStringParameters.
- */
-export const paginationQuerySchema = z.object({
-  limit: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(100)
-    .default(20)
-    .describe("Number of items per page (1-100)"),
-  cursor: z
-    .string()
+    .max(2048, "Cursor token too long")
     .optional()
     .describe("Cursor for pagination (from previous response)"),
 });
@@ -229,13 +237,11 @@ export const createSaveSchema = z.object({
 });
 
 /**
- * List saves query schema (GET /saves) — Story 3.4
- * Extends pagination with filter, search, and sort params.
- * All new params are optional; coerced from query strings.
+ * List saves query schema (GET /saves) — Story 3.2.5, AC6, AC13
+ * Extends paginationQuerySchema with filter, search, and sort params.
+ * `nextToken` renamed to `cursor` per AC6.
  */
-export const listSavesQuerySchema = z.object({
-  limit: z.coerce.number().int().min(1).max(100).default(25),
-  nextToken: z.string().optional(),
+export const listSavesQuerySchema = paginationQuerySchema.extend({
   contentType: contentTypeSchema.optional(),
   linkStatus: z.enum(["linked", "unlinked"]).optional(),
   search: z.string().min(1).max(200).optional(),

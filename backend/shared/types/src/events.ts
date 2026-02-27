@@ -91,5 +91,5 @@ export interface EventHistoryQueryOptions {
  */
 export interface EventHistoryResponse {
   events: EntityEvent[];
-  nextCursor: string | null;
+  cursor: string | null;
 }

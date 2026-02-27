@@ -103,5 +103,16 @@ export {
   buildEventSK,
 } from "./events.js";
 
+// Pagination utilities (Story 3.2.5)
+export {
+  encodeCursor,
+  decodeCursor,
+  validateCursor,
+  buildPaginatedResponse,
+  DEFAULT_PAGE_SIZE,
+  MAX_PAGE_SIZE,
+  type BuildPaginatedResponseOptions,
+} from "./pagination.js";
+
 // Re-export DynamoDB types for convenience
 export type { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";

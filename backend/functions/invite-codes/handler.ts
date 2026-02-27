@@ -19,8 +19,10 @@ import {
   type HandlerContext,
 } from "@ai-learning-hub/middleware";
 import { AppError, ErrorCode } from "@ai-learning-hub/types";
-import { validateQueryParams } from "@ai-learning-hub/validation";
-import { paginationQuerySchema } from "./schemas.js";
+import {
+  validateQueryParams,
+  paginationQuerySchema,
+} from "@ai-learning-hub/validation";
 
 /**
  * POST /users/invite-codes — Generate a new invite code (AC1, AC2, AC4, AC5).
@@ -53,10 +55,11 @@ async function handlePost(ctx: HandlerContext) {
 }
 
 /**
- * GET /users/invite-codes — List user's generated invite codes (AC3, AC7).
+ * GET /users/invite-codes — List user's generated invite codes (AC3, AC7, Story 3.2.5 AC11).
+ * Returns envelope format: { data, meta: { cursor }, links: { self, next } }
  */
 async function handleGet(ctx: HandlerContext) {
-  const { event, auth, logger } = ctx;
+  const { event, auth, logger, requestId } = ctx;
   const userId = auth!.userId;
 
   const { limit, cursor } = validateQueryParams(
@@ -74,13 +77,24 @@ async function handleGet(ctx: HandlerContext) {
   );
 
   const publicItems = result.items.map(toPublicInviteCode);
+  const nextCursor = result.cursor ?? null;
+
+  const queryParams: Record<string, string> = { limit: String(limit) };
+  const selfQuery = new URLSearchParams(queryParams).toString();
+  const self = `/users/invite-codes?${selfQuery}`;
+
+  let next: string | null = null;
+  if (nextCursor) {
+    const nextParams = new URLSearchParams(queryParams);
+    nextParams.set("cursor", nextCursor);
+    next = `/users/invite-codes?${nextParams.toString()}`;
+  }
 
   logger.info("Invite codes listed", { userId, count: publicItems.length });
-  return {
-    items: publicItems,
-    hasMore: result.hasMore,
-    nextCursor: result.nextCursor,
-  };
+  return createSuccessResponse(publicItems, requestId, {
+    meta: { cursor: nextCursor },
+    links: { self, next },
+  });
 }
 
 /**

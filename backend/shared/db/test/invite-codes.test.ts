@@ -218,7 +218,6 @@ describe("invite-codes DB operations", () => {
     it("queries generatedBy-index GSI with correct params", async () => {
       mockQueryItems.mockResolvedValueOnce({
         items: [],
-        hasMore: false,
       });
 
       await listInviteCodesByUser(mockClient, "user_123");
@@ -238,7 +237,6 @@ describe("invite-codes DB operations", () => {
     it("forwards pagination params (limit and cursor)", async () => {
       mockQueryItems.mockResolvedValueOnce({
         items: [],
-        hasMore: false,
       });
 
       await listInviteCodesByUser(mockClient, "user_123", 5, "some-cursor");
@@ -279,7 +277,6 @@ describe("invite-codes DB operations", () => {
             SK: "META",
           },
         ],
-        hasMore: false,
       });
 
       const result = await listInviteCodesByUser(mockClient, "user_123");
@@ -289,7 +286,7 @@ describe("invite-codes DB operations", () => {
       expect(result.items[2].code).toBe("OLD");
     });
 
-    it("returns hasMore and nextCursor from query", async () => {
+    it("returns cursor from query (Story 3.2.5)", async () => {
       mockQueryItems.mockResolvedValueOnce({
         items: [
           {
@@ -300,14 +297,12 @@ describe("invite-codes DB operations", () => {
             SK: "META",
           },
         ],
-        hasMore: true,
-        nextCursor: "next-cursor-token",
+        cursor: "next-cursor-token",
       });
 
       const result = await listInviteCodesByUser(mockClient, "user_123", 1);
 
-      expect(result.hasMore).toBe(true);
-      expect(result.nextCursor).toBe("next-cursor-token");
+      expect(result.cursor).toBe("next-cursor-token");
     });
   });
 

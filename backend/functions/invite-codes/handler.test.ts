@@ -11,6 +11,7 @@ import {
   createMockContext,
   mockCreateLoggerModule,
   mockMiddlewareModule,
+  mockDbModule,
   assertADR008Error,
 } from "../../test-utils/index.js";
 
@@ -19,26 +20,16 @@ const mockCreateInviteCode = vi.fn();
 const mockListInviteCodesByUser = vi.fn();
 const mockToPublicInviteCode = vi.fn();
 const mockEnforceRateLimit = vi.fn();
-const mockGetDefaultClient = vi.fn(() => ({}));
 
-vi.mock("@ai-learning-hub/db", () => ({
-  getDefaultClient: () => mockGetDefaultClient(),
-  createInviteCode: (...args: unknown[]) => mockCreateInviteCode(...args),
-  listInviteCodesByUser: (...args: unknown[]) =>
-    mockListInviteCodesByUser(...args),
-  toPublicInviteCode: (...args: unknown[]) => mockToPublicInviteCode(...args),
-  enforceRateLimit: (...args: unknown[]) => mockEnforceRateLimit(...args),
-  INVITE_CODES_TABLE_CONFIG: {
-    tableName: "ai-learning-hub-invite-codes",
-    partitionKey: "PK",
-    sortKey: "SK",
-  },
-  USERS_TABLE_CONFIG: {
-    tableName: "ai-learning-hub-users",
-    partitionKey: "PK",
-    sortKey: "SK",
-  },
-}));
+vi.mock("@ai-learning-hub/db", () =>
+  mockDbModule({
+    createInviteCode: (...args: unknown[]) => mockCreateInviteCode(...args),
+    listInviteCodesByUser: (...args: unknown[]) =>
+      mockListInviteCodesByUser(...args),
+    toPublicInviteCode: (...args: unknown[]) => mockToPublicInviteCode(...args),
+    enforceRateLimit: (...args: unknown[]) => mockEnforceRateLimit(...args),
+  })
+);
 
 // Mock @ai-learning-hub/logging
 vi.mock("@ai-learning-hub/logging", () => mockCreateLoggerModule());
@@ -216,7 +207,6 @@ describe("Invite Codes Handler", () => {
             expiresAt: "2026-02-22T12:00:00Z",
           },
         ],
-        hasMore: false,
       });
 
       mockToPublicInviteCode
@@ -239,17 +229,16 @@ describe("Invite Codes Handler", () => {
       const body = JSON.parse(result.body);
 
       expect(result.statusCode).toBe(200);
-      expect(body.data.items).toHaveLength(2);
-      expect(body.data.items[0].code).toBe("AbCd****");
-      expect(body.data.items[0].status).toBe("redeemed");
-      expect(body.data.items[1].code).toBe("EfGh87654321YYYY");
-      expect(body.data.items[1].status).toBe("active");
+      expect(body.data).toHaveLength(2);
+      expect(body.data[0].code).toBe("AbCd****");
+      expect(body.data[0].status).toBe("redeemed");
+      expect(body.data[1].code).toBe("EfGh87654321YYYY");
+      expect(body.data[1].status).toBe("active");
     });
 
     it("forwards pagination params to listInviteCodesByUser", async () => {
       mockListInviteCodesByUser.mockResolvedValueOnce({
         items: [],
-        hasMore: false,
       });
 
       const event = createEvent("GET", "user_123", {

@@ -202,11 +202,10 @@ describe("DynamoDB Helpers", () => {
       });
 
       expect(result.items).toEqual(items);
-      expect(result.hasMore).toBe(true);
-      expect(result.nextCursor).toBeDefined();
+      expect(result.cursor).toBeDefined();
     });
 
-    it("should return no more when no LastEvaluatedKey", async () => {
+    it("should return no cursor when no LastEvaluatedKey", async () => {
       mockSend.mockResolvedValueOnce({
         Items: [{ PK: "USER#123" }],
       });
@@ -216,8 +215,7 @@ describe("DynamoDB Helpers", () => {
         expressionAttributeValues: { ":pk": "USER#123" },
       });
 
-      expect(result.hasMore).toBe(false);
-      expect(result.nextCursor).toBeUndefined();
+      expect(result.cursor).toBeUndefined();
     });
 
     it("should handle cursor-based pagination", async () => {
@@ -225,10 +223,10 @@ describe("DynamoDB Helpers", () => {
         Items: [{ PK: "USER#123" }],
       });
 
-      // Create a valid cursor
+      // Create a valid cursor (base64url)
       const cursor = Buffer.from(
         JSON.stringify({ PK: "USER#123", SK: "ITEM#1" })
-      ).toString("base64");
+      ).toString("base64url");
 
       await queryItems(mockClient, tableConfig, {
         keyConditionExpression: "PK = :pk",
@@ -239,18 +237,17 @@ describe("DynamoDB Helpers", () => {
       expect(mockSend).toHaveBeenCalled();
     });
 
-    it("should handle invalid cursor gracefully", async () => {
-      mockSend.mockResolvedValueOnce({
-        Items: [{ PK: "USER#123" }],
+    it("should throw VALIDATION_ERROR for invalid cursor", async () => {
+      await expect(
+        queryItems(mockClient, tableConfig, {
+          keyConditionExpression: "PK = :pk",
+          expressionAttributeValues: { ":pk": "USER#123" },
+          cursor: "invalid-cursor",
+        })
+      ).rejects.toMatchObject({
+        code: "VALIDATION_ERROR",
+        message: "Invalid cursor token",
       });
-
-      await queryItems(mockClient, tableConfig, {
-        keyConditionExpression: "PK = :pk",
-        expressionAttributeValues: { ":pk": "USER#123" },
-        cursor: "invalid-cursor",
-      });
-
-      expect(mockSend).toHaveBeenCalled();
     });
 
     it("should throw AppError on failure", async () => {

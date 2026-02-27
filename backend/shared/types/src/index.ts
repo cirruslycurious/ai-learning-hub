@@ -22,6 +22,8 @@ export {
   type ResponseLinks,
   type ResponseEnvelope,
   type FieldValidationError,
+  type CursorPayload,
+  type PaginationOptions,
   type PaginationParams,
   type PaginatedResponse,
   type AgentIdentity,

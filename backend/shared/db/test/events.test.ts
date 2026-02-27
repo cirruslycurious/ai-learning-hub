@@ -324,11 +324,11 @@ describe("Event History Storage (Story 3.2.3)", () => {
 
       const result = await queryEntityEvents(mockClient, "save", "abc123");
 
-      expect(result.nextCursor).toBeDefined();
-      expect(result.nextCursor).not.toBeNull();
-      // Verify it's base64 encoded
+      expect(result.cursor).toBeDefined();
+      expect(result.cursor).not.toBeNull();
+      // Verify it's base64url encoded
       const decoded = JSON.parse(
-        Buffer.from(result.nextCursor!, "base64").toString()
+        Buffer.from(result.cursor!, "base64url").toString()
       );
       expect(decoded.PK).toBe("EVENTS#save#abc");
     });
@@ -336,7 +336,7 @@ describe("Event History Storage (Story 3.2.3)", () => {
     it("should decode cursor to ExclusiveStartKey on subsequent call", async () => {
       const lastEvalKey = { PK: "EVENTS#save#abc", SK: "EVENT#2026" };
       const cursor = Buffer.from(JSON.stringify(lastEvalKey)).toString(
-        "base64"
+        "base64url"
       );
       mockSend.mockResolvedValueOnce({
         Items: [],
@@ -349,7 +349,7 @@ describe("Event History Storage (Story 3.2.3)", () => {
       expect(input.ExclusiveStartKey).toEqual(lastEvalKey);
     });
 
-    it("should return nextCursor: null when no LastEvaluatedKey (last page)", async () => {
+    it("should return cursor: null when no LastEvaluatedKey (last page)", async () => {
       mockSend.mockResolvedValueOnce({
         Items: [{ PK: "test", SK: "test" }],
         LastEvaluatedKey: undefined,
@@ -357,7 +357,7 @@ describe("Event History Storage (Story 3.2.3)", () => {
 
       const result = await queryEntityEvents(mockClient, "save", "abc123");
 
-      expect(result.nextCursor).toBeNull();
+      expect(result.cursor).toBeNull();
     });
 
     it("should return empty array for entity with no events", async () => {
@@ -369,7 +369,7 @@ describe("Event History Storage (Story 3.2.3)", () => {
       const result = await queryEntityEvents(mockClient, "save", "nonexistent");
 
       expect(result.events).toEqual([]);
-      expect(result.nextCursor).toBeNull();
+      expect(result.cursor).toBeNull();
     });
   });
 });

@@ -20,6 +20,7 @@
     "@ai-learning-hub/db": "*",
     "@ai-learning-hub/logging": "*",
     "@ai-learning-hub/types": "*",
+    "@ai-learning-hub/validation": "*",
     "@aws-sdk/client-ssm": "^3.990.0"
   },
   "devDependencies": {

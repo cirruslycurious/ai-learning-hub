@@ -76,15 +76,15 @@ describe("Saves List Handler — GET /saves", () => {
 
       expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
-      expect(body.data.items).toHaveLength(2);
-      expect(body.data.hasMore).toBe(false);
-      expect(body.data.items[0]).not.toHaveProperty("PK");
-      expect(body.data.items[0]).not.toHaveProperty("SK");
-      expect(body.data.items[0]).not.toHaveProperty("deletedAt");
+      expect(body.data).toHaveLength(2);
+      expect(body.meta.cursor).toBeNull();
+      expect(body.data[0]).not.toHaveProperty("PK");
+      expect(body.data[0]).not.toHaveProperty("SK");
+      expect(body.data[0]).not.toHaveProperty("deletedAt");
     });
   });
 
-  describe("Base: Empty list returns { items: [], hasMore: false }", () => {
+  describe("Base: Empty list returns empty data array", () => {
     it("returns empty array when user has no saves", async () => {
       mockQueryAllItems.mockResolvedValueOnce({
         items: [],
@@ -96,13 +96,13 @@ describe("Saves List Handler — GET /saves", () => {
 
       expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
-      expect(body.data.items).toEqual([]);
-      expect(body.data.hasMore).toBe(false);
+      expect(body.data).toEqual([]);
+      expect(body.meta.cursor).toBeNull();
     });
   });
 
   describe("Base: In-memory pagination with ULID cursor", () => {
-    it("returns first page with nextToken when hasMore", async () => {
+    it("returns first page with cursor when more items exist", async () => {
       const items = Array.from({ length: 30 }, (_, i) =>
         createTestSaveItem(`01SAVE${String(i).padStart(19, "0")}A`)
       );
@@ -116,30 +116,31 @@ describe("Saves List Handler — GET /saves", () => {
 
       expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
-      expect(body.data.items).toHaveLength(25);
-      expect(body.data.hasMore).toBe(true);
-      expect(body.data.nextToken).toBeDefined();
+      expect(body.data).toHaveLength(25);
+      expect(body.meta.cursor).not.toBeNull();
     });
 
-    it("returns page 2 correctly using nextToken", async () => {
+    it("returns page 2 correctly using cursor", async () => {
       const items = Array.from({ length: 30 }, (_, i) =>
         createTestSaveItem(`01SAVE${String(i).padStart(19, "0")}A`)
       );
       const cursorSaveId = items[24].saveId;
-      const nextToken = Buffer.from(cursorSaveId).toString("base64url");
+      const cursor = Buffer.from(
+        JSON.stringify({ saveId: cursorSaveId })
+      ).toString("base64url");
 
       mockQueryAllItems.mockResolvedValueOnce({
         items,
         truncated: false,
       });
 
-      const event = createListEvent({ nextToken });
+      const event = createListEvent({ cursor });
       const result = await handler(event, mockContext);
 
       expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
-      expect(body.data.items).toHaveLength(5);
-      expect(body.data.hasMore).toBe(false);
+      expect(body.data).toHaveLength(5);
+      expect(body.meta.cursor).toBeNull();
     });
 
     it("respects custom limit", async () => {
@@ -156,8 +157,8 @@ describe("Saves List Handler — GET /saves", () => {
 
       expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
-      expect(body.data.items).toHaveLength(5);
-      expect(body.data.hasMore).toBe(true);
+      expect(body.data).toHaveLength(5);
+      expect(body.meta.cursor).not.toBeNull();
     });
 
     it("accepts limit=100 (max)", async () => {
@@ -230,7 +231,7 @@ describe("Saves List Handler — GET /saves", () => {
       const result = await handler(event, mockContext);
 
       const body = JSON.parse(result.body);
-      const publicItem = body.data.items[0];
+      const publicItem = body.data[0];
       expect(publicItem).not.toHaveProperty("PK");
       expect(publicItem).not.toHaveProperty("SK");
       expect(publicItem.saveId).toBe("01SAVE1111111111111111111A");
@@ -273,9 +274,9 @@ describe("Saves List Handler — GET /saves", () => {
 
       expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
-      expect(body.data.items).toHaveLength(2);
+      expect(body.data).toHaveLength(2);
       expect(
-        body.data.items.every(
+        body.data.every(
           (i: { contentType: string }) => i.contentType === "video"
         )
       ).toBe(true);
@@ -302,7 +303,7 @@ describe("Saves List Handler — GET /saves", () => {
 
       expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
-      expect(body.data.items).toHaveLength(2);
+      expect(body.data).toHaveLength(2);
     });
   });
 
@@ -323,8 +324,8 @@ describe("Saves List Handler — GET /saves", () => {
 
       expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
-      expect(body.data.items).toHaveLength(1);
-      expect(body.data.items[0].linkedProjectCount).toBe(0);
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0].linkedProjectCount).toBe(0);
     });
 
     it("treats missing linkedProjectCount as 0 (unlinked)", async () => {
@@ -341,7 +342,7 @@ describe("Saves List Handler — GET /saves", () => {
 
       expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
-      expect(body.data.items).toHaveLength(1);
+      expect(body.data).toHaveLength(1);
     });
   });
 
@@ -365,7 +366,7 @@ describe("Saves List Handler — GET /saves", () => {
 
       expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
-      expect(body.data.items).toHaveLength(2);
+      expect(body.data).toHaveLength(2);
     });
 
     it("returns saves where url contains search term", async () => {
@@ -386,7 +387,7 @@ describe("Saves List Handler — GET /saves", () => {
 
       expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
-      expect(body.data.items).toHaveLength(1);
+      expect(body.data).toHaveLength(1);
     });
 
     it("handles saves with missing title during search", async () => {
@@ -408,7 +409,7 @@ describe("Saves List Handler — GET /saves", () => {
       expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
       // Both match: first via url, second via title
-      expect(body.data.items).toHaveLength(2);
+      expect(body.data).toHaveLength(2);
     });
   });
 
@@ -436,9 +437,9 @@ describe("Saves List Handler — GET /saves", () => {
 
       expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
-      expect(body.data.items[0].createdAt).toBe("2026-02-20T00:00:00Z");
-      expect(body.data.items[1].createdAt).toBe("2026-02-21T00:00:00Z");
-      expect(body.data.items[2].createdAt).toBe("2026-02-22T00:00:00Z");
+      expect(body.data[0].createdAt).toBe("2026-02-20T00:00:00Z");
+      expect(body.data[1].createdAt).toBe("2026-02-21T00:00:00Z");
+      expect(body.data[2].createdAt).toBe("2026-02-22T00:00:00Z");
     });
   });
 
@@ -466,9 +467,9 @@ describe("Saves List Handler — GET /saves", () => {
       expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
       // Most recent first, null at bottom
-      expect(body.data.items[0].lastAccessedAt).toBe("2026-02-22T00:00:00Z");
-      expect(body.data.items[1].lastAccessedAt).toBe("2026-02-20T00:00:00Z");
-      expect(body.data.items[2].lastAccessedAt).toBeUndefined();
+      expect(body.data[0].lastAccessedAt).toBe("2026-02-22T00:00:00Z");
+      expect(body.data[1].lastAccessedAt).toBe("2026-02-20T00:00:00Z");
+      expect(body.data[2].lastAccessedAt).toBeUndefined();
     });
 
     it("sorts lastAccessedAt ascending with null at bottom", async () => {
@@ -487,9 +488,9 @@ describe("Saves List Handler — GET /saves", () => {
       const event = createListEvent({ sort: "lastAccessedAt", order: "asc" });
       const result = await handler(event, mockContext);
       const body = JSON.parse(result.body);
-      expect(body.data.items[0].lastAccessedAt).toBe("2026-02-20T00:00:00Z");
-      expect(body.data.items[1].lastAccessedAt).toBe("2026-02-22T00:00:00Z");
-      expect(body.data.items[2].lastAccessedAt).toBeUndefined();
+      expect(body.data[0].lastAccessedAt).toBe("2026-02-20T00:00:00Z");
+      expect(body.data[1].lastAccessedAt).toBe("2026-02-22T00:00:00Z");
+      expect(body.data[2].lastAccessedAt).toBeUndefined();
     });
   });
 
@@ -507,9 +508,9 @@ describe("Saves List Handler — GET /saves", () => {
 
       expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
-      expect(body.data.items[0].title).toBe("Alpha");
-      expect(body.data.items[1].title).toBe("Zebra");
-      expect(body.data.items[2].title).toBeUndefined();
+      expect(body.data[0].title).toBe("Alpha");
+      expect(body.data[1].title).toBe("Zebra");
+      expect(body.data[2].title).toBeUndefined();
     });
 
     it("sorts title descending with empty title at bottom", async () => {
@@ -524,9 +525,9 @@ describe("Saves List Handler — GET /saves", () => {
       const result = await handler(event, mockContext);
 
       const body = JSON.parse(result.body);
-      expect(body.data.items[0].title).toBe("Zebra");
-      expect(body.data.items[1].title).toBe("Alpha");
-      expect(body.data.items[2].title).toBeUndefined();
+      expect(body.data[0].title).toBe("Zebra");
+      expect(body.data[1].title).toBe("Alpha");
+      expect(body.data[2].title).toBeUndefined();
     });
   });
 
@@ -548,8 +549,8 @@ describe("Saves List Handler — GET /saves", () => {
       expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
       // desc: newest first
-      expect(body.data.items[0].createdAt).toBe("2026-02-22T00:00:00Z");
-      expect(body.data.items[1].createdAt).toBe("2026-02-20T00:00:00Z");
+      expect(body.data[0].createdAt).toBe("2026-02-22T00:00:00Z");
+      expect(body.data[1].createdAt).toBe("2026-02-20T00:00:00Z");
     });
 
     it("defaults to desc for sort=lastAccessedAt", async () => {
@@ -568,8 +569,8 @@ describe("Saves List Handler — GET /saves", () => {
 
       expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
-      expect(body.data.items[0].lastAccessedAt).toBe("2026-02-22T00:00:00Z");
-      expect(body.data.items[1].lastAccessedAt).toBe("2026-02-20T00:00:00Z");
+      expect(body.data[0].lastAccessedAt).toBe("2026-02-22T00:00:00Z");
+      expect(body.data[1].lastAccessedAt).toBe("2026-02-20T00:00:00Z");
     });
 
     it("defaults to asc for sort=title", async () => {
@@ -584,8 +585,8 @@ describe("Saves List Handler — GET /saves", () => {
 
       expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
-      expect(body.data.items[0].title).toBe("Alpha");
-      expect(body.data.items[1].title).toBe("Zebra");
+      expect(body.data[0].title).toBe("Alpha");
+      expect(body.data[1].title).toBe("Zebra");
     });
   });
 
@@ -615,7 +616,7 @@ describe("Saves List Handler — GET /saves", () => {
       });
       const result = await handler(event, mockContext);
       const body = JSON.parse(result.body);
-      expect(body.data.items).toHaveLength(1);
+      expect(body.data).toHaveLength(1);
     });
 
     it("applies contentType + search + sort together", async () => {
@@ -653,9 +654,9 @@ describe("Saves List Handler — GET /saves", () => {
       expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
       // Only video + react: items 1 and 2; sorted desc by default
-      expect(body.data.items).toHaveLength(2);
-      expect(body.data.items[0].createdAt).toBe("2026-02-22T00:00:00Z");
-      expect(body.data.items[1].createdAt).toBe("2026-02-20T00:00:00Z");
+      expect(body.data).toHaveLength(2);
+      expect(body.data[0].createdAt).toBe("2026-02-22T00:00:00Z");
+      expect(body.data[1].createdAt).toBe("2026-02-20T00:00:00Z");
     });
   });
 
@@ -722,7 +723,7 @@ describe("Saves List Handler — GET /saves", () => {
   // ──────────────────────────────────────────────────────────────
 
   describe("AC10: No saves match filters → empty result", () => {
-    it("returns { items: [], hasMore: false } when no matches", async () => {
+    it("returns empty data array when no matches", async () => {
       const items = [
         createTestSaveItem("01SAVE0000000000000000001A", {
           contentType: ContentType.ARTICLE,
@@ -735,8 +736,8 @@ describe("Saves List Handler — GET /saves", () => {
 
       expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
-      expect(body.data.items).toEqual([]);
-      expect(body.data.hasMore).toBe(false);
+      expect(body.data).toEqual([]);
+      expect(body.meta.cursor).toBeNull();
     });
   });
 
@@ -756,7 +757,7 @@ describe("Saves List Handler — GET /saves", () => {
 
       expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
-      expect(body.data.truncated).toBe(true);
+      expect(body.meta.truncated).toBe(true);
     });
 
     it("omits truncated when not truncated", async () => {
@@ -770,28 +771,28 @@ describe("Saves List Handler — GET /saves", () => {
 
       expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
-      expect(body.data.truncated).toBeUndefined();
+      expect(body.meta.truncated).toBeUndefined();
     });
   });
 
   // ──────────────────────────────────────────────────────────────
-  // Story 3.4 — nextToken behavior with filters
+  // Story 3.4 / 3.2.5 — cursor behavior with filters
   // ──────────────────────────────────────────────────────────────
 
-  describe("nextToken with filter changes", () => {
-    it("returns 400 for malformed nextToken", async () => {
+  describe("cursor with filter changes", () => {
+    it("returns 400 for malformed cursor", async () => {
       mockQueryAllItems.mockResolvedValueOnce({
         items: [],
         truncated: false,
       });
 
-      const event = createListEvent({ nextToken: "!!!invalid!!!" });
+      const event = createListEvent({ cursor: "!!!invalid!!!" });
       const result = await handler(event, mockContext);
 
       assertADR008Error(result, ErrorCode.VALIDATION_ERROR, 400);
     });
 
-    it("returns first page when nextToken saveId not in filtered list but exists in unfiltered", async () => {
+    it("returns first page with cursorReset when cursor saveId not in filtered list but exists in unfiltered", async () => {
       // Save exists in unfiltered set but is excluded by contentType filter
       const items = [
         createTestSaveItem("01SAVE0000000000000000001A", {
@@ -805,38 +806,44 @@ describe("Saves List Handler — GET /saves", () => {
         }),
       ];
       // Cursor points to the article save (index 0)
-      const nextToken = Buffer.from(items[0].saveId).toString("base64url");
+      const cursor = Buffer.from(
+        JSON.stringify({ saveId: items[0].saveId })
+      ).toString("base64url");
 
       mockQueryAllItems.mockResolvedValueOnce({ items, truncated: false });
 
       // Now filter to only videos — cursor save is not in filtered list
       const event = createListEvent({
         contentType: "video",
-        nextToken,
+        cursor,
       });
       const result = await handler(event, mockContext);
 
       expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
-      // Should return first page of filtered results (no 400)
-      expect(body.data.items).toHaveLength(2);
+      // Should return first page of filtered results with cursorReset
+      expect(body.data).toHaveLength(2);
+      expect(body.meta.cursorReset).toBe(true);
+      expect(result.headers?.["X-Cursor-Reset"]).toBe("true");
     });
 
-    it("returns 400 when nextToken saveId not in unfiltered set (stale cursor)", async () => {
+    it("returns first page with cursorReset when cursor saveId not in unfiltered set (stale cursor)", async () => {
       const items = [createTestSaveItem("01SAVE0000000000000000001A")];
       // Cursor points to a save that doesn't exist at all
-      const nextToken = Buffer.from("01NOTEXIST000000000000000A").toString(
-        "base64url"
-      );
+      const cursor = Buffer.from(
+        JSON.stringify({ saveId: "01NOTEXIST000000000000000A" })
+      ).toString("base64url");
 
       mockQueryAllItems.mockResolvedValueOnce({ items, truncated: false });
 
-      const event = createListEvent({ nextToken });
+      const event = createListEvent({ cursor });
       const result = await handler(event, mockContext);
 
-      assertADR008Error(result, ErrorCode.VALIDATION_ERROR, 400);
+      expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
-      expect(body.error.message).toContain("nextToken");
+      expect(body.data).toHaveLength(1);
+      expect(body.meta.cursorReset).toBe(true);
+      expect(result.headers?.["X-Cursor-Reset"]).toBe("true");
     });
 
     it("paginates filtered results across multiple pages", async () => {
@@ -870,22 +877,21 @@ describe("Saves List Handler — GET /saves", () => {
       const page1Result = await handler(page1Event, mockContext);
       const page1Body = JSON.parse(page1Result.body);
 
-      expect(page1Body.data.items).toHaveLength(2);
-      expect(page1Body.data.hasMore).toBe(true);
-      expect(page1Body.data.nextToken).toBeDefined();
+      expect(page1Body.data).toHaveLength(2);
+      expect(page1Body.meta.cursor).not.toBeNull();
 
-      // Page 2: same filter, use nextToken from page 1
+      // Page 2: same filter, use cursor from page 1
       mockQueryAllItems.mockResolvedValueOnce({ items, truncated: false });
       const page2Event = createListEvent({
         contentType: "video",
         limit: "2",
-        nextToken: page1Body.data.nextToken,
+        cursor: page1Body.meta.cursor,
       });
       const page2Result = await handler(page2Event, mockContext);
       const page2Body = JSON.parse(page2Result.body);
 
-      expect(page2Body.data.items).toHaveLength(1);
-      expect(page2Body.data.hasMore).toBe(false);
+      expect(page2Body.data).toHaveLength(1);
+      expect(page2Body.meta.cursor).toBeNull();
     });
   });
 

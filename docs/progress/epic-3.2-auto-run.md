@@ -1,9 +1,9 @@
 ---
 epic_id: Epic-3.2
-status: in-progress
-scope: ["3.2.1", "3.2.2", "3.2.3", "3.2.4"]
+status: done
+scope: ["3.2.1", "3.2.2", "3.2.3", "3.2.4", "3.2.5"]
 started: 2026-02-25T12:00:00Z
-last_updated: 2026-02-26T22:00:00Z
+last_updated: 2026-02-27T02:16:00Z
 stories:
   "3.2.1":
     {
@@ -37,10 +37,23 @@ stories:
     }
   "3.2.4":
     {
-      status: in-progress,
+      status: done,
       issue: 233,
+      pr: 234,
       branch: story-3-2-4-agent-identity-context-rate-limit,
       startedAt: "2026-02-26T22:00:00Z",
+      completedAt: "2026-02-26T23:00:00Z",
+      reviewRounds: 1,
+    }
+  "3.2.5":
+    {
+      status: done,
+      issue: 235,
+      pr: 236,
+      branch: story-3-2-5-cursor-based-pagination,
+      startedAt: "2026-02-26T23:30:00Z",
+      completedAt: "2026-02-27T02:16:00Z",
+      reviewRounds: 1,
     }
 ---
 
@@ -53,6 +66,8 @@ stories:
 | 3.2.1 | Done   | #226 | 1             | ~12h     |
 | 3.2.2 | Done   | #228 | 2             | ~18h     |
 | 3.2.3 | Done   | #230 | 1             | ~2h      |
+| 3.2.4 | Done   | #234 | 1             | ~1h      |
+| 3.2.5 | Done   | #236 | 1             | ~3h      |
 
 ## Activity Log
 
@@ -85,3 +100,12 @@ stories:
 - [20:15] Story 3.2.3: CI green, PR #230 merged to main
 - [20:15] Story 3.2.3: Status → done
 - [20:15] Epic 3.2: All 3 stories complete → status: done
+- [23:00] Story 3.2.4: Status → done (PR #234 merged to main)
+- [23:30] Story 3.2.5: Added to scope
+- [23:30] Story 3.2.5: Implementation starting (10 task groups, 20 ACs)
+- [01:30] Story 3.2.5: All tasks complete, quality gate passed (1,916 tests)
+- [01:45] Story 3.2.5: Code review round 1 — 20 findings (4 critical, 6 important, 10 minor)
+- [02:00] Story 3.2.5: 6 critical/important findings fixed (validation→db dep, mock fidelity, cursor validation, DoS prevention)
+- [02:15] Story 3.2.5: Pushed, PR #236 created (Closes #235)
+- [02:16] Story 3.2.5: Status → done
+- [02:16] Epic 3.2: All 5 stories complete → status: done

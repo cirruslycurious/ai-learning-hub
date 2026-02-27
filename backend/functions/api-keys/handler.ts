@@ -67,10 +67,11 @@ async function handlePost(ctx: HandlerContext) {
 }
 
 /**
- * GET /users/api-keys — List user's API keys (AC2).
+ * GET /users/api-keys — List user's API keys (AC2, Story 3.2.5 AC10).
+ * Returns envelope format: { data, meta: { cursor }, links: { self, next } }
  */
 async function handleGet(ctx: HandlerContext) {
-  const { event, auth, logger } = ctx;
+  const { event, auth, logger, requestId } = ctx;
   const userId = auth!.userId;
 
   const { limit, cursor } = validateQueryParams(
@@ -81,8 +82,23 @@ async function handleGet(ctx: HandlerContext) {
   const client = getDefaultClient();
   const result = await listApiKeys(client, userId, limit, cursor, logger);
 
+  const nextCursor = result.cursor ?? null;
+  const queryParams: Record<string, string> = { limit: String(limit) };
+  const selfQuery = new URLSearchParams(queryParams).toString();
+  const self = `/users/api-keys?${selfQuery}`;
+
+  let next: string | null = null;
+  if (nextCursor) {
+    const nextParams = new URLSearchParams(queryParams);
+    nextParams.set("cursor", nextCursor);
+    next = `/users/api-keys?${nextParams.toString()}`;
+  }
+
   logger.info("API keys listed", { userId, count: result.items.length });
-  return result;
+  return createSuccessResponse(result.items, requestId, {
+    meta: { cursor: nextCursor },
+    links: { self, next },
+  });
 }
 
 /**

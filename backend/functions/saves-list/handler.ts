@@ -3,6 +3,7 @@
  *
  * Story 3.2, Task 5: Paginated list of user's active saves.
  * Story 3.4: Filter, search, sort, and truncated flag.
+ * Story 3.2.5: Cursor-based pagination with envelope response format.
  * Uses in-memory ULID cursor pagination over queryAllItems results.
  */
 import {
@@ -10,26 +11,23 @@ import {
   queryAllItems,
   SAVES_TABLE_CONFIG,
   toPublicSave,
+  encodeCursor,
+  decodeCursor,
+  DEFAULT_PAGE_SIZE,
 } from "@ai-learning-hub/db";
-import { wrapHandler, type HandlerContext } from "@ai-learning-hub/middleware";
+import {
+  wrapHandler,
+  createSuccessResponse,
+  type HandlerContext,
+} from "@ai-learning-hub/middleware";
 import {
   validateQueryParams,
   listSavesQuerySchema,
 } from "@ai-learning-hub/validation";
 import { AppError, ErrorCode } from "@ai-learning-hub/types";
-import type { SaveItem } from "@ai-learning-hub/types";
+import type { SaveItem, EnvelopeMeta } from "@ai-learning-hub/types";
 
-const DEFAULT_LIMIT = 25;
 const CEILING = 1000;
-
-function encodeNextToken(saveId: string): string {
-  return Buffer.from(saveId).toString("base64url");
-}
-
-function decodeNextToken(token: string): string | undefined {
-  const decoded = Buffer.from(token, "base64url").toString("utf-8");
-  return /^[0-9A-Z]{26}$/.test(decoded) ? decoded : undefined;
-}
 
 /**
  * Apply in-memory filters: contentType, linkStatus, search.
@@ -110,7 +108,7 @@ function applySort(
 }
 
 async function savesListHandler(ctx: HandlerContext) {
-  const { event, auth, logger } = ctx;
+  const { event, auth, logger, requestId } = ctx;
   const userId = auth!.userId;
   const client = getDefaultClient();
 
@@ -118,8 +116,8 @@ async function savesListHandler(ctx: HandlerContext) {
     listSavesQuerySchema,
     event.queryStringParameters
   );
-  const limit = params.limit ?? DEFAULT_LIMIT;
-  const nextTokenParam = params.nextToken;
+  const limit = params.limit ?? DEFAULT_PAGE_SIZE;
+  const cursorParam = params.cursor;
 
   // Resolve default sort/order: desc for dates, asc for title
   const sortKey = params.sort ?? "createdAt";
@@ -160,48 +158,112 @@ async function savesListHandler(ctx: HandlerContext) {
 
   // Apply ULID cursor pagination over the filtered+sorted result set.
   let startIndex = 0;
-  if (nextTokenParam) {
-    const cursorSaveId = decodeNextToken(nextTokenParam);
+  let cursorReset = false;
+  const responseHeaders: Record<string, string> = {};
+
+  if (cursorParam) {
+    // Decode cursor using shared utility — validates format
+    let cursorSaveId: string | undefined;
+    try {
+      const decoded = decodeCursor(cursorParam);
+      const rawId = decoded.saveId;
+      if (typeof rawId === "string" && /^[0-9A-Z]{26}$/.test(rawId)) {
+        cursorSaveId = rawId;
+      }
+    } catch {
+      throw new AppError(ErrorCode.VALIDATION_ERROR, "Invalid cursor token", {
+        fields: [
+          {
+            field: "cursor",
+            message: "Invalid cursor token",
+            code: "invalid_string",
+          },
+        ],
+      });
+    }
+
     if (!cursorSaveId) {
-      throw new AppError(
-        ErrorCode.VALIDATION_ERROR,
-        "nextToken is invalid or has expired — restart pagination"
-      );
+      throw new AppError(ErrorCode.VALIDATION_ERROR, "Invalid cursor token", {
+        fields: [
+          {
+            field: "cursor",
+            message: "Invalid cursor token",
+            code: "invalid_string",
+          },
+        ],
+      });
     }
 
     // Check if cursor exists in unfiltered set (to distinguish stale from filter-changed)
     const inUnfiltered = activeSaves.some((s) => s.saveId === cursorSaveId);
     if (!inUnfiltered) {
-      // Stale cursor — save no longer exists
-      throw new AppError(
-        ErrorCode.VALIDATION_ERROR,
-        "nextToken is invalid or has expired — restart pagination"
-      );
-    }
-
-    // Check if cursor exists in filtered+sorted set
-    const idx = sorted.findIndex((s) => s.saveId === cursorSaveId);
-    if (idx === -1) {
-      // Cursor save exists but is not in current filtered/sorted list
-      // (filters changed between requests) → return first page
+      // Stale cursor — save deleted. Reset to first page (AC9)
       startIndex = 0;
+      cursorReset = true;
+      responseHeaders["X-Cursor-Reset"] = "true";
     } else {
-      startIndex = idx + 1;
+      // Check if cursor exists in filtered+sorted set
+      const idx = sorted.findIndex((s) => s.saveId === cursorSaveId);
+      if (idx === -1) {
+        // Cursor save exists but filters changed → reset to first page (AC9)
+        startIndex = 0;
+        cursorReset = true;
+        responseHeaders["X-Cursor-Reset"] = "true";
+      } else {
+        startIndex = idx + 1;
+      }
     }
   }
 
   const page = sorted.slice(startIndex, startIndex + limit);
   const hasMore = startIndex + limit < sorted.length;
-  const nextToken = hasMore
-    ? encodeNextToken(page[page.length - 1].saveId)
-    : undefined;
+  const nextCursor = hasMore
+    ? encodeCursor({ saveId: page[page.length - 1].saveId })
+    : null;
 
-  return {
-    items: page.map(toPublicSave),
-    ...(nextToken && { nextToken }),
-    hasMore,
-    ...(truncated && { truncated: true }),
+  // Build envelope meta (AC8)
+  const meta: EnvelopeMeta = {
+    cursor: nextCursor,
+    total: filtered.length,
   };
+  if (truncated) {
+    meta.truncated = true;
+  }
+  if (cursorReset) {
+    meta.cursorReset = true;
+  }
+
+  // Build links from validated params (AC3 — CRITICAL: use Zod-parsed params, not raw query)
+  const queryParams: Record<string, string> = {
+    limit: String(limit),
+  };
+  if (params.contentType) queryParams.contentType = params.contentType;
+  if (params.linkStatus) queryParams.linkStatus = params.linkStatus;
+  if (params.search) queryParams.search = params.search;
+  if (params.sort) queryParams.sort = params.sort;
+  if (params.order) queryParams.order = params.order;
+
+  const selfQuery = new URLSearchParams(queryParams).toString();
+  const self = selfQuery ? `/saves?${selfQuery}` : "/saves";
+
+  let next: string | null = null;
+  if (nextCursor) {
+    const nextParams = new URLSearchParams(queryParams);
+    nextParams.set("cursor", nextCursor);
+    next = `/saves?${nextParams.toString()}`;
+  }
+
+  const response = createSuccessResponse(page.map(toPublicSave), requestId, {
+    meta,
+    links: { self, next },
+  });
+
+  // Merge additional headers (X-Cursor-Reset)
+  if (Object.keys(responseHeaders).length > 0) {
+    response.headers = { ...response.headers, ...responseHeaders };
+  }
+
+  return response;
 }
 
 export const handler = wrapHandler(savesListHandler, {
