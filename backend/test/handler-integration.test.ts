@@ -78,7 +78,7 @@ describe("Handler Integration Tests (AC13-AC16)", () => {
     it("GET with valid JWT auth context returns 200 with key list", async () => {
       mockListApiKeys.mockResolvedValueOnce({
         items: [],
-        hasMore: false,
+        cursor: null,
       });
 
       const event = createMockEvent({
@@ -92,7 +92,7 @@ describe("Handler Integration Tests (AC13-AC16)", () => {
       const body = JSON.parse(result.body);
 
       expect(result.statusCode).toBe(200);
-      expect(body.data.items).toEqual([]);
+      expect(body.data).toEqual([]);
     });
   });
 

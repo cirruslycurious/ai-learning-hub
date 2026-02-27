@@ -216,7 +216,6 @@ describe("Invite Codes Handler", () => {
             expiresAt: "2026-02-22T12:00:00Z",
           },
         ],
-        hasMore: false,
       });
 
       mockToPublicInviteCode
@@ -239,17 +238,16 @@ describe("Invite Codes Handler", () => {
       const body = JSON.parse(result.body);
 
       expect(result.statusCode).toBe(200);
-      expect(body.data.items).toHaveLength(2);
-      expect(body.data.items[0].code).toBe("AbCd****");
-      expect(body.data.items[0].status).toBe("redeemed");
-      expect(body.data.items[1].code).toBe("EfGh87654321YYYY");
-      expect(body.data.items[1].status).toBe("active");
+      expect(body.data).toHaveLength(2);
+      expect(body.data[0].code).toBe("AbCd****");
+      expect(body.data[0].status).toBe("redeemed");
+      expect(body.data[1].code).toBe("EfGh87654321YYYY");
+      expect(body.data[1].status).toBe("active");
     });
 
     it("forwards pagination params to listInviteCodesByUser", async () => {
       mockListInviteCodesByUser.mockResolvedValueOnce({
         items: [],
-        hasMore: false,
       });
 
       const event = createEvent("GET", "user_123", {

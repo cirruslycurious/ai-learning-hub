@@ -326,9 +326,9 @@ describe("Event History Storage (Story 3.2.3)", () => {
 
       expect(result.nextCursor).toBeDefined();
       expect(result.nextCursor).not.toBeNull();
-      // Verify it's base64 encoded
+      // Verify it's base64url encoded
       const decoded = JSON.parse(
-        Buffer.from(result.nextCursor!, "base64").toString()
+        Buffer.from(result.nextCursor!, "base64url").toString()
       );
       expect(decoded.PK).toBe("EVENTS#save#abc");
     });
@@ -336,7 +336,7 @@ describe("Event History Storage (Story 3.2.3)", () => {
     it("should decode cursor to ExclusiveStartKey on subsequent call", async () => {
       const lastEvalKey = { PK: "EVENTS#save#abc", SK: "EVENT#2026" };
       const cursor = Buffer.from(JSON.stringify(lastEvalKey)).toString(
-        "base64"
+        "base64url"
       );
       mockSend.mockResolvedValueOnce({
         Items: [],

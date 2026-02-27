@@ -7,7 +7,9 @@ import type {
   ResponseEnvelope,
   FieldValidationError,
   PaginationParams,
+  PaginationOptions,
   PaginatedResponse,
+  CursorPayload,
   AuthContext,
   RequestContext,
 } from "../src/api.js";
@@ -56,16 +58,44 @@ describe("API Types", () => {
     });
   });
 
-  describe("PaginatedResponse", () => {
-    it("should accept valid paginated response", () => {
+  describe("PaginatedResponse (Story 3.2.5)", () => {
+    it("should accept response with cursor", () => {
       const response: PaginatedResponse<{ name: string }> = {
         items: [{ name: "test" }],
-        nextCursor: "cursor123",
-        hasMore: true,
+        cursor: "cursor123",
       };
 
       expect(response.items.length).toBe(1);
-      expect(response.hasMore).toBe(true);
+      expect(response.cursor).toBe("cursor123");
+    });
+
+    it("should accept response without cursor (last page)", () => {
+      const response: PaginatedResponse<{ name: string }> = {
+        items: [{ name: "test" }],
+      };
+
+      expect(response.items.length).toBe(1);
+      expect(response.cursor).toBeUndefined();
+    });
+  });
+
+  describe("CursorPayload (Story 3.2.5)", () => {
+    it("should accept any record shape", () => {
+      const payload: CursorPayload = { PK: "USER#123", SK: "SAVE#abc" };
+      expect(payload.PK).toBe("USER#123");
+    });
+  });
+
+  describe("PaginationOptions (Story 3.2.5)", () => {
+    it("should accept limit and cursor", () => {
+      const opts: PaginationOptions = { limit: 25, cursor: "abc" };
+      expect(opts.limit).toBe(25);
+    });
+
+    it("PaginationParams is alias for PaginationOptions", () => {
+      const params: PaginationParams = { limit: 10 };
+      const opts: PaginationOptions = params;
+      expect(opts.limit).toBe(10);
     });
   });
 

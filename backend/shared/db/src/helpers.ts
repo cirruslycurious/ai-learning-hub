@@ -21,6 +21,10 @@ import {
   type PaginatedResponse,
 } from "@ai-learning-hub/types";
 import { createLogger, type Logger } from "@ai-learning-hub/logging";
+import {
+  encodeCursor as sharedEncodeCursor,
+  decodeCursor as sharedDecodeCursor,
+} from "./pagination.js";
 
 /**
  * Require an environment variable, with optional test fallback.
@@ -192,26 +196,8 @@ export interface QueryParams {
 }
 
 /**
- * Decode cursor from base64
- */
-function decodeCursor(cursor: string): Record<string, unknown> | undefined {
-  try {
-    const decoded = Buffer.from(cursor, "base64").toString("utf-8");
-    return JSON.parse(decoded);
-  } catch {
-    return undefined;
-  }
-}
-
-/**
- * Encode cursor to base64
- */
-function encodeCursor(lastKey: Record<string, unknown>): string {
-  return Buffer.from(JSON.stringify(lastKey)).toString("base64");
-}
-
-/**
- * Query items with pagination
+ * Query items with pagination.
+ * Uses shared cursor utilities from pagination.ts (Story 3.2.5, AC4).
  */
 export async function queryItems<T>(
   client: DynamoDBDocumentClient,
@@ -221,6 +207,13 @@ export async function queryItems<T>(
 ): Promise<PaginatedResponse<T>> {
   const log = logger ?? createLogger();
   const startTime = Date.now();
+
+  // Decode cursor using shared utility — let validation errors propagate.
+  // All callers must validate cursors at the handler boundary (Story 3.2.5, AC1).
+  let exclusiveStartKey: Record<string, unknown> | undefined;
+  if (params.cursor) {
+    exclusiveStartKey = sharedDecodeCursor(params.cursor);
+  }
 
   const input: QueryCommandInput = {
     TableName: config.tableName,
@@ -238,30 +231,26 @@ export async function queryItems<T>(
     }),
     ...(params.consistentRead && { ConsistentRead: true }),
     ...(params.indexName && { IndexName: params.indexName }),
-    ...(params.cursor && {
-      ExclusiveStartKey: decodeCursor(params.cursor),
-    }),
+    ...(exclusiveStartKey && { ExclusiveStartKey: exclusiveStartKey }),
   };
 
   try {
     const result = await client.send(new QueryCommand(input));
     const items = (result.Items ?? []) as T[];
-    const hasMore = !!result.LastEvaluatedKey;
-    const nextCursor = result.LastEvaluatedKey
-      ? encodeCursor(result.LastEvaluatedKey)
+    const cursor = result.LastEvaluatedKey
+      ? sharedEncodeCursor(result.LastEvaluatedKey)
       : undefined;
 
     log.timed("DynamoDB Query", startTime, {
       table: config.tableName,
       index: params.indexName,
       count: items.length,
-      hasMore,
+      hasMore: !!result.LastEvaluatedKey,
     });
 
     return {
       items,
-      nextCursor,
-      hasMore,
+      cursor,
     };
   } catch (error) {
     log.error("DynamoDB Query failed", error as Error, {

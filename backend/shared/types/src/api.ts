@@ -20,6 +20,8 @@ export interface EnvelopeMeta {
   cursor?: string | null;
   total?: number;
   hasMore?: boolean;
+  cursorReset?: boolean;
+  truncated?: boolean;
   rateLimit?: RateLimitMeta;
 }
 
@@ -66,20 +68,28 @@ export interface FieldValidationError {
 export type ApiResponseMeta = EnvelopeMeta;
 
 /**
- * Pagination request parameters
+ * Generic cursor payload wrapper (Story 3.2.5)
  */
-export interface PaginationParams {
+export type CursorPayload = Record<string, unknown>;
+
+/**
+ * Pagination request parameters (Story 3.2.5)
+ */
+export interface PaginationOptions {
   limit?: number;
   cursor?: string;
 }
 
+/** @deprecated Use PaginationOptions instead */
+export type PaginationParams = PaginationOptions;
+
 /**
- * Paginated response with cursor-based pagination
+ * Paginated response with cursor-based pagination (Story 3.2.5)
+ * cursor replaces nextCursor; hasMore removed (implied by cursor nullness per FR105)
  */
 export interface PaginatedResponse<T> {
   items: T[];
-  nextCursor?: string;
-  hasMore: boolean;
+  cursor?: string;
 }
 
 /**

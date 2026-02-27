@@ -5,7 +5,11 @@
 import type { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { randomBytes, createHash } from "crypto";
 import { ulid } from "ulidx";
-import { AppError, ErrorCode } from "@ai-learning-hub/types";
+import {
+  AppError,
+  ErrorCode,
+  type PaginatedResponse,
+} from "@ai-learning-hub/types";
 import { createLogger, type Logger } from "@ai-learning-hub/logging";
 import {
   getItem,
@@ -341,11 +345,7 @@ export async function listApiKeys(
   limit: number = 20,
   cursor?: string,
   logger?: Logger
-): Promise<{
-  items: PublicApiKeyItem[];
-  hasMore: boolean;
-  nextCursor?: string;
-}> {
+): Promise<PaginatedResponse<PublicApiKeyItem>> {
   const log = logger ?? createLogger({ userId });
 
   const result = await queryItems<ApiKeyItem>(
@@ -377,8 +377,7 @@ export async function listApiKeys(
 
   return {
     items,
-    hasMore: result.hasMore,
-    nextCursor: result.nextCursor,
+    cursor: result.cursor,
   };
 }
 

@@ -13,6 +13,10 @@ import {
   type PublicEntityEvent,
 } from "@ai-learning-hub/types";
 import { queryEntityEvents } from "@ai-learning-hub/db";
+import {
+  validateQueryParams,
+  paginationQuerySchema,
+} from "@ai-learning-hub/validation";
 import type { HandlerContext } from "./wrapper.js";
 import { createSuccessResponse } from "./error-handler.js";
 
@@ -62,30 +66,12 @@ export function createEventHistoryHandler(config: EventHistoryHandlerConfig) {
       );
     }
 
-    // Parse query parameters
+    // Validate pagination params via shared schema (Story 3.2.5, AC13)
+    const { limit, cursor } = validateQueryParams(
+      paginationQuerySchema,
+      event.queryStringParameters
+    );
     const since = event.queryStringParameters?.since;
-    const limitParam = event.queryStringParameters?.limit;
-    const cursor = event.queryStringParameters?.cursor;
-
-    let limit: number | undefined;
-    if (limitParam) {
-      limit = parseInt(limitParam, 10);
-      if (isNaN(limit) || limit < 1) {
-        throw new AppError(
-          ErrorCode.VALIDATION_ERROR,
-          "Invalid query parameter",
-          {
-            fields: [
-              {
-                field: "limit",
-                message: "Must be a positive integer",
-                code: "invalid_type",
-              },
-            ],
-          }
-        );
-      }
-    }
 
     const result = await queryEntityEvents(
       config.client,
@@ -100,11 +86,11 @@ export function createEventHistoryHandler(config: EventHistoryHandlerConfig) {
       ({ PK: _PK, SK: _SK, ttl: _ttl, ...rest }) => rest
     );
 
+    // Story 3.2.5 AC12: use meta.cursor (not meta.nextCursor), remove hasMore
     return createSuccessResponse(publicEvents, requestId, {
       meta: {
         cursor: result.nextCursor,
         total: publicEvents.length,
-        hasMore: result.nextCursor !== null,
       },
     });
   };
