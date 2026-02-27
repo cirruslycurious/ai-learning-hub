@@ -30,6 +30,9 @@ export {
   saveIdPathSchema,
 } from "./schemas.js";
 
+// Event context metadata schema (Story 3.2.4)
+export { eventContextSchema } from "./event-context.js";
+
 // URL normalization
 export {
   normalizeUrl,

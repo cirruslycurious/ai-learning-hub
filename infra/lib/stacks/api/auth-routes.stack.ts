@@ -76,6 +76,19 @@ export class AuthRoutesStack extends cdk.Stack {
         "X-Amz-Date",
         "X-Api-Key",
         "X-Amz-Security-Token",
+        "Idempotency-Key", // Story 3.2.1
+        "If-Match", // Story 3.2.1
+        "X-Agent-ID", // Story 3.2.4
+      ],
+      exposeHeaders: [
+        "X-Request-Id",
+        "X-RateLimit-Limit", // Story 3.2.4
+        "X-RateLimit-Remaining", // Story 3.2.4
+        "X-RateLimit-Reset", // Story 3.2.4
+        "X-Agent-ID", // Story 3.2.4
+        "X-Idempotent-Replayed", // Story 3.2.1
+        "X-Idempotency-Status", // Story 3.2.1
+        "Retry-After", // Story 3.2.4
       ],
       maxAge: cdk.Duration.hours(1),
     };

@@ -40,6 +40,8 @@ function makeCtx(overrides: Partial<HandlerContext> = {}): HandlerContext {
     } as HandlerContext["event"],
     context: {} as HandlerContext["context"],
     auth: { userId: "user_abc123", roles: [], isApiKey: false },
+    agentId: null,
+    actorType: "human",
     requestId: "req-test-123",
     logger: {
       info: vi.fn(),

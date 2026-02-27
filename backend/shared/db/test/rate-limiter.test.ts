@@ -199,9 +199,8 @@ describe("enforceRateLimit", () => {
       Attributes: { count: 5 },
     });
 
-    await expect(
-      enforceRateLimit(mockClient, TABLE_NAME, config)
-    ).resolves.toBeUndefined();
+    const result = await enforceRateLimit(mockClient, TABLE_NAME, config);
+    expect(result).toEqual({ allowed: true, current: 5, limit: 10 });
   });
 
   it("throws RATE_LIMITED when over the limit (AC3)", async () => {

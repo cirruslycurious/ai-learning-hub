@@ -1,6 +1,7 @@
 /**
  * Standard API response types per ADR-008
  */
+import type { ActorType } from "./events.js";
 
 /**
  * Rate limit metadata for response envelope (AC11)
@@ -102,6 +103,14 @@ export interface RequestContext {
   traceId?: string;
   auth?: AuthContext;
   startTime: number;
+}
+
+/**
+ * Agent identity extracted from X-Agent-ID header (Story 3.2.4)
+ */
+export interface AgentIdentity {
+  agentId: string | null;
+  actorType: ActorType;
 }
 
 /**

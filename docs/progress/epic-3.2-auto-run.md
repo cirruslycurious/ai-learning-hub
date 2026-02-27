@@ -1,9 +1,9 @@
 ---
 epic_id: Epic-3.2
-status: done
-scope: ["3.2.1", "3.2.2", "3.2.3"]
+status: in-progress
+scope: ["3.2.1", "3.2.2", "3.2.3", "3.2.4"]
 started: 2026-02-25T12:00:00Z
-last_updated: 2026-02-26T20:15:00Z
+last_updated: 2026-02-26T22:00:00Z
 stories:
   "3.2.1":
     {
@@ -34,6 +34,13 @@ stories:
       startedAt: "2026-02-26T18:37:00Z",
       completedAt: "2026-02-26T20:15:00Z",
       reviewRounds: 1,
+    }
+  "3.2.4":
+    {
+      status: in-progress,
+      issue: 233,
+      branch: story-3-2-4-agent-identity-context-rate-limit,
+      startedAt: "2026-02-26T22:00:00Z",
     }
 ---
 

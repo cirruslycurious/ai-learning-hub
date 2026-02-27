@@ -161,7 +161,7 @@ export async function enforceRateLimit(
   tableName: string,
   config: RateLimitConfig,
   logger?: Logger
-): Promise<void> {
+): Promise<RateLimitResult> {
   const result = await incrementAndCheckRateLimit(
     client,
     tableName,
@@ -180,4 +180,6 @@ export async function enforceRateLimit(
       }
     );
   }
+
+  return result;
 }

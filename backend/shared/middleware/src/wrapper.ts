@@ -6,8 +6,20 @@ import type {
   APIGatewayProxyResult,
   Context,
 } from "aws-lambda";
-import { AppError, ErrorCode, type AuthContext } from "@ai-learning-hub/types";
+import {
+  AppError,
+  ErrorCode,
+  type AuthContext,
+  type ActorType,
+} from "@ai-learning-hub/types";
 import { createLogger, type Logger } from "@ai-learning-hub/logging";
+import {
+  incrementAndCheckRateLimit,
+  getDefaultClient,
+  requireEnv,
+  type RateLimitConfig,
+  type RateLimitResult,
+} from "@ai-learning-hub/db";
 import { handleError, createSuccessResponse } from "./error-handler.js";
 import { extractAuthContext, requireAuth } from "./auth.js";
 import {
@@ -17,6 +29,11 @@ import {
   type IdempotencyStatus,
 } from "./idempotency.js";
 import { extractIfMatch } from "./concurrency.js";
+import { extractAgentIdentity } from "./agent-identity.js";
+import {
+  addRateLimitHeaders,
+  type RateLimitMiddlewareConfig,
+} from "./rate-limit-headers.js";
 import { randomUUID } from "crypto";
 
 /**
@@ -39,6 +56,12 @@ export interface HandlerContext {
   logger: Logger;
   startTime: number;
   expectedVersion?: number;
+  /** Agent ID from X-Agent-ID header, null for human callers (Story 3.2.4) */
+  agentId: string | null;
+  /** Whether caller is human or agent (Story 3.2.4) */
+  actorType: ActorType;
+  /** Rate limit result when rateLimit middleware is active (Story 3.2.4) */
+  rateLimitResult?: RateLimitResult;
 }
 
 /**
@@ -57,6 +80,8 @@ export interface WrapperOptions {
   requiredScope?: string;
   idempotent?: boolean;
   requireVersion?: boolean;
+  /** Rate limit configuration — opt-in per handler (Story 3.2.4) */
+  rateLimit?: RateLimitMiddlewareConfig;
 }
 
 /**
@@ -78,6 +103,24 @@ function getTraceId(): string | undefined {
   if (!traceHeader) return undefined;
   const match = /Root=([^;]+)/.exec(traceHeader);
   return match?.[1];
+}
+
+/**
+ * Add X-Agent-ID echo header to a response (Story 3.2.4).
+ * Returns new response object without mutating the original.
+ */
+function echoAgentId(
+  response: APIGatewayProxyResult,
+  agentId: string | null
+): APIGatewayProxyResult {
+  if (!agentId) return response;
+  return {
+    ...response,
+    headers: {
+      ...(response.headers ?? {}),
+      "X-Agent-ID": agentId,
+    },
+  };
 }
 
 /**
@@ -126,6 +169,14 @@ export function wrapHandler<T = unknown>(
     // Track idempotency system availability across try/catch (AC9)
     const idempotencyStatus: IdempotencyStatus = { available: true };
 
+    // Hoist agent identity and rate limit result for catch-block access (Story 3.2.4)
+
+    let agentIdentity: { agentId: string | null; actorType: ActorType } = {
+      agentId: null,
+      actorType: "human",
+    };
+    let rateLimitResult: RateLimitResult | undefined;
+
     try {
       // Extract auth context
       let auth: AuthContext | null = null;
@@ -168,6 +219,81 @@ export function wrapHandler<T = unknown>(
         }
       }
 
+      // Extract agent identity (Story 3.2.4: always-on, zero-cost)
+      agentIdentity = extractAgentIdentity(event);
+
+      // Rate limit middleware (Story 3.2.4: opt-in via options.rateLimit)
+      if (options.rateLimit) {
+        // Resolve dynamic limit (fail-open if function throws)
+        let limit: number;
+        let skipRateLimit = false;
+        try {
+          limit =
+            typeof options.rateLimit.limit === "function"
+              ? options.rateLimit.limit(auth)
+              : options.rateLimit.limit;
+        } catch (err) {
+          logger.warn(
+            "Rate limit function threw (fail-open, skipping rate limit)",
+            { error: err }
+          );
+          skipRateLimit = true;
+          limit = 0; // unused — skip path below
+        }
+
+        if (!skipRateLimit) {
+          // Resolve identifier
+          const identifier =
+            options.rateLimit.identifierSource === "sourceIp"
+              ? (event.requestContext?.identity?.sourceIp ?? "unknown-ip")
+              : (auth?.userId ?? "anonymous");
+
+          const rateLimitConfig: RateLimitConfig = {
+            operation: options.rateLimit.operation,
+            identifier,
+            limit,
+            windowSeconds: options.rateLimit.windowSeconds,
+          };
+
+          try {
+            const rlClient = getDefaultClient();
+            const tableName = requireEnv(
+              "USERS_TABLE_NAME",
+              "ai-learning-hub-users"
+            );
+            const result = await incrementAndCheckRateLimit(
+              rlClient,
+              tableName,
+              rateLimitConfig,
+              logger
+            );
+
+            if (!result.allowed) {
+              const error = new AppError(
+                ErrorCode.RATE_LIMITED,
+                "Rate limit exceeded",
+                {
+                  limit: result.limit,
+                  current: result.current,
+                }
+              );
+              let errorResponse = handleError(error, requestId, logger);
+              errorResponse = addRateLimitHeaders(
+                errorResponse,
+                result,
+                options.rateLimit.windowSeconds
+              );
+              return echoAgentId(errorResponse, agentIdentity.agentId);
+            }
+
+            rateLimitResult = result;
+          } catch (err) {
+            // Fail-open: rate limiting is best-effort
+            logger.warn("Rate limit check failed (fail-open)", { error: err });
+          }
+        }
+      }
+
       // Idempotency check (AC7: before handler execution)
       let idempotencyKey: string | undefined;
       if (options.idempotent) {
@@ -202,7 +328,10 @@ export function wrapHandler<T = unknown>(
         requestId,
         logger,
         startTime,
+        agentId: agentIdentity.agentId,
+        actorType: agentIdentity.actorType,
         ...(expectedVersion !== undefined && { expectedVersion }),
+        ...(rateLimitResult !== undefined && { rateLimitResult }),
       };
 
       // Execute handler
@@ -282,7 +411,17 @@ export function wrapHandler<T = unknown>(
         };
       }
 
-      return finalResult;
+      // Story 3.2.4: Add rate limit headers to response (success or error)
+      if (rateLimitResult && options.rateLimit) {
+        finalResult = addRateLimitHeaders(
+          finalResult,
+          rateLimitResult,
+          options.rateLimit.windowSeconds
+        );
+      }
+
+      // Story 3.2.4: Echo X-Agent-ID in response when present
+      return echoAgentId(finalResult, agentIdentity.agentId);
     } catch (error) {
       const errorResponse = handleError(error, requestId, logger);
 
@@ -294,7 +433,18 @@ export function wrapHandler<T = unknown>(
         ] = "unavailable";
       }
 
-      return errorResponse;
+      // Story 3.2.4: Add rate limit headers to error response
+      if (rateLimitResult && options.rateLimit) {
+        const decorated = addRateLimitHeaders(
+          errorResponse,
+          rateLimitResult,
+          options.rateLimit.windowSeconds
+        );
+        errorResponse.headers = decorated.headers;
+      }
+
+      // Story 3.2.4: Echo X-Agent-ID in error response when present
+      return echoAgentId(errorResponse, agentIdentity.agentId);
     }
   };
 }
