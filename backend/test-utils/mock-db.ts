@@ -51,6 +51,11 @@ export function mockDbModule(
       partitionKey: "PK",
       sortKey: "SK",
     },
+    INVITE_CODES_TABLE_CONFIG: {
+      tableName: "ai-learning-hub-invite-codes",
+      partitionKey: "PK",
+      sortKey: "SK",
+    },
     toPublicSave: (item: SaveItem) => {
       const { PK: _PK, SK: _SK, deletedAt: _del, ...rest } = item;
       return rest;

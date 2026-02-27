@@ -86,11 +86,10 @@ export function createEventHistoryHandler(config: EventHistoryHandlerConfig) {
       ({ PK: _PK, SK: _SK, ttl: _ttl, ...rest }) => rest
     );
 
-    // Story 3.2.5 AC12: use meta.cursor (not meta.nextCursor), remove hasMore
+    // Story 3.2.5 AC12: use meta.cursor, no hasMore or total
     return createSuccessResponse(publicEvents, requestId, {
       meta: {
-        cursor: result.nextCursor,
-        total: publicEvents.length,
+        cursor: result.cursor,
       },
     });
   };

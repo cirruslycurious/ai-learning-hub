@@ -103,7 +103,7 @@ describe("Event History Handler (Story 3.2.3)", () => {
     it("should pass correct userId and entityId to entityExistsFn", async () => {
       mockQueryEntityEvents.mockResolvedValueOnce({
         events: [],
-        nextCursor: null,
+        cursor: null,
       });
 
       await handler(makeCtx());
@@ -136,7 +136,7 @@ describe("Event History Handler (Story 3.2.3)", () => {
             ttl: 1740000000,
           },
         ],
-        nextCursor: null,
+        cursor: null,
       });
 
       const result = await handler(makeCtx());
@@ -152,7 +152,7 @@ describe("Event History Handler (Story 3.2.3)", () => {
     it("should pass since, limit, cursor from query string", async () => {
       mockQueryEntityEvents.mockResolvedValueOnce({
         events: [],
-        nextCursor: null,
+        cursor: null,
       });
 
       const ctx = makeCtx({
@@ -180,7 +180,7 @@ describe("Event History Handler (Story 3.2.3)", () => {
     it("should use default limit (25) when not provided", async () => {
       mockQueryEntityEvents.mockResolvedValueOnce({
         events: [],
-        nextCursor: null,
+        cursor: null,
       });
 
       await handler(makeCtx());
@@ -248,7 +248,7 @@ describe("Event History Handler (Story 3.2.3)", () => {
   });
 
   describe("response envelope", () => {
-    it("should return 200 with data array and meta containing cursor and total", async () => {
+    it("should return 200 with data array and meta containing cursor", async () => {
       const mockEvents: EntityEvent[] = [
         {
           PK: "EVENTS#save#entity-123",
@@ -285,7 +285,7 @@ describe("Event History Handler (Story 3.2.3)", () => {
       ];
       mockQueryEntityEvents.mockResolvedValueOnce({
         events: mockEvents,
-        nextCursor: "nextpage123",
+        cursor: "nextpage123",
       });
 
       const result = await handler(makeCtx());
@@ -294,7 +294,6 @@ describe("Event History Handler (Story 3.2.3)", () => {
       const body = JSON.parse((result as { body: string }).body);
       expect(body.data).toHaveLength(2);
       expect(body.meta.cursor).toBe("nextpage123");
-      expect(body.meta.total).toBe(2);
     });
 
     it("should strip PK, SK, and ttl from events in response", async () => {
@@ -318,7 +317,7 @@ describe("Event History Handler (Story 3.2.3)", () => {
       ];
       mockQueryEntityEvents.mockResolvedValueOnce({
         events: mockEvents,
-        nextCursor: null,
+        cursor: null,
       });
 
       const result = await handler(makeCtx());
@@ -350,7 +349,7 @@ describe("Event History Handler (Story 3.2.3)", () => {
             ttl: 1740000000,
           },
         ],
-        nextCursor: null,
+        cursor: null,
       });
 
       const result = await handler(makeCtx());
@@ -362,21 +361,20 @@ describe("Event History Handler (Story 3.2.3)", () => {
     it("should return empty data array for entity with no events", async () => {
       mockQueryEntityEvents.mockResolvedValueOnce({
         events: [],
-        nextCursor: null,
+        cursor: null,
       });
 
       const result = await handler(makeCtx());
 
       const body = JSON.parse((result as { body: string }).body);
       expect(body.data).toEqual([]);
-      expect(body.meta.total).toBe(0);
       expect(body.meta.cursor).toBeNull();
     });
 
     it("should include X-Request-Id header in response", async () => {
       mockQueryEntityEvents.mockResolvedValueOnce({
         events: [],
-        nextCursor: null,
+        cursor: null,
       });
 
       const result = await handler(makeCtx());

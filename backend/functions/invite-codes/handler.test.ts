@@ -11,6 +11,7 @@ import {
   createMockContext,
   mockCreateLoggerModule,
   mockMiddlewareModule,
+  mockDbModule,
   assertADR008Error,
 } from "../../test-utils/index.js";
 
@@ -19,26 +20,16 @@ const mockCreateInviteCode = vi.fn();
 const mockListInviteCodesByUser = vi.fn();
 const mockToPublicInviteCode = vi.fn();
 const mockEnforceRateLimit = vi.fn();
-const mockGetDefaultClient = vi.fn(() => ({}));
 
-vi.mock("@ai-learning-hub/db", () => ({
-  getDefaultClient: () => mockGetDefaultClient(),
-  createInviteCode: (...args: unknown[]) => mockCreateInviteCode(...args),
-  listInviteCodesByUser: (...args: unknown[]) =>
-    mockListInviteCodesByUser(...args),
-  toPublicInviteCode: (...args: unknown[]) => mockToPublicInviteCode(...args),
-  enforceRateLimit: (...args: unknown[]) => mockEnforceRateLimit(...args),
-  INVITE_CODES_TABLE_CONFIG: {
-    tableName: "ai-learning-hub-invite-codes",
-    partitionKey: "PK",
-    sortKey: "SK",
-  },
-  USERS_TABLE_CONFIG: {
-    tableName: "ai-learning-hub-users",
-    partitionKey: "PK",
-    sortKey: "SK",
-  },
-}));
+vi.mock("@ai-learning-hub/db", () =>
+  mockDbModule({
+    createInviteCode: (...args: unknown[]) => mockCreateInviteCode(...args),
+    listInviteCodesByUser: (...args: unknown[]) =>
+      mockListInviteCodesByUser(...args),
+    toPublicInviteCode: (...args: unknown[]) => mockToPublicInviteCode(...args),
+    enforceRateLimit: (...args: unknown[]) => mockEnforceRateLimit(...args),
+  })
+);
 
 // Mock @ai-learning-hub/logging
 vi.mock("@ai-learning-hub/logging", () => mockCreateLoggerModule());

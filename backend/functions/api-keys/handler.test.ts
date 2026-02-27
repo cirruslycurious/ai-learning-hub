@@ -11,6 +11,7 @@ import {
   createMockContext,
   mockCreateLoggerModule,
   mockMiddlewareModule,
+  mockDbModule,
   assertADR008Error,
 } from "../../test-utils/index.js";
 
@@ -19,20 +20,15 @@ const mockCreateApiKey = vi.fn();
 const mockListApiKeys = vi.fn();
 const mockRevokeApiKey = vi.fn();
 const mockEnforceRateLimit = vi.fn();
-const mockGetDefaultClient = vi.fn(() => ({}));
 
-vi.mock("@ai-learning-hub/db", () => ({
-  getDefaultClient: () => mockGetDefaultClient(),
-  createApiKey: (...args: unknown[]) => mockCreateApiKey(...args),
-  listApiKeys: (...args: unknown[]) => mockListApiKeys(...args),
-  revokeApiKey: (...args: unknown[]) => mockRevokeApiKey(...args),
-  enforceRateLimit: (...args: unknown[]) => mockEnforceRateLimit(...args),
-  USERS_TABLE_CONFIG: {
-    tableName: "ai-learning-hub-users",
-    partitionKey: "PK",
-    sortKey: "SK",
-  },
-}));
+vi.mock("@ai-learning-hub/db", () =>
+  mockDbModule({
+    createApiKey: (...args: unknown[]) => mockCreateApiKey(...args),
+    listApiKeys: (...args: unknown[]) => mockListApiKeys(...args),
+    revokeApiKey: (...args: unknown[]) => mockRevokeApiKey(...args),
+    enforceRateLimit: (...args: unknown[]) => mockEnforceRateLimit(...args),
+  })
+);
 
 // Mock @ai-learning-hub/logging
 vi.mock("@ai-learning-hub/logging", () => mockCreateLoggerModule());

@@ -324,11 +324,11 @@ describe("Event History Storage (Story 3.2.3)", () => {
 
       const result = await queryEntityEvents(mockClient, "save", "abc123");
 
-      expect(result.nextCursor).toBeDefined();
-      expect(result.nextCursor).not.toBeNull();
+      expect(result.cursor).toBeDefined();
+      expect(result.cursor).not.toBeNull();
       // Verify it's base64url encoded
       const decoded = JSON.parse(
-        Buffer.from(result.nextCursor!, "base64url").toString()
+        Buffer.from(result.cursor!, "base64url").toString()
       );
       expect(decoded.PK).toBe("EVENTS#save#abc");
     });
@@ -349,7 +349,7 @@ describe("Event History Storage (Story 3.2.3)", () => {
       expect(input.ExclusiveStartKey).toEqual(lastEvalKey);
     });
 
-    it("should return nextCursor: null when no LastEvaluatedKey (last page)", async () => {
+    it("should return cursor: null when no LastEvaluatedKey (last page)", async () => {
       mockSend.mockResolvedValueOnce({
         Items: [{ PK: "test", SK: "test" }],
         LastEvaluatedKey: undefined,
@@ -357,7 +357,7 @@ describe("Event History Storage (Story 3.2.3)", () => {
 
       const result = await queryEntityEvents(mockClient, "save", "abc123");
 
-      expect(result.nextCursor).toBeNull();
+      expect(result.cursor).toBeNull();
     });
 
     it("should return empty array for entity with no events", async () => {
@@ -369,7 +369,7 @@ describe("Event History Storage (Story 3.2.3)", () => {
       const result = await queryEntityEvents(mockClient, "save", "nonexistent");
 
       expect(result.events).toEqual([]);
-      expect(result.nextCursor).toBeNull();
+      expect(result.cursor).toBeNull();
     });
   });
 });

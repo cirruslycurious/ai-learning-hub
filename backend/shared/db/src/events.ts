@@ -297,6 +297,6 @@ export async function queryEntityEvents(
 
   return {
     events: result.items,
-    nextCursor: result.cursor ?? null,
+    cursor: result.cursor ?? null,
   };
 }
