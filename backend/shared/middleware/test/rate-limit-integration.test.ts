@@ -48,7 +48,6 @@ vi.mock("../src/concurrency.js", () => ({
   extractIfMatch: vi.fn(),
 }));
 
- 
 const { incrementAndCheckRateLimit } = await import("@ai-learning-hub/db");
 
 function makeEvent(headers: Record<string, string> = {}): APIGatewayProxyEvent {
