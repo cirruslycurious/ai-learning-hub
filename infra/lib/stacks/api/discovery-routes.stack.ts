@@ -163,6 +163,11 @@ export class DiscoveryRoutesStack extends cdk.Stack {
           "Lambda basic execution role (CloudWatch Logs, X-Ray) is managed by CDK construct",
       },
       {
+        id: "AwsSolutions-IAM5",
+        reason:
+          "X-Ray tracing (Tracing.ACTIVE) generates wildcard Resource::* policy managed by CDK construct",
+      },
+      {
         id: "AwsSolutions-L1",
         reason:
           "Using NODEJS_LATEST which resolves to the latest stable Node.js runtime supported by CDK",
