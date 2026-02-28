@@ -78,5 +78,16 @@ export {
   type RateLimitMiddlewareConfig,
 } from "./rate-limit-headers.js";
 
+// Scope resolution (Story 3.2.6)
+export {
+  SCOPE_GRANTS,
+  VALID_SCOPES,
+  resolveScopeGrants,
+  checkScopeAccess,
+} from "./scope-resolver.js";
+
+// Re-export scope types from types package (Story 3.2.6)
+export type { ApiKeyScope, OperationScope } from "@ai-learning-hub/types";
+
 // SSM utilities
 export { getClerkSecretKey, resetClerkSecretKeyCache } from "./ssm.js";

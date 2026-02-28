@@ -8,6 +8,26 @@
  */
 import { vi } from "vitest";
 import type { APIGatewayProxyEvent, Context } from "aws-lambda";
+// Import directly from scope-resolver source (not @ai-learning-hub/middleware barrel)
+// so vi.mock("@ai-learning-hub/middleware") in handler tests does not intercept it.
+import { checkScopeAccess } from "../shared/middleware/src/scope-resolver.js";
+
+/**
+ * Parse raw scopes from authorizer context (array or JSON string).
+ * Mirrors real middleware parsing in auth.ts.
+ */
+function parseScopes(raw: unknown): string[] | undefined {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
 
 /** Shape of a mock logger matching @ai-learning-hub/logging Logger */
 export interface MockLogger {
@@ -206,30 +226,17 @@ export function mockMiddlewareModule(
           }
         }
 
-        // Simulate scope enforcement for API key auth (AC15)
-        // Match real middleware: check isApiKey field (boolean or string "true")
+        // Simulate scope enforcement for API key auth (Story 3.2.6)
+        // Uses real checkScopeAccess from scope-resolver (imported directly)
         if (opts.requiredScope) {
           const authorizer = event.requestContext?.authorizer;
           if (
             authorizer?.isApiKey === true ||
             authorizer?.isApiKey === "true"
           ) {
-            const rawScopes = authorizer.scopes;
-            let scopes: string[] = [];
-            if (Array.isArray(rawScopes)) {
-              scopes = rawScopes;
-            } else if (typeof rawScopes === "string") {
-              try {
-                const parsed = JSON.parse(rawScopes);
-                scopes = Array.isArray(parsed) ? parsed : [];
-              } catch {
-                scopes = [];
-              }
-            }
-            if (
-              !scopes.includes("*") &&
-              !scopes.includes(opts.requiredScope as string)
-            ) {
+            const scopes = parseScopes(authorizer.scopes) ?? [];
+            const required = opts.requiredScope as string;
+            if (!checkScopeAccess(scopes, required)) {
               return {
                 statusCode: 403,
                 headers: {
@@ -239,8 +246,13 @@ export function mockMiddlewareModule(
                 body: JSON.stringify({
                   error: {
                     code: "SCOPE_INSUFFICIENT",
-                    message: "API key lacks required scope",
+                    message: `API key lacks required scope: ${required}`,
                     requestId: "test-req-id",
+                    details: {
+                      required_scope: required,
+                      granted_scopes: scopes,
+                    },
+                    allowedActions: ["request-api-key-with-scope"],
                   },
                 }),
               };
@@ -251,25 +263,11 @@ export function mockMiddlewareModule(
         const authorizer = event.requestContext?.authorizer;
         let auth = null;
         if (authorizer) {
-          // Parse scopes: may be an array (from test code) or a JSON string
-          // (from API Gateway). Mirrors real middleware behavior.
-          const rawScopes = authorizer.scopes;
-          let scopes: string[] | undefined;
-          if (Array.isArray(rawScopes)) {
-            scopes = rawScopes;
-          } else if (typeof rawScopes === "string") {
-            try {
-              const parsed = JSON.parse(rawScopes);
-              scopes = Array.isArray(parsed) ? parsed : undefined;
-            } catch {
-              scopes = undefined;
-            }
-          }
+          const scopes = parseScopes(authorizer.scopes);
 
           auth = {
             userId: authorizer.userId as string,
             roles: [(authorizer.role as string) || "user"],
-            // Match real middleware: check isApiKey field (boolean or string "true")
             isApiKey:
               authorizer.isApiKey === true || authorizer.isApiKey === "true",
             ...(scopes ? { scopes } : {}),

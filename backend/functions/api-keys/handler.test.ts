@@ -89,12 +89,12 @@ describe("API Keys Handler", () => {
       expect(body.data.createdAt).toBeDefined();
     });
 
-    it("calls createApiKey with correct arguments", async () => {
+    it("calls createApiKey with correct arguments (AC12: * normalized to full)", async () => {
       mockCreateApiKey.mockResolvedValueOnce({
         id: "key_01",
         name: "Test",
         key: "test-key",
-        scopes: ["*"],
+        scopes: ["full"],
         createdAt: "2026-02-16T12:00:00Z",
       });
 
@@ -109,7 +109,7 @@ describe("API Keys Handler", () => {
         expect.anything(),
         "user_abc",
         "Test",
-        ["*"],
+        ["full"],
         expect.anything()
       );
     });

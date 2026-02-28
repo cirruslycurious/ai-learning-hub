@@ -310,30 +310,94 @@ describe("Validation Schemas", () => {
     });
   });
 
-  describe("apiKeyScopeSchema", () => {
-    it("should accept valid scopes", () => {
-      const scopes = ["*", "saves:write", "saves:read"];
-      for (const scope of scopes) {
+  describe("apiKeyScopeSchema (Story 3.2.6, AC20)", () => {
+    it("should accept all 5 named tiers", () => {
+      const tiers = [
+        "full",
+        "capture",
+        "read",
+        "saves:write",
+        "projects:write",
+      ];
+      for (const scope of tiers) {
         const result = apiKeyScopeSchema.safeParse(scope);
-        expect(result.success).toBe(true);
+        expect(result.success, `${scope} should be accepted`).toBe(true);
       }
     });
 
-    it("should reject invalid scope", () => {
-      const result = apiKeyScopeSchema.safeParse("invalid:scope");
-      expect(result.success).toBe(false);
+    it("should accept legacy values * and saves:read (backward compat)", () => {
+      expect(apiKeyScopeSchema.safeParse("*").success).toBe(true);
+      expect(apiKeyScopeSchema.safeParse("saves:read").success).toBe(true);
+    });
+
+    it("should reject invalid scope values", () => {
+      expect(apiKeyScopeSchema.safeParse("admin").success).toBe(false);
+      expect(apiKeyScopeSchema.safeParse("delete:all").success).toBe(false);
+      expect(apiKeyScopeSchema.safeParse("").success).toBe(false);
+      expect(apiKeyScopeSchema.safeParse("saves:delete").success).toBe(false);
     });
   });
 
-  describe("apiKeyScopesSchema", () => {
-    it("should accept valid scopes array", () => {
+  describe("apiKeyScopesSchema (Story 3.2.6, AC12/AC20)", () => {
+    it("should accept valid scopes array with named tiers", () => {
+      expect(apiKeyScopesSchema.safeParse(["full"]).success).toBe(true);
+      expect(apiKeyScopesSchema.safeParse(["capture"]).success).toBe(true);
+      expect(apiKeyScopesSchema.safeParse(["read"]).success).toBe(true);
+    });
+
+    it("should accept * (backward compat)", () => {
       const result = apiKeyScopesSchema.safeParse(["*"]);
       expect(result.success).toBe(true);
+    });
+
+    it("should normalize * to full (AC12)", () => {
+      const result = apiKeyScopesSchema.safeParse(["*"]);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual(["full"]);
+      }
+    });
+
+    it("should deduplicate after normalization (AC12)", () => {
+      const result = apiKeyScopesSchema.safeParse(["*", "full"]);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual(["full"]);
+      }
+    });
+
+    it("should accept combined tiers", () => {
+      const result = apiKeyScopesSchema.safeParse([
+        "saves:write",
+        "projects:write",
+      ]);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual(["saves:write", "projects:write"]);
+      }
+    });
+
+    it("should deduplicate duplicate tiers", () => {
+      const result = apiKeyScopesSchema.safeParse(["read", "read", "capture"]);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual(["read", "capture"]);
+      }
     });
 
     it("should reject empty array", () => {
       const result = apiKeyScopesSchema.safeParse([]);
       expect(result.success).toBe(false);
+    });
+
+    it("should reject array with invalid scope", () => {
+      expect(apiKeyScopesSchema.safeParse(["admin"]).success).toBe(false);
+      expect(apiKeyScopesSchema.safeParse(["delete:all"]).success).toBe(false);
+    });
+
+    it("should require minimum 1 scope", () => {
+      expect(apiKeyScopesSchema.safeParse([]).success).toBe(false);
+      expect(apiKeyScopesSchema.safeParse(["capture"]).success).toBe(true);
     });
   });
 

@@ -268,10 +268,14 @@ describe("Handler Wrapper", () => {
       expect(result.statusCode).toBe(403);
       const body = JSON.parse(result.body);
       expect(body.error.code).toBe("SCOPE_INSUFFICIENT");
+      expect(body.error.message).toBe(
+        "API key lacks required scope: saves:write"
+      );
       expect(body.error.details).toEqual({
-        requiredScope: "saves:write",
-        keyScopes: ["saves:read"],
+        required_scope: "saves:write",
+        granted_scopes: ["saves:read"],
       });
+      expect(body.error.allowedActions).toEqual(["request-api-key-with-scope"]);
     });
 
     it("should include request ID in response headers", async () => {

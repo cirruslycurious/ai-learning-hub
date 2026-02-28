@@ -3,7 +3,14 @@
  * Full implementation will come in Epic 2 (Authentication)
  */
 import type { APIGatewayProxyEvent } from "aws-lambda";
-import { AppError, ErrorCode, type AuthContext } from "@ai-learning-hub/types";
+import {
+  AppError,
+  ErrorCode,
+  type AuthContext,
+  type ApiKeyScope,
+} from "@ai-learning-hub/types";
+import type { OperationScope } from "@ai-learning-hub/types";
+import { checkScopeAccess, VALID_SCOPES } from "./scope-resolver.js";
 
 /**
  * Extract auth context from API Gateway event
@@ -36,13 +43,16 @@ export function extractAuthContext(
     }
 
     const rawScopes = authorizerContext.scopes;
-    let scopes: string[] | undefined;
+    let scopes: ApiKeyScope[] | undefined;
     if (Array.isArray(rawScopes)) {
-      scopes = rawScopes;
+      // Runtime-validate: drop unrecognized scopes to prevent privilege escalation
+      scopes = rawScopes.filter((s) => VALID_SCOPES.has(s)) as ApiKeyScope[];
     } else if (typeof rawScopes === "string") {
       try {
         const parsed = JSON.parse(rawScopes);
-        scopes = Array.isArray(parsed) ? parsed : undefined;
+        scopes = Array.isArray(parsed)
+          ? (parsed.filter((s: string) => VALID_SCOPES.has(s)) as ApiKeyScope[])
+          : undefined;
       } catch {
         scopes = undefined;
       }
@@ -106,25 +116,27 @@ export function requireRole(auth: AuthContext, requiredRoles: string[]): void {
 }
 
 /**
- * Require specific API key scope
+ * Require specific API key scope (Story 3.2.6, AC3/AC5/AC6).
+ * Uses hierarchical scope resolution via checkScopeAccess.
  */
-export function requireScope(auth: AuthContext, requiredScope: string): void {
+export function requireScope(
+  auth: AuthContext,
+  requiredScope: OperationScope
+): void {
   if (!auth.isApiKey) {
     // JWT auth has all scopes by default
     return;
   }
 
   const scopes = auth.scopes ?? [];
-  const hasWildcard = scopes.includes("*");
-  const hasScope = scopes.includes(requiredScope);
-
-  if (!hasWildcard && !hasScope) {
+  if (!checkScopeAccess(scopes, requiredScope)) {
     throw new AppError(
       ErrorCode.SCOPE_INSUFFICIENT,
-      "API key lacks required scope",
+      `API key lacks required scope: ${requiredScope}`,
       {
-        requiredScope,
-        keyScopes: scopes,
+        required_scope: requiredScope,
+        granted_scopes: scopes,
+        allowedActions: ["request-api-key-with-scope"],
       }
     );
   }

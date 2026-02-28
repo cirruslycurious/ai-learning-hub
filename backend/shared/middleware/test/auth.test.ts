@@ -5,7 +5,7 @@ import {
   requireRole,
   requireScope,
 } from "../src/auth.js";
-import { AppError, ErrorCode } from "@ai-learning-hub/types";
+import { AppError, ErrorCode, type ApiKeyScope } from "@ai-learning-hub/types";
 import type { APIGatewayProxyEvent } from "aws-lambda";
 
 // Helper to create mock API Gateway event
@@ -304,7 +304,7 @@ describe("Auth Middleware", () => {
         userId: "user_123",
         roles: ["user"],
         isApiKey: true,
-        scopes: ["*"],
+        scopes: ["*"] as ApiKeyScope[],
       };
 
       expect(() => requireScope(auth, "saves:write")).not.toThrow();
@@ -315,7 +315,7 @@ describe("Auth Middleware", () => {
         userId: "user_123",
         roles: ["user"],
         isApiKey: true,
-        scopes: ["saves:write"],
+        scopes: ["saves:write"] as ApiKeyScope[],
       };
 
       expect(() => requireScope(auth, "saves:write")).not.toThrow();
@@ -327,7 +327,7 @@ describe("Auth Middleware", () => {
         userId: "user_123",
         roles: ["user"],
         isApiKey: true,
-        scopes: ["saves:read"],
+        scopes: ["saves:read"] as ApiKeyScope[],
       };
 
       expect(() => requireScope(auth, "saves:write")).toThrow(AppError);
@@ -348,6 +348,86 @@ describe("Auth Middleware", () => {
       };
 
       expect(() => requireScope(auth, "saves:write")).toThrow(AppError);
+    });
+
+    // Story 3.2.6 — hierarchical scope resolution (AC19)
+    it("full scope satisfies any required scope", () => {
+      const auth = {
+        userId: "user_123",
+        roles: ["user"],
+        isApiKey: true,
+        scopes: ["full"] as ApiKeyScope[],
+      };
+      expect(() => requireScope(auth, "saves:create")).not.toThrow();
+      expect(() => requireScope(auth, "keys:manage")).not.toThrow();
+    });
+
+    it("capture scope satisfies saves:create but rejects saves:read", () => {
+      const auth = {
+        userId: "user_123",
+        roles: ["user"],
+        isApiKey: true,
+        scopes: ["capture"] as ApiKeyScope[],
+      };
+      expect(() => requireScope(auth, "saves:create")).not.toThrow();
+      expect(() => requireScope(auth, "saves:read")).toThrow(AppError);
+    });
+
+    it("read scope satisfies saves:read but rejects saves:write", () => {
+      const auth = {
+        userId: "user_123",
+        roles: ["user"],
+        isApiKey: true,
+        scopes: ["read"] as ApiKeyScope[],
+      };
+      expect(() => requireScope(auth, "saves:read")).not.toThrow();
+      expect(() => requireScope(auth, "projects:read")).not.toThrow();
+      expect(() => requireScope(auth, "saves:write")).toThrow(AppError);
+    });
+
+    it("saves:write satisfies saves:read (implicit read from write)", () => {
+      const auth = {
+        userId: "user_123",
+        roles: ["user"],
+        isApiKey: true,
+        scopes: ["saves:write"] as ApiKeyScope[],
+      };
+      expect(() => requireScope(auth, "saves:read")).not.toThrow();
+      expect(() => requireScope(auth, "saves:create")).not.toThrow();
+    });
+
+    it("combined tiers work", () => {
+      const auth = {
+        userId: "user_123",
+        roles: ["user"],
+        isApiKey: true,
+        scopes: ["capture", "read"] as ApiKeyScope[],
+      };
+      expect(() => requireScope(auth, "saves:create")).not.toThrow();
+      expect(() => requireScope(auth, "saves:read")).not.toThrow();
+      expect(() => requireScope(auth, "saves:write")).toThrow(AppError);
+    });
+
+    it("SCOPE_INSUFFICIENT error includes required_scope, granted_scopes, allowedActions (AC5/AC6)", () => {
+      const auth = {
+        userId: "user_123",
+        roles: ["user"],
+        isApiKey: true,
+        scopes: ["capture"] as ApiKeyScope[],
+      };
+      try {
+        requireScope(auth, "saves:read");
+      } catch (e) {
+        if (AppError.isAppError(e)) {
+          expect(e.code).toBe(ErrorCode.SCOPE_INSUFFICIENT);
+          expect(e.message).toBe("API key lacks required scope: saves:read");
+          expect(e.details).toEqual({
+            required_scope: "saves:read",
+            granted_scopes: ["capture"],
+            allowedActions: ["request-api-key-with-scope"],
+          });
+        }
+      }
     });
   });
 
