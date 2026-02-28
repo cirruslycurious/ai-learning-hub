@@ -89,5 +89,27 @@ export {
 // Re-export scope types from types package (Story 3.2.6)
 export type { ApiKeyScope, OperationScope } from "@ai-learning-hub/types";
 
+// Action discoverability (Story 3.2.10)
+export {
+  ActionRegistry,
+  getActionRegistry,
+  resetActionRegistry,
+} from "./action-registry.js";
+
+export { buildResourceActions } from "./resource-actions.js";
+
+export { registerInitialActions } from "./action-registrations.js";
+
+// Re-export discoverability types from types package (Story 3.2.10)
+export type {
+  ActionDefinition,
+  ResourceAction,
+  StateGraph,
+  StateTransition,
+  HeaderDefinition,
+  ParamDefinition,
+  HttpMethod,
+} from "@ai-learning-hub/types";
+
 // SSM utilities
 export { getClerkSecretKey, resetClerkSecretKeyCache } from "./ssm.js";

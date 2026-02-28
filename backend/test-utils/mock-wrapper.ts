@@ -252,7 +252,7 @@ export function mockMiddlewareModule(
                       required_scope: required,
                       granted_scopes: scopes,
                     },
-                    allowedActions: ["request-api-key-with-scope"],
+                    allowedActions: ["keys:request-with-scope"],
                   },
                 }),
               };
@@ -427,6 +427,7 @@ export function mockMiddlewareModule(
       },
       body: "",
     }),
+    buildResourceActions: vi.fn().mockReturnValue([]),
     handleError: vi.fn(),
     ...extraExports,
   };

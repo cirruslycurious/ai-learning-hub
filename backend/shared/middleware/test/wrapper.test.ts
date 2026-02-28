@@ -275,7 +275,7 @@ describe("Handler Wrapper", () => {
         required_scope: "saves:write",
         granted_scopes: ["saves:read"],
       });
-      expect(body.error.allowedActions).toEqual(["request-api-key-with-scope"]);
+      expect(body.error.allowedActions).toEqual(["keys:request-with-scope"]);
     });
 
     it("should include request ID in response headers", async () => {

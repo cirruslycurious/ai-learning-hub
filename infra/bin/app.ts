@@ -12,6 +12,7 @@ import { ApiGatewayStack } from "../lib/stacks/api/api-gateway.stack";
 import { AuthRoutesStack } from "../lib/stacks/api/auth-routes.stack";
 import { EventsStack } from "../lib/stacks/core/events.stack";
 import { SavesRoutesStack } from "../lib/stacks/api/saves-routes.stack";
+import { DiscoveryRoutesStack } from "../lib/stacks/api/discovery-routes.stack";
 import { ApiDeploymentStack } from "../lib/stacks/api/api-deployment.stack";
 
 const app = new cdk.App();
@@ -130,6 +131,21 @@ savesRoutesStack.addDependency(apiGatewayStack);
 savesRoutesStack.addDependency(tablesStack);
 savesRoutesStack.addDependency(eventsStack);
 
+// Discovery Routes Stack - Story 3.2.10 discoverability endpoints (ADR-006: after ApiGateway)
+const discoveryRoutesStack = new DiscoveryRoutesStack(
+  app,
+  "AiLearningHubDiscoveryRoutes",
+  {
+    env: awsEnv,
+    description:
+      "Discovery routes for ai-learning-hub (Story 3.2.10: GET /actions, GET /states/{entityType})",
+    restApiId: apiGatewayStack.restApi.restApiId,
+    rootResourceId: apiGatewayStack.restApi.restApiRootResourceId,
+    apiKeyAuthorizer: apiGatewayStack.apiKeyAuthorizer,
+  }
+);
+discoveryRoutesStack.addDependency(apiGatewayStack);
+
 // API Deployment Stack -- Deployment + Stage + WAF (after all route stacks)
 // Solves the CDK cross-stack deployment problem: ensures the deployed stage
 // includes routes from ALL route stacks, not just the ApiGatewayStack scope.
@@ -147,6 +163,7 @@ const apiDeploymentStack = new ApiDeploymentStack(
 );
 apiDeploymentStack.addDependency(authRoutesStack);
 apiDeploymentStack.addDependency(savesRoutesStack);
+apiDeploymentStack.addDependency(discoveryRoutesStack);
 
 // Export stack instances for future cross-stack references (avoids unused variable lint errors)
 export {
@@ -159,6 +176,7 @@ export {
   authRoutesStack,
   eventsStack,
   savesRoutesStack,
+  discoveryRoutesStack,
   apiDeploymentStack,
 };
 

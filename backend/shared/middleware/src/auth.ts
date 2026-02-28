@@ -136,7 +136,9 @@ export function requireScope(
       {
         required_scope: requiredScope,
         granted_scopes: scopes,
-        allowedActions: ["request-api-key-with-scope"],
+        // AC22: use entity:verb format matching action catalog IDs.
+        // keys:request-with-scope will be registered in Story 3.2.8 (auth domain).
+        allowedActions: ["keys:request-with-scope"],
       }
     );
   }

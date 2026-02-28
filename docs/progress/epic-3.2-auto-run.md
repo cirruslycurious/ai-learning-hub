@@ -67,7 +67,9 @@ stories:
     }
   "3.2.10":
     {
-      status: ready-for-dev,
+      status: in-progress,
+      issue: 242,
+      pr: 243,
       branch: story-3-2-10-proactive-action-discoverability,
       startedAt: "2026-02-28T12:00:00Z",
     }
