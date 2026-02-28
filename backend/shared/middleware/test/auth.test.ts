@@ -424,7 +424,7 @@ describe("Auth Middleware", () => {
           expect(e.details).toEqual({
             required_scope: "saves:read",
             granted_scopes: ["capture"],
-            allowedActions: ["request-api-key-with-scope"],
+            allowedActions: ["keys:request-with-scope"],
           });
         }
       }

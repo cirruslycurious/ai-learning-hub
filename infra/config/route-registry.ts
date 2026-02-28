@@ -29,7 +29,9 @@ export type HandlerRef =
   | "savesGetFunction"
   | "savesUpdateFunction"
   | "savesDeleteFunction"
-  | "savesRestoreFunction";
+  | "savesRestoreFunction"
+  | "actionsCatalogFunction"
+  | "stateGraphFunction";
 
 export interface RouteEntry {
   /** URL path (e.g., "/auth/validate-invite") */
@@ -138,5 +140,20 @@ export const ROUTE_REGISTRY: RouteEntry[] = [
     authType: "jwt-or-apikey",
     handlerRef: "savesRestoreFunction",
     epic: "Epic-3",
+  },
+  // Epic 3.2.10 — Proactive Action Discoverability
+  {
+    path: "/actions",
+    methods: ["GET"],
+    authType: "jwt-or-apikey",
+    handlerRef: "actionsCatalogFunction",
+    epic: "Epic-3.2",
+  },
+  {
+    path: "/states/{entityType}",
+    methods: ["GET"],
+    authType: "jwt-or-apikey",
+    handlerRef: "stateGraphFunction",
+    epic: "Epic-3.2",
   },
 ];

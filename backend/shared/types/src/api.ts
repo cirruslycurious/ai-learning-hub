@@ -2,6 +2,7 @@
  * Standard API response types per ADR-008
  */
 import type { ActorType } from "./events.js";
+import type { ErrorCode } from "./errors.js";
 
 /**
  * Rate limit metadata for response envelope (AC11)
@@ -22,6 +23,8 @@ export interface EnvelopeMeta {
   cursorReset?: boolean;
   truncated?: boolean;
   rateLimit?: RateLimitMeta;
+  /** Available actions for this resource (Story 3.2.10, AC8) */
+  actions?: ResourceAction[];
 }
 
 /**
@@ -153,6 +156,84 @@ export interface RequestContext {
 export interface AgentIdentity {
   agentId: string | null;
   actorType: ActorType;
+}
+
+// ── Action Discoverability Types (Story 3.2.10) ──────────────────────
+
+/**
+ * HTTP header required by an action (Story 3.2.10, AC2).
+ * Provides name, expected format pattern, and description so agents
+ * can construct valid requests without consulting documentation.
+ */
+export interface HeaderDefinition {
+  name: string;
+  format: string;
+  description: string;
+}
+
+/**
+ * Path or query parameter definition for an action (Story 3.2.10, AC2).
+ */
+export interface ParamDefinition {
+  name: string;
+  type: string;
+  description: string;
+  required?: boolean;
+}
+
+/**
+ * HTTP method type for action definitions.
+ */
+export type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE" | "PUT";
+
+/**
+ * Full action definition in the global action catalog (Story 3.2.10, AC2).
+ * Registered declaratively via ActionRegistry — not hardcoded per handler.
+ */
+export interface ActionDefinition {
+  actionId: string;
+  description: string;
+  method: HttpMethod;
+  urlPattern: string;
+  entityType: string;
+  pathParams: ParamDefinition[];
+  queryParams: ParamDefinition[];
+  inputSchema: Record<string, unknown> | null;
+  requiredHeaders: HeaderDefinition[];
+  requiredScope: OperationScope;
+  expectedErrors: ErrorCode[];
+}
+
+/**
+ * Lightweight action reference for single-resource GET responses (Story 3.2.10, AC9).
+ * Full details available in the global catalog via actionId.
+ */
+export interface ResourceAction {
+  actionId: string;
+  url: string;
+  method: HttpMethod;
+  requiredHeaders: string[];
+}
+
+/**
+ * State machine transition definition (Story 3.2.10, AC15).
+ */
+export interface StateTransition {
+  from: string;
+  to: string;
+  command: string;
+  preconditions: string[];
+}
+
+/**
+ * Full state machine graph for an entity type (Story 3.2.10, AC15).
+ */
+export interface StateGraph {
+  entityType: string;
+  states: string[];
+  initialState: string;
+  terminalStates: string[];
+  transitions: StateTransition[];
 }
 
 /**

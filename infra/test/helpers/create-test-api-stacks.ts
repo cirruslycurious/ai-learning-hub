@@ -18,6 +18,7 @@ import { Template } from "aws-cdk-lib/assertions";
 import { ApiGatewayStack } from "../../lib/stacks/api/api-gateway.stack";
 import { AuthRoutesStack } from "../../lib/stacks/api/auth-routes.stack";
 import { SavesRoutesStack } from "../../lib/stacks/api/saves-routes.stack";
+import { DiscoveryRoutesStack } from "../../lib/stacks/api/discovery-routes.stack";
 import { ApiDeploymentStack } from "../../lib/stacks/api/api-deployment.stack";
 import { getAwsEnv } from "../../config/aws-env";
 
@@ -41,6 +42,8 @@ export const HANDLER_REF_TO_FUNCTION_NAME: Record<string, string> = {
   savesUpdateFunction: "ai-learning-hub-saves-update",
   savesDeleteFunction: "ai-learning-hub-saves-delete",
   savesRestoreFunction: "ai-learning-hub-saves-restore",
+  actionsCatalogFunction: "ai-learning-hub-actions-catalog",
+  stateGraphFunction: "ai-learning-hub-state-graph",
 };
 
 /**
@@ -101,10 +104,12 @@ export interface TestApiStacks {
   apiGatewayStack: ApiGatewayStack;
   authRoutesStack: AuthRoutesStack;
   savesRoutesStack: SavesRoutesStack;
+  discoveryRoutesStack: DiscoveryRoutesStack;
   apiDeploymentStack: ApiDeploymentStack;
   apiGwTemplate: Template;
   routesTemplate: Template;
   savesRoutesTemplate: Template;
+  discoveryRoutesTemplate: Template;
   deploymentTemplate: Template;
   /** All route templates combined for searching across all route stacks */
   allRouteTemplates: Template[];
@@ -189,6 +194,17 @@ export function createTestApiStacks(): TestApiStacks {
     eventBus,
   });
 
+  const discoveryRoutesStack = new DiscoveryRoutesStack(
+    app,
+    "ArchTestDiscoveryRoutes",
+    {
+      env: awsEnv,
+      restApiId: apiGatewayStack.restApi.restApiId,
+      rootResourceId: apiGatewayStack.restApi.restApiRootResourceId,
+      apiKeyAuthorizer: apiGatewayStack.apiKeyAuthorizer,
+    }
+  );
+
   // WAF WebACL for ApiDeploymentStack
   const webAcl = new wafv2.CfnWebACL(depsStack, "TestWebAcl", {
     scope: "REGIONAL",
@@ -214,6 +230,7 @@ export function createTestApiStacks(): TestApiStacks {
   const apiGwTemplate = Template.fromStack(apiGatewayStack);
   const routesTemplate = Template.fromStack(authRoutesStack);
   const savesRoutesTemplate = Template.fromStack(savesRoutesStack);
+  const discoveryRoutesTemplate = Template.fromStack(discoveryRoutesStack);
   const deploymentTemplate = Template.fromStack(apiDeploymentStack);
 
   const result: TestApiStacks = {
@@ -221,12 +238,18 @@ export function createTestApiStacks(): TestApiStacks {
     apiGatewayStack,
     authRoutesStack,
     savesRoutesStack,
+    discoveryRoutesStack,
     apiDeploymentStack,
     apiGwTemplate,
     routesTemplate,
     savesRoutesTemplate,
+    discoveryRoutesTemplate,
     deploymentTemplate,
-    allRouteTemplates: [routesTemplate, savesRoutesTemplate],
+    allRouteTemplates: [
+      routesTemplate,
+      savesRoutesTemplate,
+      discoveryRoutesTemplate,
+    ],
   };
 
   cached = result;

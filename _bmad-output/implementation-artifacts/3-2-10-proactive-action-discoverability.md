@@ -1,3 +1,23 @@
+---
+id: "3.2.10"
+title: "Proactive Action Discoverability"
+status: ready-for-dev
+depends_on:
+  - "3.2.2"
+  - "3.2.6"
+touches:
+  - backend/shared/types/src/api.ts
+  - backend/shared/types/src/index.ts
+  - backend/shared/middleware/src/action-registry.ts
+  - backend/shared/middleware/src/resource-actions.ts
+  - backend/shared/middleware/src/action-registrations.ts
+  - backend/shared/middleware/src/index.ts
+  - backend/functions/actions-catalog/handler.ts
+  - backend/functions/state-graph/handler.ts
+  - infra/lib/api-stack.ts
+risk: medium
+---
+
 # Story 3.2.10: Proactive Action Discoverability
 
 Status: ready-for-dev

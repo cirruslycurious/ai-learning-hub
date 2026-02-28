@@ -32,6 +32,13 @@ export {
   type AuthContext,
   type RequestContext,
   type IdempotencyRecord,
+  type HttpMethod,
+  type HeaderDefinition,
+  type ParamDefinition,
+  type ActionDefinition,
+  type ResourceAction,
+  type StateTransition,
+  type StateGraph,
 } from "./api.js";
 
 // Entity types

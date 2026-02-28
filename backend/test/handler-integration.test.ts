@@ -373,7 +373,7 @@ describe("Hierarchical Scope Enforcement Integration (Story 3.2.6, AC21)", () =>
     expect(body.error.message).toBe("API key lacks required scope: saves:read");
     expect(body.error.details.required_scope).toBe("saves:read");
     expect(body.error.details.granted_scopes).toEqual(["capture"]);
-    expect(body.error.allowedActions).toEqual(["request-api-key-with-scope"]);
+    expect(body.error.allowedActions).toEqual(["keys:request-with-scope"]);
   });
 
   it("read key satisfies saves:read", async () => {
@@ -551,6 +551,6 @@ describe("Hierarchical Scope Enforcement Integration (Story 3.2.6, AC21)", () =>
     expect(body.error.code).toBe("SCOPE_INSUFFICIENT");
     expect(body.error.details.required_scope).toBe("keys:manage");
     expect(body.error.details.granted_scopes).toEqual(["read"]);
-    expect(body.error.allowedActions).toEqual(["request-api-key-with-scope"]);
+    expect(body.error.allowedActions).toEqual(["keys:request-with-scope"]);
   });
 });

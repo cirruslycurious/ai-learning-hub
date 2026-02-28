@@ -10,7 +10,12 @@ import {
   SAVES_TABLE_CONFIG,
   toPublicSave,
 } from "@ai-learning-hub/db";
-import { wrapHandler, type HandlerContext } from "@ai-learning-hub/middleware";
+import {
+  wrapHandler,
+  createSuccessResponse,
+  buildResourceActions,
+  type HandlerContext,
+} from "@ai-learning-hub/middleware";
 import {
   validatePathParams,
   saveIdPathSchema,
@@ -59,7 +64,14 @@ async function savesGetHandler(ctx: HandlerContext) {
     });
   }
 
-  return toPublicSave(item);
+  const save = toPublicSave(item);
+
+  // AC8-AC13: Enrich single-resource GET with meta.actions (Story 3.2.10)
+  const actions = buildResourceActions("saves", saveId);
+
+  return createSuccessResponse(save, ctx.requestId, {
+    meta: { actions },
+  });
 }
 
 export const handler = wrapHandler(savesGetHandler, {
