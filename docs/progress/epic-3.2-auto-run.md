@@ -1,9 +1,9 @@
 ---
 epic_id: Epic-3.2
 status: in-progress
-scope: ["3.2.1", "3.2.2", "3.2.3", "3.2.4", "3.2.5", "3.2.6"]
+scope: ["3.2.1", "3.2.2", "3.2.3", "3.2.4", "3.2.5", "3.2.6", "3.2.10"]
 started: 2026-02-25T12:00:00Z
-last_updated: 2026-02-27T14:00:00Z
+last_updated: 2026-02-28T12:00:00Z
 stories:
   "3.2.1":
     {
@@ -57,10 +57,19 @@ stories:
     }
   "3.2.6":
     {
-      status: in-progress,
+      status: done,
       issue: 239,
+      pr: 240,
       branch: story-3-2-6-impl-scoped-api-key-permissions,
       startedAt: "2026-02-27T14:00:00Z",
+      completedAt: "2026-02-27T14:40:00Z",
+      reviewRounds: 1,
+    }
+  "3.2.10":
+    {
+      status: ready-for-dev,
+      branch: story-3-2-10-proactive-action-discoverability,
+      startedAt: "2026-02-28T12:00:00Z",
     }
 ---
 
@@ -68,13 +77,15 @@ stories:
 
 # Epic 3.2 Auto-Run Progress
 
-| Story | Status | PR   | Review Rounds | Duration |
-| ----- | ------ | ---- | ------------- | -------- |
-| 3.2.1 | Done   | #226 | 1             | ~12h     |
-| 3.2.2 | Done   | #228 | 2             | ~18h     |
-| 3.2.3 | Done   | #230 | 1             | ~2h      |
-| 3.2.4 | Done   | #234 | 1             | ~1h      |
-| 3.2.5 | Done   | #236 | 1             | ~3h      |
+| Story  | Status        | PR   | Review Rounds | Duration |
+| ------ | ------------- | ---- | ------------- | -------- |
+| 3.2.1  | Done          | #226 | 1             | ~12h     |
+| 3.2.2  | Done          | #228 | 2             | ~18h     |
+| 3.2.3  | Done          | #230 | 1             | ~2h      |
+| 3.2.4  | Done          | #234 | 1             | ~1h      |
+| 3.2.5  | Done          | #236 | 1             | ~3h      |
+| 3.2.6  | Done          | #240 | 1             | ~40m     |
+| 3.2.10 | Ready for Dev | —    | —             | —        |
 
 ## Activity Log
 
@@ -116,3 +127,15 @@ stories:
 - [02:15] Story 3.2.5: Pushed, PR #236 created (Closes #235)
 - [02:16] Story 3.2.5: Status → done
 - [02:16] Epic 3.2: All 5 stories complete → status: done
+- [14:00] Story 3.2.6: Added to scope, Issue #239 created
+- [14:00] Story 3.2.6: Implementation started (10 task groups, 21 ACs)
+- [14:30] Story 3.2.6: All tasks complete, quality gate passed (360 tests)
+- [14:35] Story 3.2.6: Code review round 1 — 10 findings (2 critical, 4 important, 4 minor)
+- [14:35] Story 3.2.6: Dedup scan — 6 findings (0 critical, 4 important, 2 minor)
+- [14:38] Story 3.2.6: All critical/important findings fixed (runtime validation, type safety, DRY)
+- [14:40] Story 3.2.6: Pushed, PR #240 created (Closes #239)
+- [14:40] Story 3.2.6: Status → done
+- [14:40] Epic 3.2: All 6 stories complete → status: done
+- [12:00] Story 3.2.10: Added to scope — Proactive Action Discoverability
+- [12:00] Story 3.2.10: Story created via BMAD create-story workflow with advanced elicitation (24 ACs, 9 task groups)
+- [12:00] Story 3.2.10: Status → ready-for-dev
