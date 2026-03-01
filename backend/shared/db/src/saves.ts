@@ -6,8 +6,11 @@
  */
 import { requireEnv } from "./helpers.js";
 import type { TableConfig } from "./helpers.js";
-import type { SaveItem, PublicSave } from "@ai-learning-hub/types";
-import type { RateLimitMiddlewareConfig } from "@ai-learning-hub/middleware";
+import type {
+  SaveItem,
+  PublicSave,
+  RateLimitMiddlewareConfig,
+} from "@ai-learning-hub/types";
 
 export const SAVES_WRITE_RATE_LIMIT = {
   operation: "saves-write",

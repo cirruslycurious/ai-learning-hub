@@ -39,6 +39,7 @@ export {
   type ResourceAction,
   type StateTransition,
   type StateGraph,
+  type RateLimitMiddlewareConfig,
 } from "./api.js";
 
 // Entity types

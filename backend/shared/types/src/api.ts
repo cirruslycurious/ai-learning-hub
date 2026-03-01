@@ -139,6 +139,21 @@ export interface AuthContext {
 }
 
 /**
+ * Rate limit middleware configuration for wrapHandler (Story 3.2.4, AC9).
+ * Defined in types to avoid circular dependency between db ↔ middleware.
+ */
+export interface RateLimitMiddlewareConfig {
+  /** Rate limit counter key (e.g., "saves-write") */
+  operation: string;
+  /** Window size in seconds */
+  windowSeconds: number;
+  /** Static limit or function receiving auth context for tier-based limits */
+  limit: number | ((auth: AuthContext | null) => number);
+  /** Identifier source: userId (default) or sourceIp */
+  identifierSource?: "userId" | "sourceIp";
+}
+
+/**
  * Extended Lambda context with request correlation.
  * Intended for handler/future use (e.g. passing requestId, traceId, auth into business logic).
  * Middleware uses HandlerContext (event, context, logger, etc.); RequestContext is a slimmer type for downstream use.
