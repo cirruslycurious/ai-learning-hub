@@ -1,8 +1,13 @@
+---
+id: "{{epic_num}}.{{story_num}}"
+title: "{{story_title}}"
+status: ready-for-dev
+depends_on: {{depends_on_yaml}}
+touches: {{touches_yaml}}
+risk: {{risk_level}}
+---
+
 # Story {{epic_num}}.{{story_num}}: {{story_title}}
-
-Status: ready-for-dev
-
-<!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
 ## Story
 
@@ -12,7 +17,10 @@ so that {{benefit}}.
 
 ## Acceptance Criteria
 
-1. [Add acceptance criteria from epics/PRD]
+<!-- AC format: flat numbered list, one AC per item, bold label, dash-separated description -->
+<!-- Example: 1. **AC1: Descriptive name** — Concrete, testable criterion with expected behavior. -->
+
+1. **AC1: {{ac_name}}** — {{ac_description}}
 
 ## Tasks / Subtasks
 
