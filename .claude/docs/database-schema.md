@@ -1,18 +1,20 @@
 # Database Schema Summary
 
-7 DynamoDB tables, 10 GSIs. Full detail: `_bmad-output/planning-artifacts/architecture.md` (canonical path: see .claude/docs/README.md).
+9 DynamoDB tables, 10 GSIs. Full detail: `_bmad-output/planning-artifacts/architecture.md` (canonical path: see .claude/docs/README.md).
 
 ## Tables and Keys
 
-| #   | Table        | PK                      | SK                                                   | Notes                        |
-| --- | ------------ | ----------------------- | ---------------------------------------------------- | ---------------------------- |
-| 1   | users        | USER#&lt;clerkId&gt;    | PROFILE or APIKEY#&lt;keyId&gt;                      | Profiles + API keys          |
-| 2   | saves        | USER#&lt;userId&gt;     | SAVE#&lt;saveId&gt;                                  | urlHash links to content     |
-| 3   | projects     | USER#&lt;userId&gt;     | PROJECT#&lt;projectId&gt; or FOLDER#&lt;folderId&gt; | Folders same table           |
-| 4   | links        | USER#&lt;userId&gt;     | LINK#&lt;projectId&gt;#&lt;saveId&gt;                | Project ↔ Save               |
-| 5   | content      | CONTENT#&lt;urlHash&gt; | META                                                 | Global; not user-partitioned |
-| 6   | search-index | USER#&lt;userId&gt;     | INDEX#&lt;sourceType&gt;#&lt;sourceId&gt;            | Processed search substrate   |
-| 7   | invite-codes | CODE#&lt;code&gt;       | META                                                 | Lookup by code               |
+| #   | Table        | PK                                         | SK                                                   | Notes                               |
+| --- | ------------ | ------------------------------------------ | ---------------------------------------------------- | ----------------------------------- |
+| 1   | users        | USER#&lt;clerkId&gt;                       | PROFILE or APIKEY#&lt;keyId&gt;                      | Profiles + API keys                 |
+| 2   | saves        | USER#&lt;userId&gt;                        | SAVE#&lt;saveId&gt;                                  | urlHash links to content            |
+| 3   | projects     | USER#&lt;userId&gt;                        | PROJECT#&lt;projectId&gt; or FOLDER#&lt;folderId&gt; | Folders same table                  |
+| 4   | links        | USER#&lt;userId&gt;                        | LINK#&lt;projectId&gt;#&lt;saveId&gt;                | Project ↔ Save                      |
+| 5   | content      | CONTENT#&lt;urlHash&gt;                    | META                                                 | Global; not user-partitioned        |
+| 6   | search-index | USER#&lt;userId&gt;                        | INDEX#&lt;sourceType&gt;#&lt;sourceId&gt;            | Processed search substrate          |
+| 7   | invite-codes | CODE#&lt;code&gt;                          | META                                                 | Lookup by code                      |
+| 8   | idempotency  | pk (IDEMP#&lt;userId&gt;#&lt;key&gt;)      | — (partition key only)                               | Story 3.2.1; TTL expiresAt          |
+| 9   | events       | EVENTS#&lt;entityType&gt;#&lt;entityId&gt; | EVENT#&lt;timestamp&gt;#&lt;eventId&gt;              | Story 3.2.3; event history; TTL ttl |
 
 ## GSIs (10 total)
 

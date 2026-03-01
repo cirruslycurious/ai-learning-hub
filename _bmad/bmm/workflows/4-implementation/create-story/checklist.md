@@ -70,6 +70,39 @@ You will systematically re-do the entire story creation process, but with a crit
 
 **Note:** If running in fresh context, user should provide the story file path being reviewed. If running from create-story workflow, the validation framework will automatically discover the checklist and story file.
 
+### **Step 1.5: Structural Format Validation (Auto-Epic Compatibility)**
+
+**CRITICAL: These format checks ensure the story file is machine-parseable by the auto-epic orchestrator. Format failures here will cause orchestrator FATAL STOPs or incorrect behavior.**
+
+#### **1.5.1 YAML Frontmatter Validation**
+
+The story file MUST begin with a valid YAML frontmatter block (`---` delimiters). Verify:
+
+- [ ] File starts with `---` on line 1
+- [ ] Frontmatter contains `id` field (quoted string, dot notation, e.g., `"3.2.7"`)
+- [ ] Frontmatter contains `title` field (quoted string, non-empty)
+- [ ] Frontmatter contains `status` field (value: `ready-for-dev`)
+- [ ] Frontmatter contains `depends_on` field (YAML array of story ID strings, or empty `[]`)
+- [ ] Frontmatter contains `touches` field (YAML array of file/directory path strings, or empty `[]`)
+- [ ] Frontmatter contains `risk` field (value: `low`, `medium`, or `high`)
+- [ ] Frontmatter ends with closing `---`
+
+**If any frontmatter field is missing or malformed, this is a CRITICAL finding that must be fixed.**
+
+#### **1.5.2 Acceptance Criteria Format Validation**
+
+ACs must follow the flat numbered list format for reliable machine parsing. Verify:
+
+- [ ] Story contains a `## Acceptance Criteria` heading
+- [ ] ACs are a single flat numbered list (no sub-headings like `### Group Name` within the AC section)
+- [ ] Each AC follows the format: `N. **ACN: Short name** — Description`
+- [ ] ACs are numbered sequentially starting at 1
+- [ ] At least 2 concrete, testable ACs are present
+- [ ] No BDD Given/When/Then format (use direct requirement statements instead)
+- [ ] Each AC is self-contained and testable — not a vague placeholder
+
+**If ACs use sub-headings, BDD format, or inconsistent numbering, this is a CRITICAL finding that must be fixed.**
+
 ### **Step 2: Exhaustive Source Document Analysis**
 
 **🔥 CRITICAL: Treat this like YOU are creating the story from scratch to PREVENT DISASTERS!**
