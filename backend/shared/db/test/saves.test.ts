@@ -45,6 +45,7 @@ describe("toPublicSave", () => {
     tags: ["test"],
     isTutorial: false,
     linkedProjectCount: 0,
+    version: 1,
     createdAt: "2026-02-20T00:00:00Z",
     updatedAt: "2026-02-20T00:00:00Z",
   };

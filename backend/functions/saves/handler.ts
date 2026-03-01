@@ -219,8 +219,6 @@ async function savesCreateHandler(ctx: HandlerContext) {
       actorType: ctx.actorType,
       actorId: ctx.agentId ?? undefined,
       changes: {
-        changedFields: null,
-        before: null,
         after: {
           url: body.url,
           title: body.title,
