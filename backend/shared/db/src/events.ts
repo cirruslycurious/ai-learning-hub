@@ -145,8 +145,10 @@ function truncateChanges(
 /**
  * ISO 8601 date validation regex (simplified — accepts common formats)
  */
+/* eslint-disable security/detect-unsafe-regex -- fixed ISO 8601 pattern, no user input */
 const ISO_8601_REGEX =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?(Z|[+-]\d{2}:?\d{2})$/;
+/* eslint-enable security/detect-unsafe-regex */
 
 /**
  * Validate that a string is a valid ISO 8601 date

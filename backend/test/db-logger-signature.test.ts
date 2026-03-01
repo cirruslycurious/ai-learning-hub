@@ -53,8 +53,10 @@ function checkFileForLoggerParam(filePath: string): Violation[] {
 
   // Match exported async/sync function declarations
   // Pattern: export [async] function name(...params...)
+  /* eslint-disable security/detect-unsafe-regex -- fixed pattern for parsing exports */
   const funcRegex =
     /export\s+(?:async\s+)?function\s+(\w+)\s*(?:<[^>]*>)?\s*\(([^)]*)\)/g;
+  /* eslint-enable security/detect-unsafe-regex */
 
   let match: RegExpExecArray | null;
   while ((match = funcRegex.exec(content)) !== null) {

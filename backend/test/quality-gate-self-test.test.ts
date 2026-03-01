@@ -82,6 +82,7 @@ function parseThresholds(
     // Strip single-line comments from the thresholds block before matching
     const uncommented = thresholdsBlock.replace(/\/\/.*$/gm, "");
     // Match patterns like: lines: 80 or "lines": 80
+    // eslint-disable-next-line security/detect-non-literal-regexp -- metric comes from hardcoded list
     const regex = new RegExp(`["']?${metric}["']?\\s*:\\s*(\\d+)`, "i");
     const match = uncommented.match(regex);
     result[metric] = match ? parseInt(match[1], 10) : undefined;
