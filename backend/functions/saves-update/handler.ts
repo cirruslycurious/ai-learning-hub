@@ -1,22 +1,29 @@
 /**
- * Saves Update Endpoint — PATCH /saves/:saveId
+ * Saves Update Endpoint — PATCH /saves/:saveId & POST /saves/:saveId/update-metadata
  *
  * Updates save metadata (title, userNotes, contentType, tags).
  * URL fields are immutable after creation.
+ * Serves both PATCH (REST) and POST command (CQRS) routes via the same Lambda.
  *
  * Story 3.3, Task 2 (Epic 3).
+ * Story 3.2.7: Retrofitted with idempotency, optimistic concurrency, event recording,
+ *              rate limiting, scope permissions, context metadata, and CQRS command route.
  */
 import {
   getDefaultClient,
+  getItem,
   updateItem,
-  enforceRateLimit,
   SAVES_TABLE_CONFIG,
-  USERS_TABLE_CONFIG,
-  SAVES_WRITE_RATE_LIMIT,
   toPublicSave,
+  savesWriteRateLimit,
+  recordEvent,
 } from "@ai-learning-hub/db";
-import { wrapHandler, type HandlerContext } from "@ai-learning-hub/middleware";
-import { AppError, ErrorCode } from "@ai-learning-hub/types";
+import {
+  wrapHandler,
+  createSuccessResponse,
+  type HandlerContext,
+} from "@ai-learning-hub/middleware";
+import { AppError, ErrorCode, nextVersion } from "@ai-learning-hub/types";
 import type { SaveItem } from "@ai-learning-hub/types";
 import {
   updateSaveSchema,
@@ -36,9 +43,10 @@ const eventBus = requireEventBus();
 
 /**
  * PATCH /saves/:saveId — Update save metadata.
+ * POST /saves/:saveId/update-metadata — CQRS command (same logic).
  */
 async function savesUpdateHandler(ctx: HandlerContext) {
-  const { event, auth, logger } = ctx;
+  const { event, auth, logger, requestId } = ctx;
   const userId = auth!.userId;
 
   const { saveId } = validatePathParams(saveIdPathSchema, event.pathParameters);
@@ -46,21 +54,38 @@ async function savesUpdateHandler(ctx: HandlerContext) {
 
   const client = getDefaultClient();
 
-  // Rate limit: 200 writes per hour (shared bucket with create/delete/restore)
-  await enforceRateLimit(
+  // Pre-read: existence check + before snapshot + version hint
+  const existingItem = await getItem<SaveItem>(
     client,
-    USERS_TABLE_CONFIG.tableName,
-    {
-      ...SAVES_WRITE_RATE_LIMIT,
-      identifier: userId,
-    },
+    SAVES_TABLE_CONFIG,
+    { PK: `USER#${userId}`, SK: `SAVE#${saveId}` },
+    { consistentRead: true },
     logger
   );
 
+  if (!existingItem || existingItem.deletedAt) {
+    throw new AppError(ErrorCode.NOT_FOUND, "Save not found");
+  }
+
+  // Defensive guard: expectedVersion is guaranteed by requireVersion: true in wrapHandler,
+  // but guard explicitly so a misconfiguration produces a clean error rather than a TypeError.
+  const expectedVersion = ctx.expectedVersion;
+  if (expectedVersion === undefined) {
+    throw new AppError(
+      ErrorCode.PRECONDITION_REQUIRED,
+      "If-Match header is required"
+    );
+  }
+
   // Build dynamic update expression from provided fields
-  const expressionParts: string[] = ["updatedAt = :updatedAt"];
+  const expressionParts: string[] = [
+    "updatedAt = :updatedAt",
+    "version = :nextVer",
+  ];
   const expressionValues: Record<string, unknown> = {
     ":updatedAt": new Date().toISOString(),
+    ":nextVer": nextVersion(expectedVersion),
+    ":expectedVersion": expectedVersion,
   };
   const updatedFields: string[] = [];
 
@@ -95,14 +120,20 @@ async function savesUpdateHandler(ctx: HandlerContext) {
         updateExpression: `SET ${expressionParts.join(", ")}`,
         expressionAttributeValues: expressionValues,
         conditionExpression:
-          "attribute_exists(PK) AND attribute_not_exists(deletedAt)",
+          "attribute_exists(PK) AND attribute_not_exists(deletedAt) AND version = :expectedVersion",
         returnValues: "ALL_NEW",
       },
       logger
     );
   } catch (error) {
     if (AppError.isAppError(error) && error.code === ErrorCode.NOT_FOUND) {
-      throw new AppError(ErrorCode.NOT_FOUND, "Save not found");
+      // Pre-read confirmed existence, so ConditionalCheckFailed = version conflict
+      throw AppError.build(
+        ErrorCode.VERSION_CONFLICT,
+        "Save was modified by another request"
+      )
+        .withDetails({ currentVersion: existingItem.version })
+        .create();
     }
     throw error;
   }
@@ -114,7 +145,7 @@ async function savesUpdateHandler(ctx: HandlerContext) {
     );
   }
 
-  // Fire-and-forget SaveUpdated event (AC2)
+  // Fire-and-forget EventBridge event emission
   emitEvent<SavesEventDetailType, SavesEventDetail>(
     eventBus.ebClient,
     eventBus.busName,
@@ -132,10 +163,39 @@ async function savesUpdateHandler(ctx: HandlerContext) {
     logger
   );
 
-  return toPublicSave(updated);
+  // Event history recording (Story 3.2.7) — awaited, catches I/O errors internally
+  const before: Record<string, unknown> = {};
+  const after: Record<string, unknown> = {};
+  for (const field of updatedFields) {
+    before[field] = existingItem[field as keyof SaveItem];
+    after[field] = updated[field as keyof SaveItem];
+  }
+
+  // recordEvent() is internally fire-and-forget for I/O errors; let validation
+  // errors propagate so programming bugs surface during development.
+  await recordEvent(
+    client,
+    {
+      entityType: "save",
+      entityId: saveId,
+      userId,
+      eventType: "SaveMetadataUpdated",
+      actorType: ctx.actorType,
+      actorId: ctx.agentId ?? undefined,
+      changes: { changedFields: updatedFields, before, after },
+      context: body.context ?? undefined,
+      requestId: ctx.requestId,
+    },
+    logger
+  );
+
+  return createSuccessResponse(toPublicSave(updated), requestId);
 }
 
 export const handler = wrapHandler(savesUpdateHandler, {
   requireAuth: true,
-  requiredScope: "*",
+  requiredScope: "saves:write",
+  idempotent: true,
+  requireVersion: true,
+  rateLimit: savesWriteRateLimit,
 });

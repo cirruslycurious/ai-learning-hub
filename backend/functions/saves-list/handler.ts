@@ -268,5 +268,5 @@ async function savesListHandler(ctx: HandlerContext) {
 
 export const handler = wrapHandler(savesListHandler, {
   requireAuth: true,
-  requiredScope: "*",
+  requiredScope: "saves:read",
 });

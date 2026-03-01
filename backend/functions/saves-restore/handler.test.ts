@@ -3,6 +3,7 @@
  *
  * Story 3.3, Task 4: Tests for restore (undo delete) endpoint.
  * Story 3.1.3: Migrated to shared test utilities.
+ * Story 3.2.7: Retrofitted with version increment, event recording.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AppError, ErrorCode } from "@ai-learning-hub/types";
@@ -22,13 +23,13 @@ import {
 // Mock @ai-learning-hub/db — using shared mockDbModule with handler-specific mocks
 const mockGetItem = vi.fn();
 const mockUpdateItem = vi.fn();
-const mockEnforceRateLimit = vi.fn();
+const mockRecordEvent = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("@ai-learning-hub/db", () =>
   mockDbModule({
     getItem: (...args: unknown[]) => mockGetItem(...args),
     updateItem: (...args: unknown[]) => mockUpdateItem(...args),
-    enforceRateLimit: (...args: unknown[]) => mockEnforceRateLimit(...args),
+    recordEvent: (...args: unknown[]) => mockRecordEvent(...args),
   })
 );
 
@@ -74,7 +75,6 @@ function createRestoreEvent(
 describe("Saves Restore Handler — POST /saves/:saveId/restore", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockEnforceRateLimit.mockResolvedValue(undefined);
   });
 
   describe("AC10: Restore soft-deleted save", () => {
@@ -96,7 +96,7 @@ describe("Saves Restore Handler — POST /saves/:saveId/restore", () => {
       expect(body.data).not.toHaveProperty("deletedAt");
     });
 
-    it("passes correct update expression to remove deletedAt", async () => {
+    it("passes correct update expression to remove deletedAt and increment version", async () => {
       const restoredItem = createTestSaveItem(VALID_SAVE_ID, SAVE_OVERRIDES);
       mockUpdateItem.mockResolvedValueOnce(restoredItem);
 
@@ -118,16 +118,15 @@ describe("Saves Restore Handler — POST /saves/:saveId/restore", () => {
       const callArgs = mockUpdateItem.mock.calls[0][2];
       expect(callArgs.updateExpression).toContain("REMOVE deletedAt");
       expect(callArgs.updateExpression).toContain("updatedAt");
+      expect(callArgs.updateExpression).toContain("version = version + :one");
     });
   });
 
   describe("AC11: Idempotent — already active returns 200", () => {
     it("returns 200 with current save when already active", async () => {
-      // Conditional update fails (no deletedAt to remove)
       mockUpdateItem.mockRejectedValueOnce(
         new AppError(ErrorCode.NOT_FOUND, "Item not found")
       );
-      // Disambiguation: getItem returns active item
       const activeItem = createTestSaveItem(VALID_SAVE_ID, SAVE_OVERRIDES);
       mockGetItem.mockResolvedValueOnce(activeItem);
 
@@ -207,25 +206,38 @@ describe("Saves Restore Handler — POST /saves/:saveId/restore", () => {
     });
   });
 
-  describe("Rate limiting", () => {
-    it("enforces write rate limit", async () => {
+  describe("Event history recording (Story 3.2.7)", () => {
+    it("records SaveRestored event on successful restore", async () => {
       const restoredItem = createTestSaveItem(VALID_SAVE_ID, SAVE_OVERRIDES);
       mockUpdateItem.mockResolvedValueOnce(restoredItem);
 
       const event = createRestoreEvent();
       await handler(event, mockContext);
 
-      expect(mockEnforceRateLimit).toHaveBeenCalledWith(
+      expect(mockRecordEvent).toHaveBeenCalledWith(
         expect.anything(),
-        expect.any(String),
         expect.objectContaining({
-          operation: "saves-write",
-          identifier: "user123",
-          limit: 200,
-          windowSeconds: 3600,
+          entityType: "save",
+          entityId: VALID_SAVE_ID,
+          eventType: "SaveRestored",
+          userId: "user123",
         }),
         expect.anything()
       );
+    });
+
+    it("does NOT record event when already active (idempotent)", async () => {
+      mockUpdateItem.mockRejectedValueOnce(
+        new AppError(ErrorCode.NOT_FOUND, "Item not found")
+      );
+      mockGetItem.mockResolvedValueOnce(
+        createTestSaveItem(VALID_SAVE_ID, SAVE_OVERRIDES)
+      );
+
+      const event = createRestoreEvent();
+      await handler(event, mockContext);
+
+      expect(mockRecordEvent).not.toHaveBeenCalled();
     });
   });
 
@@ -242,12 +254,25 @@ describe("Saves Restore Handler — POST /saves/:saveId/restore", () => {
     });
   });
 
-  // ──────────────────────────────────────────────────────────────
-  // Story 3.1.7 — API key scope enforcement tests
-  // ──────────────────────────────────────────────────────────────
-
   describe("AC6: API key scope enforcement", () => {
-    it("rejects capture-only key (saves:write) with 403 SCOPE_INSUFFICIENT", async () => {
+    it("rejects capture-only key with 403 SCOPE_INSUFFICIENT", async () => {
+      const event = createMockEvent({
+        method: "POST",
+        path: `/saves/${VALID_SAVE_ID}/restore`,
+        pathParameters: { saveId: VALID_SAVE_ID },
+        userId: "user_123",
+        authMethod: "api-key",
+        scopes: ["capture"],
+      });
+      const result = await handler(event, mockContext);
+
+      assertADR008Error(result, ErrorCode.SCOPE_INSUFFICIENT, 403);
+    });
+
+    it("allows saves:write key to POST /saves/:saveId/restore", async () => {
+      const restoredItem = createTestSaveItem(VALID_SAVE_ID, SAVE_OVERRIDES);
+      mockUpdateItem.mockResolvedValueOnce(restoredItem);
+
       const event = createMockEvent({
         method: "POST",
         path: `/saves/${VALID_SAVE_ID}/restore`,
@@ -258,15 +283,12 @@ describe("Saves Restore Handler — POST /saves/:saveId/restore", () => {
       });
       const result = await handler(event, mockContext);
 
-      assertADR008Error(result, ErrorCode.SCOPE_INSUFFICIENT, 403);
+      expect(result.statusCode).toBe(200);
     });
 
     it("allows full-access key (*) to POST /saves/:saveId/restore", async () => {
-      const deleted = createTestSaveItem(VALID_SAVE_ID, {
-        ...SAVE_OVERRIDES,
-        deletedAt: "2026-02-23T00:00:00Z",
-      });
-      mockUpdateItem.mockResolvedValueOnce(deleted);
+      const restoredItem = createTestSaveItem(VALID_SAVE_ID, SAVE_OVERRIDES);
+      mockUpdateItem.mockResolvedValueOnce(restoredItem);
 
       const event = createMockEvent({
         method: "POST",

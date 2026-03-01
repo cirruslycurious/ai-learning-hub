@@ -42,6 +42,7 @@ export const HANDLER_REF_TO_FUNCTION_NAME: Record<string, string> = {
   savesUpdateFunction: "ai-learning-hub-saves-update",
   savesDeleteFunction: "ai-learning-hub-saves-delete",
   savesRestoreFunction: "ai-learning-hub-saves-restore",
+  savesEventsFunction: "ai-learning-hub-saves-events",
   actionsCatalogFunction: "ai-learning-hub-actions-catalog",
   stateGraphFunction: "ai-learning-hub-state-graph",
 };
@@ -183,6 +184,15 @@ export function createTestApiStacks(): TestApiStacks {
     sortKey: { name: "SK", type: dynamodb.AttributeType.STRING },
   });
 
+  const idempotencyTable = new dynamodb.Table(depsStack, "IdempotencyTable", {
+    partitionKey: { name: "PK", type: dynamodb.AttributeType.STRING },
+  });
+
+  const eventsTable = new dynamodb.Table(depsStack, "EventsTable", {
+    partitionKey: { name: "PK", type: dynamodb.AttributeType.STRING },
+    sortKey: { name: "SK", type: dynamodb.AttributeType.STRING },
+  });
+
   const savesRoutesStack = new SavesRoutesStack(app, "ArchTestSavesRoutes", {
     env: awsEnv,
     restApiId: apiGatewayStack.restApi.restApiId,
@@ -191,6 +201,8 @@ export function createTestApiStacks(): TestApiStacks {
     savesTable,
     usersTable,
     inviteCodesTable,
+    idempotencyTable,
+    eventsTable,
     eventBus,
   });
 

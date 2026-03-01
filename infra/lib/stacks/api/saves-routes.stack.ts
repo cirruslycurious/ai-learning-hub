@@ -30,6 +30,10 @@ export interface SavesRoutesStackProps extends cdk.StackProps {
   usersTable: dynamodb.Table;
   /** Invite codes DynamoDB table (required by @ai-learning-hub/db barrel import) */
   inviteCodesTable: dynamodb.Table;
+  /** Idempotency DynamoDB table (Story 3.2.7) */
+  idempotencyTable: dynamodb.Table;
+  /** Events DynamoDB table (Story 3.2.7) */
+  eventsTable: dynamodb.Table;
   /** EventBridge event bus */
   eventBus: events.EventBus;
 }
@@ -41,6 +45,7 @@ export class SavesRoutesStack extends cdk.Stack {
   public readonly savesUpdateFunction: lambda.IFunction;
   public readonly savesDeleteFunction: lambda.IFunction;
   public readonly savesRestoreFunction: lambda.IFunction;
+  public readonly savesEventsFunction: lambda.IFunction;
 
   constructor(scope: Construct, id: string, props: SavesRoutesStackProps) {
     super(scope, id, props);
@@ -52,6 +57,8 @@ export class SavesRoutesStack extends cdk.Stack {
       savesTable,
       usersTable,
       inviteCodesTable,
+      idempotencyTable,
+      eventsTable,
       eventBus,
     } = props;
 
@@ -91,6 +98,28 @@ export class SavesRoutesStack extends cdk.Stack {
       maxAge: cdk.Duration.hours(1),
     };
 
+    // Common environment for mutation Lambdas (Story 3.2.7)
+    const mutationEnv = {
+      SAVES_TABLE_NAME: savesTable.tableName,
+      USERS_TABLE_NAME: usersTable.tableName,
+      INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
+      IDEMPOTENCY_TABLE_NAME: idempotencyTable.tableName,
+      EVENTS_TABLE_NAME: eventsTable.tableName,
+      EVENT_BUS_NAME: eventBus.eventBusName,
+      NODE_OPTIONS: "--enable-source-maps",
+    };
+
+    const mutationBundling = {
+      minify: true,
+      sourceMap: true,
+      externalModules: [
+        "@aws-sdk/client-dynamodb",
+        "@aws-sdk/lib-dynamodb",
+        "@aws-sdk/client-eventbridge",
+        "@aws-sdk/client-ssm",
+      ],
+    };
+
     // Saves-create Lambda
     this.savesCreateFunction = new nodejs.NodejsFunction(
       this,
@@ -107,29 +136,16 @@ export class SavesRoutesStack extends cdk.Stack {
         memorySize: 256,
         timeout: cdk.Duration.seconds(10),
         tracing: lambda.Tracing.ACTIVE,
-        environment: {
-          SAVES_TABLE_NAME: savesTable.tableName,
-          USERS_TABLE_NAME: usersTable.tableName,
-          INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
-          EVENT_BUS_NAME: eventBus.eventBusName,
-          NODE_OPTIONS: "--enable-source-maps",
-        },
-        bundling: {
-          minify: true,
-          sourceMap: true,
-          externalModules: [
-            "@aws-sdk/client-dynamodb",
-            "@aws-sdk/lib-dynamodb",
-            "@aws-sdk/client-eventbridge",
-            "@aws-sdk/client-ssm",
-          ],
-        },
+        environment: mutationEnv,
+        bundling: mutationBundling,
       }
     );
 
     // IAM permissions
     savesTable.grantReadWriteData(this.savesCreateFunction);
     usersTable.grantReadWriteData(this.savesCreateFunction);
+    idempotencyTable.grantReadWriteData(this.savesCreateFunction);
+    eventsTable.grantReadWriteData(this.savesCreateFunction);
 
     // EventBridge PutEvents permission
     this.savesCreateFunction.addToRolePolicy(
@@ -138,6 +154,20 @@ export class SavesRoutesStack extends cdk.Stack {
         resources: [eventBus.eventBusArn],
       })
     );
+
+    // Read-only environment (no idempotency/events tables needed)
+    const readOnlyEnv = {
+      SAVES_TABLE_NAME: savesTable.tableName,
+      USERS_TABLE_NAME: usersTable.tableName,
+      INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
+      NODE_OPTIONS: "--enable-source-maps",
+    };
+
+    const readOnlyBundling = {
+      minify: true,
+      sourceMap: true,
+      externalModules: ["@aws-sdk/client-dynamodb", "@aws-sdk/lib-dynamodb"],
+    };
 
     // saves-list — GET /saves (Story 3.2)
     const savesListFunction = new nodejs.NodejsFunction(
@@ -155,20 +185,8 @@ export class SavesRoutesStack extends cdk.Stack {
         memorySize: 256,
         timeout: cdk.Duration.seconds(10),
         tracing: lambda.Tracing.ACTIVE,
-        environment: {
-          SAVES_TABLE_NAME: savesTable.tableName,
-          USERS_TABLE_NAME: usersTable.tableName,
-          INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
-          NODE_OPTIONS: "--enable-source-maps",
-        },
-        bundling: {
-          minify: true,
-          sourceMap: true,
-          externalModules: [
-            "@aws-sdk/client-dynamodb",
-            "@aws-sdk/lib-dynamodb",
-          ],
-        },
+        environment: readOnlyEnv,
+        bundling: readOnlyBundling,
       }
     );
     savesTable.grantReadData(savesListFunction);
@@ -190,27 +208,15 @@ export class SavesRoutesStack extends cdk.Stack {
         memorySize: 256,
         timeout: cdk.Duration.seconds(10),
         tracing: lambda.Tracing.ACTIVE,
-        environment: {
-          SAVES_TABLE_NAME: savesTable.tableName,
-          USERS_TABLE_NAME: usersTable.tableName,
-          INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
-          NODE_OPTIONS: "--enable-source-maps",
-        },
-        bundling: {
-          minify: true,
-          sourceMap: true,
-          externalModules: [
-            "@aws-sdk/client-dynamodb",
-            "@aws-sdk/lib-dynamodb",
-          ],
-        },
+        environment: readOnlyEnv,
+        bundling: readOnlyBundling,
       }
     );
     // grantReadWriteData for updateItem (lastAccessedAt)
     savesTable.grantReadWriteData(savesGetFunction);
     this.savesGetFunction = savesGetFunction;
 
-    // saves-update — PATCH /saves/:saveId (Story 3.3)
+    // saves-update — PATCH + POST update-metadata /saves/:saveId (Story 3.3, 3.2.7)
     const savesUpdateFunction = new nodejs.NodejsFunction(
       this,
       "SavesUpdateFunction",
@@ -226,27 +232,14 @@ export class SavesRoutesStack extends cdk.Stack {
         memorySize: 256,
         timeout: cdk.Duration.seconds(10),
         tracing: lambda.Tracing.ACTIVE,
-        environment: {
-          SAVES_TABLE_NAME: savesTable.tableName,
-          USERS_TABLE_NAME: usersTable.tableName,
-          INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
-          EVENT_BUS_NAME: eventBus.eventBusName,
-          NODE_OPTIONS: "--enable-source-maps",
-        },
-        bundling: {
-          minify: true,
-          sourceMap: true,
-          externalModules: [
-            "@aws-sdk/client-dynamodb",
-            "@aws-sdk/lib-dynamodb",
-            "@aws-sdk/client-eventbridge",
-            "@aws-sdk/client-ssm",
-          ],
-        },
+        environment: mutationEnv,
+        bundling: mutationBundling,
       }
     );
     savesTable.grantReadWriteData(savesUpdateFunction);
     usersTable.grantReadWriteData(savesUpdateFunction);
+    idempotencyTable.grantReadWriteData(savesUpdateFunction);
+    eventsTable.grantReadWriteData(savesUpdateFunction);
     savesUpdateFunction.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ["events:PutEvents"],
@@ -255,7 +248,7 @@ export class SavesRoutesStack extends cdk.Stack {
     );
     this.savesUpdateFunction = savesUpdateFunction;
 
-    // saves-delete — DELETE /saves/:saveId (Story 3.3)
+    // saves-delete — DELETE /saves/:saveId (Story 3.3, 3.2.7)
     const savesDeleteFunction = new nodejs.NodejsFunction(
       this,
       "SavesDeleteFunction",
@@ -271,27 +264,14 @@ export class SavesRoutesStack extends cdk.Stack {
         memorySize: 256,
         timeout: cdk.Duration.seconds(10),
         tracing: lambda.Tracing.ACTIVE,
-        environment: {
-          SAVES_TABLE_NAME: savesTable.tableName,
-          USERS_TABLE_NAME: usersTable.tableName,
-          INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
-          EVENT_BUS_NAME: eventBus.eventBusName,
-          NODE_OPTIONS: "--enable-source-maps",
-        },
-        bundling: {
-          minify: true,
-          sourceMap: true,
-          externalModules: [
-            "@aws-sdk/client-dynamodb",
-            "@aws-sdk/lib-dynamodb",
-            "@aws-sdk/client-eventbridge",
-            "@aws-sdk/client-ssm",
-          ],
-        },
+        environment: mutationEnv,
+        bundling: mutationBundling,
       }
     );
     savesTable.grantReadWriteData(savesDeleteFunction);
     usersTable.grantReadWriteData(savesDeleteFunction);
+    idempotencyTable.grantReadWriteData(savesDeleteFunction);
+    eventsTable.grantReadWriteData(savesDeleteFunction);
     savesDeleteFunction.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ["events:PutEvents"],
@@ -300,7 +280,7 @@ export class SavesRoutesStack extends cdk.Stack {
     );
     this.savesDeleteFunction = savesDeleteFunction;
 
-    // saves-restore — POST /saves/:saveId/restore (Story 3.3)
+    // saves-restore — POST /saves/:saveId/restore (Story 3.3, 3.2.7)
     const savesRestoreFunction = new nodejs.NodejsFunction(
       this,
       "SavesRestoreFunction",
@@ -316,27 +296,14 @@ export class SavesRoutesStack extends cdk.Stack {
         memorySize: 256,
         timeout: cdk.Duration.seconds(10),
         tracing: lambda.Tracing.ACTIVE,
-        environment: {
-          SAVES_TABLE_NAME: savesTable.tableName,
-          USERS_TABLE_NAME: usersTable.tableName,
-          INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
-          EVENT_BUS_NAME: eventBus.eventBusName,
-          NODE_OPTIONS: "--enable-source-maps",
-        },
-        bundling: {
-          minify: true,
-          sourceMap: true,
-          externalModules: [
-            "@aws-sdk/client-dynamodb",
-            "@aws-sdk/lib-dynamodb",
-            "@aws-sdk/client-eventbridge",
-            "@aws-sdk/client-ssm",
-          ],
-        },
+        environment: mutationEnv,
+        bundling: mutationBundling,
       }
     );
     savesTable.grantReadWriteData(savesRestoreFunction);
     usersTable.grantReadWriteData(savesRestoreFunction);
+    idempotencyTable.grantReadWriteData(savesRestoreFunction);
+    eventsTable.grantReadWriteData(savesRestoreFunction);
     savesRestoreFunction.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ["events:PutEvents"],
@@ -344,6 +311,33 @@ export class SavesRoutesStack extends cdk.Stack {
       })
     );
     this.savesRestoreFunction = savesRestoreFunction;
+
+    // saves-events — GET /saves/:saveId/events (Story 3.2.7)
+    const savesEventsFunction = new nodejs.NodejsFunction(
+      this,
+      "SavesEventsFunction",
+      {
+        functionName: "ai-learning-hub-saves-events",
+        entry: path.join(
+          process.cwd(),
+          "..",
+          "backend/functions/saves-events/handler.ts"
+        ),
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_LATEST,
+        memorySize: 256,
+        timeout: cdk.Duration.seconds(10),
+        tracing: lambda.Tracing.ACTIVE,
+        environment: {
+          ...readOnlyEnv,
+          EVENTS_TABLE_NAME: eventsTable.tableName,
+        },
+        bundling: readOnlyBundling,
+      }
+    );
+    savesTable.grantReadData(savesEventsFunction);
+    eventsTable.grantReadData(savesEventsFunction);
+    this.savesEventsFunction = savesEventsFunction;
 
     // Wire /saves routes
     const savesResource = restApi.root.addResource("saves");
@@ -405,6 +399,31 @@ export class SavesRoutesStack extends cdk.Stack {
       }
     );
 
+    // Wire /saves/{saveId}/update-metadata route (Story 3.2.7 — CQRS command)
+    const updateMetadataResource =
+      saveByIdResource.addResource("update-metadata");
+    updateMetadataResource.addCorsPreflight(corsOptions);
+    updateMetadataResource.addMethod(
+      "POST",
+      new apigateway.LambdaIntegration(savesUpdateFunction),
+      {
+        authorizer: apiKeyAuthorizer,
+        authorizationType: apigateway.AuthorizationType.CUSTOM,
+      }
+    );
+
+    // Wire /saves/{saveId}/events route (Story 3.2.7 — event history query)
+    const eventsResource = saveByIdResource.addResource("events");
+    eventsResource.addCorsPreflight(corsOptions);
+    eventsResource.addMethod(
+      "GET",
+      new apigateway.LambdaIntegration(savesEventsFunction),
+      {
+        authorizer: apiKeyAuthorizer,
+        authorizationType: apigateway.AuthorizationType.CUSTOM,
+      }
+    );
+
     // CDK Nag suppressions
     NagSuppressions.addStackSuppressions(this, [
       {
@@ -459,6 +478,11 @@ export class SavesRoutesStack extends cdk.Stack {
     );
     NagSuppressions.addResourceSuppressions(
       savesRestoreFunction,
+      nagSuppressions,
+      true
+    );
+    NagSuppressions.addResourceSuppressions(
+      savesEventsFunction,
       nagSuppressions,
       true
     );

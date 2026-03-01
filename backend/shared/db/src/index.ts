@@ -60,6 +60,7 @@ export {
 export {
   SAVES_TABLE_CONFIG,
   SAVES_WRITE_RATE_LIMIT,
+  savesWriteRateLimit,
   toPublicSave,
 } from "./saves.js";
 

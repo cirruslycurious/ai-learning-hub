@@ -5,15 +5,16 @@
  * returns 204 without emitting a second event.
  *
  * Story 3.3, Task 3 (Epic 3).
+ * Story 3.2.7: Retrofitted with idempotency, rate limiting, event recording,
+ *              version increment, and scope permissions.
  */
 import {
   getDefaultClient,
   getItem,
   updateItem,
-  enforceRateLimit,
   SAVES_TABLE_CONFIG,
-  USERS_TABLE_CONFIG,
-  SAVES_WRITE_RATE_LIMIT,
+  savesWriteRateLimit,
+  recordEvent,
 } from "@ai-learning-hub/db";
 import {
   wrapHandler,
@@ -47,25 +48,10 @@ async function savesDeleteHandler(ctx: HandlerContext) {
 
   const client = getDefaultClient();
 
-  // Rate limit: 200 writes per hour (shared bucket)
-  await enforceRateLimit(
-    client,
-    USERS_TABLE_CONFIG.tableName,
-    {
-      ...SAVES_WRITE_RATE_LIMIT,
-      identifier: userId,
-    },
-    logger
-  );
-
   const now = new Date().toISOString();
 
-  // Attempt conditional soft delete.
-  // NOTE: Story performance hint suggests returnValues: "NONE" since 204 needs
-  // no body. However, we use ALL_OLD here to obtain normalizedUrl/urlHash for
-  // the SaveDeleted event detail in a single DynamoDB round-trip. The alternative
-  // (NONE + a separate getItem before the update) would add a second round-trip
-  // on every happy-path delete. ALL_OLD is the pragmatic trade-off.
+  // Attempt conditional soft delete with version increment.
+  // Uses ALL_OLD to obtain normalizedUrl/urlHash for event detail + previous version.
   let previousItem: SaveItem | null;
   try {
     previousItem = await updateItem<SaveItem>(
@@ -73,10 +59,12 @@ async function savesDeleteHandler(ctx: HandlerContext) {
       SAVES_TABLE_CONFIG,
       {
         key: { PK: `USER#${userId}`, SK: `SAVE#${saveId}` },
-        updateExpression: "SET deletedAt = :deletedAt, updatedAt = :updatedAt",
+        updateExpression:
+          "SET deletedAt = :deletedAt, updatedAt = :updatedAt, version = version + :one",
         expressionAttributeValues: {
           ":deletedAt": now,
           ":updatedAt": now,
+          ":one": 1,
         },
         conditionExpression:
           "attribute_exists(PK) AND attribute_not_exists(deletedAt)",
@@ -106,7 +94,7 @@ async function savesDeleteHandler(ctx: HandlerContext) {
     throw error;
   }
 
-  // Fire-and-forget SaveDeleted event (AC4) — only on active → deleted
+  // Fire-and-forget EventBridge SaveDeleted event — only on active → deleted
   if (previousItem) {
     emitEvent<SavesEventDetailType, SavesEventDetail>(
       eventBus.ebClient,
@@ -123,6 +111,21 @@ async function savesDeleteHandler(ctx: HandlerContext) {
       },
       logger
     );
+
+    // Event history recording (Story 3.2.7) — awaited, catches I/O errors internally.
+    await recordEvent(
+      client,
+      {
+        entityType: "save",
+        entityId: saveId,
+        userId,
+        eventType: "SaveDeleted",
+        actorType: ctx.actorType,
+        actorId: ctx.agentId ?? undefined,
+        requestId: ctx.requestId,
+      },
+      logger
+    );
   }
 
   return createNoContentResponse(requestId);
@@ -130,5 +133,7 @@ async function savesDeleteHandler(ctx: HandlerContext) {
 
 export const handler = wrapHandler(savesDeleteHandler, {
   requireAuth: true,
-  requiredScope: "*",
+  requiredScope: "saves:write",
+  idempotent: true,
+  rateLimit: savesWriteRateLimit,
 });

@@ -5,16 +5,17 @@
  * already-active returns 200 with current save, no event emitted.
  *
  * Story 3.3, Task 4 (Epic 3).
+ * Story 3.2.7: Retrofitted with idempotency, rate limiting, event recording,
+ *              version increment, and scope permissions.
  */
 import {
   getDefaultClient,
   getItem,
   updateItem,
-  enforceRateLimit,
   SAVES_TABLE_CONFIG,
-  USERS_TABLE_CONFIG,
-  SAVES_WRITE_RATE_LIMIT,
   toPublicSave,
+  savesWriteRateLimit,
+  recordEvent,
 } from "@ai-learning-hub/db";
 import { wrapHandler, type HandlerContext } from "@ai-learning-hub/middleware";
 import { AppError, ErrorCode } from "@ai-learning-hub/types";
@@ -44,18 +45,7 @@ async function savesRestoreHandler(ctx: HandlerContext) {
 
   const client = getDefaultClient();
 
-  // Rate limit: 200 writes per hour (shared bucket)
-  await enforceRateLimit(
-    client,
-    USERS_TABLE_CONFIG.tableName,
-    {
-      ...SAVES_WRITE_RATE_LIMIT,
-      identifier: userId,
-    },
-    logger
-  );
-
-  // Attempt conditional restore — requires deletedAt to exist
+  // Attempt conditional restore — requires deletedAt to exist, increment version
   let restored: SaveItem | null;
   try {
     restored = await updateItem<SaveItem>(
@@ -63,8 +53,12 @@ async function savesRestoreHandler(ctx: HandlerContext) {
       SAVES_TABLE_CONFIG,
       {
         key: { PK: `USER#${userId}`, SK: `SAVE#${saveId}` },
-        updateExpression: "REMOVE deletedAt SET updatedAt = :now",
-        expressionAttributeValues: { ":now": new Date().toISOString() },
+        updateExpression:
+          "REMOVE deletedAt SET updatedAt = :now, version = version + :one",
+        expressionAttributeValues: {
+          ":now": new Date().toISOString(),
+          ":one": 1,
+        },
         conditionExpression:
           "attribute_exists(PK) AND attribute_exists(deletedAt)",
         returnValues: "ALL_NEW",
@@ -100,7 +94,7 @@ async function savesRestoreHandler(ctx: HandlerContext) {
     );
   }
 
-  // Fire-and-forget SaveRestored event (AC13) — only on deleted → active
+  // Fire-and-forget EventBridge SaveRestored event — only on deleted → active
   emitEvent<SavesEventDetailType, SavesEventDetail>(
     eventBus.ebClient,
     eventBus.busName,
@@ -119,10 +113,27 @@ async function savesRestoreHandler(ctx: HandlerContext) {
     logger
   );
 
+  // Event history recording (Story 3.2.7) — awaited, catches I/O errors internally.
+  await recordEvent(
+    client,
+    {
+      entityType: "save",
+      entityId: saveId,
+      userId,
+      eventType: "SaveRestored",
+      actorType: ctx.actorType,
+      actorId: ctx.agentId ?? undefined,
+      requestId: ctx.requestId,
+    },
+    logger
+  );
+
   return toPublicSave(restored);
 }
 
 export const handler = wrapHandler(savesRestoreHandler, {
   requireAuth: true,
-  requiredScope: "*",
+  requiredScope: "saves:write",
+  idempotent: true,
+  rateLimit: savesWriteRateLimit,
 });
