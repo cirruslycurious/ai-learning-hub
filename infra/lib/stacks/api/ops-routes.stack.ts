@@ -207,7 +207,7 @@ export class OpsRoutesStack extends cdk.Stack {
       {
         id: "AwsSolutions-APIG4",
         reason:
-          "Health and readiness endpoints are intentionally unauthenticated (AC2, AC5) with method-level throttling for abuse prevention.",
+          "Health and readiness endpoints are intentionally unauthenticated (AC2, AC5) with method-level throttling (100 burst / 50 sustained) configured in ApiDeploymentStack CfnStage methodSettings for abuse prevention.",
       },
     ]);
 

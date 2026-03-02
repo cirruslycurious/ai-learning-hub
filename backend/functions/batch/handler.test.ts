@@ -53,7 +53,13 @@ function createBatchEvent(
 function mockFetchResponse(statusCode: number, data: unknown) {
   return Promise.resolve({
     status: statusCode,
-    json: () => Promise.resolve(statusCode < 400 ? { data } : { error: data }),
+    json: () => {
+      // Real 204 responses have no body — json() throws SyntaxError
+      if (statusCode === 204) {
+        return Promise.reject(new SyntaxError("Unexpected end of JSON input"));
+      }
+      return Promise.resolve(statusCode < 400 ? { data } : { error: data });
+    },
   } as Response);
 }
 
@@ -230,6 +236,40 @@ describe("POST /batch", () => {
     );
   });
 
+  it("prevents operation headers from overriding Authorization (AC10 security)", async () => {
+    mockFetch.mockImplementation(() =>
+      mockFetchResponse(200, { id: "save-1" })
+    );
+
+    const event = createBatchEvent([
+      {
+        method: "POST",
+        path: "/saves",
+        body: { url: "https://example.com" },
+        headers: {
+          "Idempotency-Key": "op-key-1",
+          Authorization: "Bearer evil-token",
+        },
+      },
+    ]);
+
+    await handler(event, mockContext);
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer test-jwt",
+        }),
+      })
+    );
+    // Verify the evil token was NOT used
+    const callHeaders = (mockFetch.mock.calls[0][1] as RequestInit)
+      .headers as Record<string, string>;
+    expect(callHeaders.Authorization).toBe("Bearer test-jwt");
+    expect(callHeaders.Authorization).not.toBe("Bearer evil-token");
+  });
+
   it("handles operation timeout with 504 (AC11)", async () => {
     const abortError = new Error("The operation was aborted");
     abortError.name = "AbortError";
@@ -295,6 +335,27 @@ describe("POST /batch", () => {
     expect(body.data.results[0].operationIndex).toBe(0);
     expect(body.data.results[1].operationIndex).toBe(1);
     expect(body.data.results[2].operationIndex).toBe(2);
+  });
+
+  it("handles 204 No Content responses without crashing (DELETE operations)", async () => {
+    mockFetch.mockImplementation(() => mockFetchResponse(204, null));
+
+    const event = createBatchEvent([
+      {
+        method: "DELETE",
+        path: "/saves/xyz",
+        headers: { "Idempotency-Key": "op-key-1" },
+      },
+    ]);
+
+    const result = await handler(event, mockContext);
+    expect(result.statusCode).toBe(200);
+
+    const body = JSON.parse(result.body);
+    expect(body.data.results[0].statusCode).toBe(204);
+    expect(body.data.results[0].data).toEqual({});
+    expect(body.data.summary.succeeded).toBe(1);
+    expect(body.data.summary.failed).toBe(0);
   });
 
   it("includes links and meta in response (AC8)", async () => {

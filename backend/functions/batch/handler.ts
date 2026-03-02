@@ -73,8 +73,8 @@ async function executeOperation(
     const url = `${getApiBaseUrl()}${operation.path}`;
     const fetchHeaders: Record<string, string> = {
       "Content-Type": "application/json",
-      Authorization: authorizationHeader,
       ...operation.headers,
+      Authorization: authorizationHeader, // must be last to prevent override
     };
 
     const fetchOptions: RequestInit = {
@@ -88,7 +88,16 @@ async function executeOperation(
     }
 
     const response = await fetch(url, fetchOptions);
-    const responseBody = await response.json();
+
+    // 204 No Content has no body — skip JSON parsing (e.g. DELETE responses)
+    let responseBody: Record<string, unknown> = {};
+    if (response.status !== 204) {
+      try {
+        responseBody = await response.json();
+      } catch {
+        // Non-JSON response body — treat as opaque success/error
+      }
+    }
 
     if (response.status >= 400) {
       return {
