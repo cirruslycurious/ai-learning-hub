@@ -376,7 +376,7 @@ describe("API Key Authorizer Handler", () => {
       scopes: ["*"] as string[],
       createdAt: "2026-01-01T00:00:00Z",
       updatedAt: "2026-01-01T00:00:00Z",
-        version: 1,
+      version: 1,
     };
     const validProfile = {
       PK: "USER#clerk_123",
@@ -385,7 +385,7 @@ describe("API Key Authorizer Handler", () => {
       role: "user",
       createdAt: "2026-01-01T00:00:00Z",
       updatedAt: "2026-01-01T00:00:00Z",
-        version: 1,
+      version: 1,
     };
 
     it.each([
@@ -663,7 +663,7 @@ describe("API Key Authorizer Handler", () => {
       role: "user",
       createdAt: "2026-01-01T00:00:00Z",
       updatedAt: "2026-01-01T00:00:00Z",
-        version: 1,
+      version: 1,
     };
 
     it("AC1: valid JWT with no API key → returns Allow with authMethod jwt", async () => {
