@@ -662,6 +662,60 @@ function registerDiscoveryActions(registry: ActionRegistry): void {
 }
 
 /**
+ * Register ops actions — batch (Story 3.2.9, AC16).
+ */
+function registerOpsActions(registry: ActionRegistry): void {
+  registry.registerAction({
+    actionId: "batch:execute",
+    description:
+      "Execute multiple API operations in a single request (non-transactional)",
+    method: "POST",
+    urlPattern: "/batch",
+    entityType: "ops",
+    pathParams: [],
+    queryParams: [],
+    inputSchema: {
+      type: "object",
+      properties: {
+        operations: {
+          type: "array",
+          minItems: 1,
+          maxItems: 25,
+          items: {
+            type: "object",
+            properties: {
+              method: {
+                type: "string",
+                enum: ["POST", "PATCH", "DELETE"],
+              },
+              path: { type: "string", minLength: 1 },
+              body: { type: "object" },
+              headers: { type: "object" },
+            },
+            required: ["method", "path"],
+          },
+        },
+      },
+      required: ["operations"],
+    },
+    requiredHeaders: [
+      {
+        name: "Idempotency-Key",
+        format: "[a-zA-Z0-9_\\-.]{1,256}",
+        description: "Client-generated dedup key for the batch request",
+      },
+    ],
+    requiredScope: "batch:execute" as OperationScope,
+    expectedErrors: [
+      ErrorCode.VALIDATION_ERROR,
+      ErrorCode.UNAUTHORIZED,
+      ErrorCode.SCOPE_INSUFFICIENT,
+      ErrorCode.RATE_LIMITED,
+    ],
+  });
+}
+
+/**
  * Register all initial actions in the provided registry.
  * Called once during Lambda cold start (via handler module load).
  * Idempotent — repeated calls on the same registry are no-ops.
@@ -672,5 +726,6 @@ export function registerInitialActions(registry: ActionRegistry): void {
   registerSavesActions(registry);
   registerAuthActions(registry); // Story 3.2.8
   registerDiscoveryActions(registry);
+  registerOpsActions(registry); // Story 3.2.9
   _registeredInstances.add(registry);
 }

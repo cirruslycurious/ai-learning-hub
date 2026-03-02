@@ -66,6 +66,9 @@ const HANDLER_REF_TO_DIR: Record<string, string> = {
   savesEventsFunction: "saves-events",
   actionsCatalogFunction: "actions-catalog",
   stateGraphFunction: "state-graph",
+  healthFunction: "health",
+  readinessFunction: "readiness",
+  batchFunction: "batch",
 };
 
 describe("Auth Consistency: wrapHandler options vs ROUTE_REGISTRY authType (AC6)", () => {
@@ -110,7 +113,10 @@ describe("Auth Consistency: wrapHandler options vs ROUTE_REGISTRY authType (AC6)
       const content = fs.readFileSync(handlerPath, "utf-8");
 
       // Check if any route for this handler requires auth
-      const requiresAuth = routes.some((r) => r.authType !== "public");
+      // "none" and "public" both indicate no auth is needed
+      const requiresAuth = routes.some(
+        (r) => r.authType !== "public" && r.authType !== "none"
+      );
 
       if (requiresAuth) {
         // Handler must have requireAuth: true in wrapHandler call

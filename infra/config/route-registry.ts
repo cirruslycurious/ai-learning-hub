@@ -13,7 +13,13 @@
  *   - "analyst"        → JWT + admin-or-analyst role check
  */
 
-export type AuthType = "jwt" | "jwt-or-apikey" | "iam" | "admin" | "analyst";
+export type AuthType =
+  | "jwt"
+  | "jwt-or-apikey"
+  | "iam"
+  | "admin"
+  | "analyst"
+  | "none";
 
 /**
  * Handler reference keys matching AuthStack public property names.
@@ -32,7 +38,10 @@ export type HandlerRef =
   | "savesRestoreFunction"
   | "savesEventsFunction"
   | "actionsCatalogFunction"
-  | "stateGraphFunction";
+  | "stateGraphFunction"
+  | "healthFunction"
+  | "readinessFunction"
+  | "batchFunction";
 
 export interface RouteEntry {
   /** URL path (e.g., "/auth/validate-invite") */
@@ -187,6 +196,28 @@ export const ROUTE_REGISTRY: RouteEntry[] = [
     methods: ["GET"],
     authType: "jwt-or-apikey",
     handlerRef: "stateGraphFunction",
+    epic: "Epic-3.2",
+  },
+  // Epic 3.2.9 — Health, Readiness & Batch Operations
+  {
+    path: "/health",
+    methods: ["GET"],
+    authType: "none",
+    handlerRef: "healthFunction",
+    epic: "Epic-3.2",
+  },
+  {
+    path: "/ready",
+    methods: ["GET"],
+    authType: "none",
+    handlerRef: "readinessFunction",
+    epic: "Epic-3.2",
+  },
+  {
+    path: "/batch",
+    methods: ["POST"],
+    authType: "jwt-or-apikey",
+    handlerRef: "batchFunction",
     epic: "Epic-3.2",
   },
 ];

@@ -17,7 +17,14 @@ describe("Route Registry (AC14-AC15)", () => {
   });
 
   it("all routes have valid auth types", () => {
-    const validAuthTypes = ["jwt", "jwt-or-apikey", "iam", "admin", "analyst"];
+    const validAuthTypes = [
+      "jwt",
+      "jwt-or-apikey",
+      "iam",
+      "admin",
+      "analyst",
+      "none",
+    ];
     for (const route of ROUTE_REGISTRY) {
       expect(validAuthTypes).toContain(route.authType);
     }

@@ -142,13 +142,14 @@ describe("T3: Authorizer Type Correctness", () => {
         // use JWT authorizer with role checks in the handler.
         const authTypeToAuthorizer: Record<
           AuthType,
-          "jwt" | "jwt-or-apikey" | "iam"
+          "jwt" | "jwt-or-apikey" | "iam" | "none"
         > = {
           jwt: "jwt",
           "jwt-or-apikey": "jwt-or-apikey",
           iam: "iam", // Future: AWS_IAM auth type, no custom authorizer
           admin: "jwt", // JWT authorizer + admin role check in handler
           analyst: "jwt", // JWT authorizer + analyst role check in handler
+          none: "none", // No authorizer (health/readiness probes)
         };
         const expectedAuthorizerType =
           authTypeToAuthorizer[registryEntry.authType];

@@ -19,6 +19,7 @@ import { ApiGatewayStack } from "../../lib/stacks/api/api-gateway.stack";
 import { AuthRoutesStack } from "../../lib/stacks/api/auth-routes.stack";
 import { SavesRoutesStack } from "../../lib/stacks/api/saves-routes.stack";
 import { DiscoveryRoutesStack } from "../../lib/stacks/api/discovery-routes.stack";
+import { OpsRoutesStack } from "../../lib/stacks/api/ops-routes.stack";
 import { ApiDeploymentStack } from "../../lib/stacks/api/api-deployment.stack";
 import { getAwsEnv } from "../../config/aws-env";
 
@@ -45,6 +46,9 @@ export const HANDLER_REF_TO_FUNCTION_NAME: Record<string, string> = {
   savesEventsFunction: "ai-learning-hub-saves-events",
   actionsCatalogFunction: "ai-learning-hub-actions-catalog",
   stateGraphFunction: "ai-learning-hub-state-graph",
+  healthFunction: "ai-learning-hub-health",
+  readinessFunction: "ai-learning-hub-readiness",
+  batchFunction: "ai-learning-hub-batch",
 };
 
 /**
@@ -106,11 +110,13 @@ export interface TestApiStacks {
   authRoutesStack: AuthRoutesStack;
   savesRoutesStack: SavesRoutesStack;
   discoveryRoutesStack: DiscoveryRoutesStack;
+  opsRoutesStack: OpsRoutesStack;
   apiDeploymentStack: ApiDeploymentStack;
   apiGwTemplate: Template;
   routesTemplate: Template;
   savesRoutesTemplate: Template;
   discoveryRoutesTemplate: Template;
+  opsRoutesTemplate: Template;
   deploymentTemplate: Template;
   /** All route templates combined for searching across all route stacks */
   allRouteTemplates: Template[];
@@ -217,6 +223,16 @@ export function createTestApiStacks(): TestApiStacks {
     }
   );
 
+  const opsRoutesStack = new OpsRoutesStack(app, "ArchTestOpsRoutes", {
+    env: awsEnv,
+    restApiId: apiGatewayStack.restApi.restApiId,
+    rootResourceId: apiGatewayStack.restApi.restApiRootResourceId,
+    apiKeyAuthorizer: apiGatewayStack.apiKeyAuthorizer,
+    usersTable,
+    idempotencyTable,
+    stageName: "dev",
+  });
+
   // WAF WebACL for ApiDeploymentStack
   const webAcl = new wafv2.CfnWebACL(depsStack, "TestWebAcl", {
     scope: "REGIONAL",
@@ -243,6 +259,7 @@ export function createTestApiStacks(): TestApiStacks {
   const routesTemplate = Template.fromStack(authRoutesStack);
   const savesRoutesTemplate = Template.fromStack(savesRoutesStack);
   const discoveryRoutesTemplate = Template.fromStack(discoveryRoutesStack);
+  const opsRoutesTemplate = Template.fromStack(opsRoutesStack);
   const deploymentTemplate = Template.fromStack(apiDeploymentStack);
 
   const result: TestApiStacks = {
@@ -251,16 +268,19 @@ export function createTestApiStacks(): TestApiStacks {
     authRoutesStack,
     savesRoutesStack,
     discoveryRoutesStack,
+    opsRoutesStack,
     apiDeploymentStack,
     apiGwTemplate,
     routesTemplate,
     savesRoutesTemplate,
     discoveryRoutesTemplate,
+    opsRoutesTemplate,
     deploymentTemplate,
     allRouteTemplates: [
       routesTemplate,
       savesRoutesTemplate,
       discoveryRoutesTemplate,
+      opsRoutesTemplate,
     ],
   };
 

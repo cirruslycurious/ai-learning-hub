@@ -40,6 +40,12 @@ export {
   type StateTransition,
   type StateGraph,
   type RateLimitMiddlewareConfig,
+  type HealthStatus,
+  type DependencyStatus,
+  type ReadinessStatus,
+  type BatchOperation,
+  type BatchOperationResult,
+  type BatchResponse,
 } from "./api.js";
 
 // Entity types
