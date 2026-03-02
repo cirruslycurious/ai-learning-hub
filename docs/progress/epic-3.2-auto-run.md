@@ -1,7 +1,18 @@
 ---
 epic_id: Epic-3.2
 status: in-progress
-scope: ["3.2.1", "3.2.2", "3.2.3", "3.2.4", "3.2.5", "3.2.6", "3.2.10", "3.2.7"]
+scope:
+  [
+    "3.2.1",
+    "3.2.2",
+    "3.2.3",
+    "3.2.4",
+    "3.2.5",
+    "3.2.6",
+    "3.2.10",
+    "3.2.7",
+    "3.2.8",
+  ]
 started: 2026-02-25T12:00:00Z
 last_updated: 2026-03-01T12:00:00Z
 stories:
@@ -77,10 +88,20 @@ stories:
     }
   "3.2.7":
     {
-      status: in-progress,
+      status: done,
       issue: 245,
+      pr: 249,
       branch: story-3-2-7-command-endpoint-pattern-saves-domain-retrofit,
       startedAt: "2026-03-01T12:00:00Z",
+      completedAt: "2026-03-02T00:00:00Z",
+      reviewRounds: 1,
+    }
+  "3.2.8":
+    {
+      status: in-progress,
+      issue: 250,
+      branch: story-3-2-8-auth-domain-retrofit,
+      startedAt: "2026-03-02T12:00:00Z",
     }
 ---
 
@@ -97,7 +118,8 @@ stories:
 | 3.2.5  | ✅ Complete    | #236 | 1             | ~3h      |
 | 3.2.6  | ✅ Complete    | #240 | 1             | ~40m     |
 | 3.2.10 | ✅ Complete    | #243 | 1             | ~3h      |
-| 3.2.7  | 🔄 In Progress | -    | -             | -        |
+| 3.2.7  | ✅ Complete    | #249 | 1             | ~12h     |
+| 3.2.8  | 🔄 In Progress | -    | -             | -        |
 
 ## Activity Log
 
@@ -152,3 +174,8 @@ stories:
 - [12:00] Story 3.2.10: Implementation complete, PR #243 merged to main
 - [12:00] Story 3.2.10: Status → done
 - [00:00] Story 3.2.7: Added to scope — Command Endpoint Pattern & Saves Domain Retrofit
+- [12:00] Story 3.2.7: Status → done (PR #249 merged to main)
+- [12:00] Story 3.2.8: Added to scope — Auth Domain Retrofit
+- [12:00] Story 3.2.8: Issue #250 created
+- [12:00] Story 3.2.8: Branch story-3-2-8-auth-domain-retrofit created
+- [12:00] Story 3.2.8: Implementation started (8 task groups, 21 ACs)

@@ -9,6 +9,7 @@ import {
   AppError,
   ErrorCode,
   type PaginatedResponse,
+  type RateLimitMiddlewareConfig,
 } from "@ai-learning-hub/types";
 import { createLogger, type Logger } from "@ai-learning-hub/logging";
 import {
@@ -26,6 +27,65 @@ export const USERS_TABLE_CONFIG: TableConfig = {
   sortKey: "SK",
 };
 
+/**
+ * Rate limit configuration for API key creation (Story 3.2.8, AC12/AC13).
+ * 10 keys per user per hour (default). Full-scoped API keys get 10, others get moderate.
+ */
+export const apiKeyCreateRateLimit: RateLimitMiddlewareConfig = {
+  operation: "apikey-create",
+  windowSeconds: 3600,
+  limit: (auth) => {
+    if (!auth?.isApiKey) return 10; // JWT users: default limit
+    const scopes = auth?.scopes ?? [];
+    if (scopes.includes("full") || scopes.includes("*")) return 10;
+    return 5; // scoped API key (shouldn't typically create keys via API key auth)
+  },
+  identifierSource: "userId",
+};
+
+/**
+ * Rate limit configuration for invite code generation (Story 3.2.8, AC12/AC13).
+ * 5 codes per user per day (default). Full-scoped API keys get 10.
+ */
+export const inviteGenerateRateLimit: RateLimitMiddlewareConfig = {
+  operation: "invite-generate",
+  windowSeconds: 86400,
+  limit: (auth) => {
+    if (!auth?.isApiKey) return 5; // JWT users: default limit
+    const scopes = auth?.scopes ?? [];
+    if (scopes.includes("full") || scopes.includes("*")) return 10;
+    return 5; // scoped API key default
+  },
+  identifierSource: "userId",
+};
+
+/**
+ * Rate limit configuration for invite code validation (Story 3.2.8, AC12).
+ * 5 validations per user per hour. Uses userId (not sourceIp) since endpoint requires auth.
+ */
+export const inviteValidateRateLimit: RateLimitMiddlewareConfig = {
+  operation: "invite-validate",
+  windowSeconds: 3600,
+  limit: (auth) => {
+    if (!auth?.isApiKey) return 5; // JWT users: default limit
+    const scopes = auth?.scopes ?? [];
+    if (scopes.includes("full") || scopes.includes("*")) return 20;
+    return 5;
+  },
+  identifierSource: "userId",
+};
+
+/**
+ * Rate limit configuration for profile updates (Story 3.2.8, AC12).
+ * 30 updates per user per hour.
+ */
+export const profileUpdateRateLimit: RateLimitMiddlewareConfig = {
+  operation: "profile-update",
+  windowSeconds: 3600,
+  limit: 30,
+  identifierSource: "userId",
+};
+
 export interface UserProfile extends Record<string, unknown> {
   PK: string;
   SK: string;
@@ -35,6 +95,7 @@ export interface UserProfile extends Record<string, unknown> {
   role: string;
   globalPreferences?: Record<string, unknown>;
   suspendedAt?: string;
+  version: number; // Optimistic concurrency version (Story 3.2.8)
   createdAt: string;
   updatedAt: string;
 }
@@ -88,6 +149,7 @@ export async function ensureProfile(
     email: metadata.email,
     displayName: metadata.displayName,
     role: metadata.role ?? "user",
+    version: 1, // Initial version for new profiles (Story 3.2.8)
     createdAt: now,
     updatedAt: now,
   };
@@ -171,21 +233,48 @@ export interface UpdateProfileFields {
 }
 
 /**
+ * Options for updating a user profile.
+ */
+export interface UpdateProfileOptions {
+  /** Expected version for optimistic concurrency (Story 3.2.8, AC8) */
+  expectedVersion?: number;
+}
+
+/**
+ * Result of a profile update including before/after states for event recording.
+ */
+export interface UpdateProfileResult {
+  profile: UserProfile;
+  changedFields: string[];
+  before: Partial<UserProfile>;
+  after: Partial<UserProfile>;
+}
+
+/**
  * Update a user profile with the provided fields.
  * Returns the updated profile or throws NOT_FOUND if the profile doesn't exist.
+ * Story 3.2.8: Added version check support and before/after state tracking.
  */
 export async function updateProfile(
   client: DynamoDBDocumentClient,
   clerkId: string,
   fields: UpdateProfileFields,
-  logger?: Logger
+  logger?: Logger,
+  options?: UpdateProfileOptions
 ): Promise<UserProfile> {
   const log = logger ?? createLogger({ userId: clerkId });
   const now = new Date().toISOString();
 
   // Build dynamic SET expression from provided fields
-  const setExpressions: string[] = ["updatedAt = :now"];
-  const expressionAttributeValues: Record<string, unknown> = { ":now": now };
+  const setExpressions: string[] = [
+    "updatedAt = :now",
+    "version = version + :one",
+  ];
+  const expressionAttributeValues: Record<string, unknown> = {
+    ":now": now,
+    ":one": 1,
+  };
+
   if (fields.displayName !== undefined) {
     setExpressions.push("displayName = :displayName");
     expressionAttributeValues[":displayName"] = fields.displayName;
@@ -196,28 +285,105 @@ export async function updateProfile(
     expressionAttributeValues[":globalPreferences"] = fields.globalPreferences;
   }
 
-  const updated = await updateItem<UserProfile>(
-    client,
-    USERS_TABLE_CONFIG,
-    {
-      key: { PK: `USER#${clerkId}`, SK: "PROFILE" },
-      updateExpression: `SET ${setExpressions.join(", ")}`,
-      expressionAttributeValues,
-      conditionExpression: "attribute_exists(PK)",
-      returnValues: "ALL_NEW",
-    },
-    log
-  );
+  // Build condition expression (Story 3.2.8, AC8)
+  let conditionExpression = "attribute_exists(PK)";
+  if (options?.expectedVersion !== undefined) {
+    conditionExpression += " AND version = :expectedVersion";
+    expressionAttributeValues[":expectedVersion"] = options.expectedVersion;
+  }
 
-  // Defensive fallback: updateItem helper already throws NOT_FOUND on
-  // ConditionalCheckFailedException, so this branch should not be reached
-  // under normal conditions. Kept as a safety net in case the helper
-  // behavior changes or DynamoDB returns empty Attributes unexpectedly.
-  if (!updated) {
+  try {
+    const updated = await updateItem<UserProfile>(
+      client,
+      USERS_TABLE_CONFIG,
+      {
+        key: { PK: `USER#${clerkId}`, SK: "PROFILE" },
+        updateExpression: `SET ${setExpressions.join(", ")}`,
+        expressionAttributeValues,
+        conditionExpression,
+        returnValues: "ALL_NEW",
+      },
+      log
+    );
+
+    // Defensive fallback: updateItem helper already throws NOT_FOUND on
+    // ConditionalCheckFailedException, so this branch should not be reached
+    // under normal conditions. Kept as a safety net in case the helper
+    // behavior changes or DynamoDB returns empty Attributes unexpectedly.
+    if (!updated) {
+      throw new AppError(ErrorCode.NOT_FOUND, "User profile not found");
+    }
+
+    return updated;
+  } catch (error) {
+    // Map ConditionalCheckFailedException to VERSION_CONFLICT when version was expected
+    if (
+      options?.expectedVersion !== undefined &&
+      AppError.isAppError(error) &&
+      error.code === ErrorCode.NOT_FOUND
+    ) {
+      // Re-read to get current version for error details
+      const current = await getProfile(client, clerkId, log);
+      if (current) {
+        throw new AppError(ErrorCode.VERSION_CONFLICT, "Version mismatch", {
+          currentVersion: current.version,
+        });
+      }
+    }
+    throw error;
+  }
+}
+
+/**
+ * Update a user profile with version checking and return before/after state for event recording.
+ * Story 3.2.8: Pre-read + ALL_NEW pattern for event history.
+ */
+export async function updateProfileWithEvents(
+  client: DynamoDBDocumentClient,
+  clerkId: string,
+  fields: UpdateProfileFields,
+  expectedVersion: number,
+  logger?: Logger
+): Promise<UpdateProfileResult> {
+  const log = logger ?? createLogger({ userId: clerkId });
+
+  // Pre-read for before snapshot
+  const before = await getProfile(client, clerkId, log);
+  if (!before) {
     throw new AppError(ErrorCode.NOT_FOUND, "User profile not found");
   }
 
-  return updated;
+  // Update with version check
+  const updated = await updateProfile(client, clerkId, fields, log, {
+    expectedVersion,
+  });
+
+  // Compute changed fields and before/after diff
+  const changedFields: string[] = [];
+  const beforeDiff: Partial<UserProfile> = {};
+  const afterDiff: Partial<UserProfile> = {};
+
+  if (
+    fields.displayName !== undefined &&
+    before.displayName !== updated.displayName
+  ) {
+    changedFields.push("displayName");
+    beforeDiff.displayName = before.displayName;
+    afterDiff.displayName = updated.displayName;
+  }
+
+  if (fields.globalPreferences !== undefined) {
+    changedFields.push("globalPreferences");
+    beforeDiff.globalPreferences = before.globalPreferences;
+    afterDiff.globalPreferences = updated.globalPreferences;
+  }
+
+  return {
+    profile: updated,
+    changedFields,
+    before: beforeDiff,
+    after: afterDiff,
+  };
 }
 
 /**

@@ -124,6 +124,7 @@ export type OperationScope =
   | "users:write"
   | "keys:read"
   | "keys:manage"
+  | "invites:read"
   | "invites:manage"
   | "*";
 

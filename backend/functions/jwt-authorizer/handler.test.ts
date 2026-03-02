@@ -143,6 +143,7 @@ describe("JWT Authorizer Handler", () => {
         role: "user",
         createdAt: "2026-01-01T00:00:00Z",
         updatedAt: "2026-01-01T00:00:00Z",
+        version: 1,
       });
 
       const result = await handler(createEvent(), mockContext);
@@ -173,6 +174,7 @@ describe("JWT Authorizer Handler", () => {
         role: "user",
         createdAt: "2026-01-01T00:00:00Z",
         updatedAt: "2026-01-01T00:00:00Z",
+        version: 1,
       });
 
       const result = await handler(createEvent(), mockContext);
@@ -237,6 +239,7 @@ describe("JWT Authorizer Handler", () => {
         role: "user",
         createdAt: "2026-01-01T00:00:00Z",
         updatedAt: "2026-01-01T00:00:00Z",
+        version: 1,
       });
 
       await handler(createEvent(), mockContext);
@@ -265,6 +268,7 @@ describe("JWT Authorizer Handler", () => {
         role: "user",
         createdAt: "2026-01-01T00:00:00Z",
         updatedAt: "2026-01-01T00:00:00Z",
+        version: 1,
       });
 
       const result = await handler(createEvent(), mockContext);
@@ -295,6 +299,7 @@ describe("JWT Authorizer Handler", () => {
         suspendedAt: "2026-01-15T00:00:00Z",
         createdAt: "2026-01-01T00:00:00Z",
         updatedAt: "2026-01-15T00:00:00Z",
+        version: 1,
       });
 
       const result = await handler(createEvent(), mockContext);
@@ -344,6 +349,7 @@ describe("JWT Authorizer Handler", () => {
         role: "admin",
         createdAt: "2026-01-01T00:00:00Z",
         updatedAt: "2026-01-01T00:00:00Z",
+        version: 1,
       });
 
       const result = await handler(createEvent(), mockContext);
@@ -363,6 +369,7 @@ describe("JWT Authorizer Handler", () => {
         role: "",
         createdAt: "2026-01-01T00:00:00Z",
         updatedAt: "2026-01-01T00:00:00Z",
+        version: 1,
       });
 
       const result = await handler(createEvent(), mockContext);
@@ -382,6 +389,7 @@ describe("JWT Authorizer Handler", () => {
         role: "",
         createdAt: "2026-01-01T00:00:00Z",
         updatedAt: "2026-01-01T00:00:00Z",
+        version: 1,
       });
 
       const result = await handler(createEvent(), mockContext);
@@ -427,6 +435,7 @@ describe("JWT Authorizer Handler", () => {
         suspendedAt: "2026-01-15T00:00:00Z",
         createdAt: "2026-01-01T00:00:00Z",
         updatedAt: "2026-01-15T00:00:00Z",
+        version: 1,
       });
 
       const result = await handler(createEvent(), mockContext);
@@ -465,6 +474,7 @@ describe("JWT Authorizer Handler", () => {
         role: "user",
         createdAt: "2026-01-01T00:00:00Z",
         updatedAt: "2026-01-01T00:00:00Z",
+        version: 1,
       });
 
       const result = await handler(createEvent(), mockContext);

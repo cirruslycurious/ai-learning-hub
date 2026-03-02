@@ -4,14 +4,16 @@
  * Generates and lists invite codes for authenticated users.
  *
  * Per Story 2.9: Invite Code Generation (Epic 2).
+ * Story 3.2.8: Retrofitted with idempotency, rate limiting via wrapHandler,
+ *              and event recording.
  */
 import {
   getDefaultClient,
   createInviteCode,
   listInviteCodesByUser,
   toPublicInviteCode,
-  enforceRateLimit,
-  USERS_TABLE_CONFIG,
+  recordEvent,
+  inviteGenerateRateLimit,
 } from "@ai-learning-hub/db";
 import {
   wrapHandler,
@@ -25,40 +27,41 @@ import {
 } from "@ai-learning-hub/validation";
 
 /**
- * POST /users/invite-codes — Generate a new invite code (AC1, AC2, AC4, AC5).
- *
- * Rate limit: 5 codes per user per day (AC5).
+ * POST /users/invite-codes — Generate a new invite code (AC10).
+ * Story 3.2.8: Rate limiting via wrapHandler, idempotency, event recording.
  */
-async function handlePost(ctx: HandlerContext) {
-  const { auth, logger, requestId } = ctx;
+async function handleGenerate(ctx: HandlerContext) {
+  const { auth, logger, requestId, actorType, agentId } = ctx;
   const userId = auth!.userId;
 
   const client = getDefaultClient();
 
-  // Enforce rate limit: 5 invite code generations per user per day (AC5)
-  await enforceRateLimit(
+  const result = await createInviteCode(client, userId, undefined, logger);
+
+  // Event recording (AC18) — fire-and-forget
+  await recordEvent(
     client,
-    USERS_TABLE_CONFIG.tableName,
     {
-      operation: "invite-generate",
-      identifier: userId,
-      limit: 5,
-      windowSeconds: 86400,
+      entityType: "inviteCode",
+      entityId: result.code,
+      userId,
+      eventType: "InviteCodeGenerated",
+      actorType,
+      actorId: agentId ?? undefined,
+      requestId,
     },
     logger
   );
-
-  const result = await createInviteCode(client, userId, undefined, logger);
 
   logger.info("Invite code generated", { userId });
   return createSuccessResponse(result, requestId, { statusCode: 201 });
 }
 
 /**
- * GET /users/invite-codes — List user's generated invite codes (AC3, AC7, Story 3.2.5 AC11).
+ * GET /users/invite-codes — List user's generated invite codes (Story 3.2.5 AC11).
  * Returns envelope format: { data, meta: { cursor }, links: { self, next } }
  */
-async function handleGet(ctx: HandlerContext) {
+async function handleList(ctx: HandlerContext) {
   const { event, auth, logger, requestId } = ctx;
   const userId = auth!.userId;
 
@@ -98,16 +101,35 @@ async function handleGet(ctx: HandlerContext) {
 }
 
 /**
+ * Handler for POST /users/invite-codes — generate with idempotency and rate limiting.
+ */
+export const generateHandler = wrapHandler(handleGenerate, {
+  requireAuth: true,
+  requiredScope: "invites:manage",
+  idempotent: true,
+  rateLimit: inviteGenerateRateLimit,
+});
+
+/**
+ * Handler for GET /users/invite-codes — list codes (read-only).
+ */
+export const listHandler = wrapHandler(handleList, {
+  requireAuth: true,
+  requiredScope: "invites:read",
+});
+
+/**
  * Route POST and GET requests.
+ * CDK wires each method separately for proper middleware options.
  */
 async function inviteCodesHandler(ctx: HandlerContext) {
   const method = ctx.event.httpMethod.toUpperCase();
 
   switch (method) {
     case "POST":
-      return handlePost(ctx);
+      return handleGenerate(ctx);
     case "GET":
-      return handleGet(ctx);
+      return handleList(ctx);
     default:
       throw new AppError(
         ErrorCode.METHOD_NOT_ALLOWED,
@@ -117,6 +139,10 @@ async function inviteCodesHandler(ctx: HandlerContext) {
   }
 }
 
+/**
+ * Combined handler for backward compatibility.
+ * In production, CDK wires specific handlers for proper middleware.
+ */
 export const handler = wrapHandler(inviteCodesHandler, {
   requireAuth: true,
   requiredScope: "invites:manage",

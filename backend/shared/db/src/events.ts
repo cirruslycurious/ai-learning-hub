@@ -57,6 +57,8 @@ const VALID_ENTITY_TYPES: EventEntityType[] = [
   "link",
   "user",
   "apiKey",
+  "userProfile",
+  "inviteCode",
 ];
 
 /**
