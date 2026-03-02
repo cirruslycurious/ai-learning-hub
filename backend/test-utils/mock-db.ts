@@ -73,6 +73,35 @@ export function mockDbModule(
       windowSeconds: 3600,
       limit: () => 200,
     },
+    // Story 3.2.8: Auth domain rate limit configs
+    apiKeyCreateRateLimit: {
+      operation: "apikey-create",
+      windowSeconds: 3600,
+      limit: () => 10,
+    },
+    inviteGenerateRateLimit: {
+      operation: "invite-generate",
+      windowSeconds: 86400,
+      limit: () => 5,
+    },
+    inviteValidateRateLimit: {
+      operation: "invite-validate",
+      windowSeconds: 3600,
+      limit: () => 5,
+    },
+    profileUpdateRateLimit: {
+      operation: "profile-update",
+      windowSeconds: 3600,
+      limit: 30,
+    },
+    // Story 3.2.8: updateProfileWithEvents for users-me handler
+    updateProfileWithEvents: () =>
+      Promise.resolve({
+        profile: {},
+        changedFields: [],
+        before: {},
+        after: {},
+      }),
     // Story 3.2.7: Event history recording (fire-and-forget, no-op by default)
     recordEvent: () => Promise.resolve(),
     // Pagination utilities (Story 3.2.5) — real implementations, no side effects

@@ -121,11 +121,18 @@ describe("GET /actions", () => {
     );
     const body = JSON.parse(result.body);
     expect(body.data.length).toBeGreaterThan(0);
+    // Valid read scopes from saves domain, auth domain (Story 3.2.8), and discovery
+    const validReadScopes = [
+      "saves:read",
+      "users:read",
+      "keys:read",
+      "invites:read",
+    ];
     for (const action of body.data) {
       // Actions with requiredScope "*" pass all scope filters (any-auth actions)
       expect(
         action.requiredScope === "*" ||
-          ["saves:read"].includes(action.requiredScope)
+          validReadScopes.includes(action.requiredScope)
       ).toBe(true);
     }
     expect(body.links.self).toBe("/actions?scope=read");

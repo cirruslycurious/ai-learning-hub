@@ -80,6 +80,21 @@ export const ROUTE_REGISTRY: RouteEntry[] = [
     handlerRef: "apiKeysFunction",
     epic: "Epic-2",
   },
+  // Epic 3.2.8 — Auth Domain Retrofit (command endpoints)
+  {
+    path: "/users/me/update",
+    methods: ["POST"],
+    authType: "jwt-or-apikey",
+    handlerRef: "usersMeFunction",
+    epic: "Epic-3.2",
+  },
+  {
+    path: "/users/api-keys/{id}/revoke",
+    methods: ["POST"],
+    authType: "jwt-or-apikey",
+    handlerRef: "apiKeysFunction",
+    epic: "Epic-3.2",
+  },
   {
     path: "/users/invite-codes",
     methods: ["POST", "GET"],
