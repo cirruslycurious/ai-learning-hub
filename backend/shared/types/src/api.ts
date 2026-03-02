@@ -126,6 +126,7 @@ export type OperationScope =
   | "keys:manage"
   | "invites:read"
   | "invites:manage"
+  | "batch:execute"
   | "*";
 
 /**
@@ -250,6 +251,65 @@ export interface StateGraph {
   initialState: string;
   terminalStates: string[];
   transitions: StateTransition[];
+}
+
+// ── Health, Readiness & Batch Types (Story 3.2.9) ──────────────────────
+
+/**
+ * Health endpoint response data (AC1).
+ */
+export interface HealthStatus {
+  status: "healthy";
+  timestamp: string;
+  version: string;
+}
+
+/**
+ * Dependency check result (AC3, AC4).
+ */
+export interface DependencyStatus {
+  dynamodb: "ok" | "unhealthy";
+}
+
+/**
+ * Readiness endpoint response data (AC3, AC4).
+ */
+export interface ReadinessStatus {
+  ready: boolean;
+  timestamp: string;
+  dependencies: DependencyStatus;
+}
+
+/**
+ * Single operation in a batch request (AC6).
+ */
+export interface BatchOperation {
+  method: "POST" | "PATCH" | "DELETE";
+  path: string;
+  body?: Record<string, unknown>;
+  headers?: Record<string, string>;
+}
+
+/**
+ * Result of a single batch operation (AC8).
+ */
+export interface BatchOperationResult {
+  operationIndex: number;
+  statusCode: number;
+  data?: unknown;
+  error?: unknown;
+}
+
+/**
+ * Batch endpoint response data (AC8).
+ */
+export interface BatchResponse {
+  results: BatchOperationResult[];
+  summary: {
+    total: number;
+    succeeded: number;
+    failed: number;
+  };
 }
 
 /**

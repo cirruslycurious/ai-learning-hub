@@ -61,6 +61,19 @@ export class ApiDeploymentStack extends cdk.Stack {
           throttlingRateLimit: 100,
           throttlingBurstLimit: 200,
         },
+        // Tighter throttling on unauthenticated health/readiness endpoints (AC15)
+        {
+          httpMethod: "GET",
+          resourcePath: "/health",
+          throttlingRateLimit: 50,
+          throttlingBurstLimit: 100,
+        },
+        {
+          httpMethod: "GET",
+          resourcePath: "/ready",
+          throttlingRateLimit: 50,
+          throttlingBurstLimit: 100,
+        },
       ],
     });
 

@@ -13,6 +13,7 @@ import { AuthRoutesStack } from "../lib/stacks/api/auth-routes.stack";
 import { EventsStack } from "../lib/stacks/core/events.stack";
 import { SavesRoutesStack } from "../lib/stacks/api/saves-routes.stack";
 import { DiscoveryRoutesStack } from "../lib/stacks/api/discovery-routes.stack";
+import { OpsRoutesStack } from "../lib/stacks/api/ops-routes.stack";
 import { ApiDeploymentStack } from "../lib/stacks/api/api-deployment.stack";
 
 const app = new cdk.App();
@@ -148,6 +149,21 @@ const discoveryRoutesStack = new DiscoveryRoutesStack(
 );
 discoveryRoutesStack.addDependency(apiGatewayStack);
 
+// Ops Routes Stack - Story 3.2.9 health, readiness, batch endpoints (ADR-006: after ApiGateway + Tables)
+const opsRoutesStack = new OpsRoutesStack(app, "AiLearningHubOpsRoutes", {
+  env: awsEnv,
+  description:
+    "Ops routes for ai-learning-hub (Story 3.2.9: GET /health, GET /ready, POST /batch)",
+  restApiId: apiGatewayStack.restApi.restApiId,
+  rootResourceId: apiGatewayStack.restApi.restApiRootResourceId,
+  apiKeyAuthorizer: apiGatewayStack.apiKeyAuthorizer,
+  usersTable: tablesStack.usersTable,
+  idempotencyTable: tablesStack.idempotencyTable,
+  stageName,
+});
+opsRoutesStack.addDependency(apiGatewayStack);
+opsRoutesStack.addDependency(tablesStack);
+
 // API Deployment Stack -- Deployment + Stage + WAF (after all route stacks)
 // Solves the CDK cross-stack deployment problem: ensures the deployed stage
 // includes routes from ALL route stacks, not just the ApiGatewayStack scope.
@@ -166,6 +182,7 @@ const apiDeploymentStack = new ApiDeploymentStack(
 apiDeploymentStack.addDependency(authRoutesStack);
 apiDeploymentStack.addDependency(savesRoutesStack);
 apiDeploymentStack.addDependency(discoveryRoutesStack);
+apiDeploymentStack.addDependency(opsRoutesStack);
 
 // Export stack instances for future cross-stack references (avoids unused variable lint errors)
 export {
@@ -179,6 +196,7 @@ export {
   eventsStack,
   savesRoutesStack,
   discoveryRoutesStack,
+  opsRoutesStack,
   apiDeploymentStack,
 };
 

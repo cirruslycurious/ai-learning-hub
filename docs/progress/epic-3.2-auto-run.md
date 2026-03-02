@@ -12,9 +12,10 @@ scope:
     "3.2.10",
     "3.2.7",
     "3.2.8",
+    "3.2.9",
   ]
 started: 2026-02-25T12:00:00Z
-last_updated: 2026-03-01T12:00:00Z
+last_updated: 2026-03-02T20:00:00Z
 stories:
   "3.2.1":
     {
@@ -98,10 +99,22 @@ stories:
     }
   "3.2.8":
     {
-      status: in-progress,
+      status: done,
       issue: 250,
+      pr: 251,
       branch: story-3-2-8-auth-domain-retrofit,
+      commit: "b4fe0985b896c69dc5183167d828ffd14b19c00e",
       startedAt: "2026-03-02T12:00:00Z",
+      completedAt: "2026-03-02T19:15:18Z",
+      duration: "7h 15m",
+      reviewRounds: 1,
+    }
+  "3.2.9":
+    {
+      status: in-progress,
+      issue: 252,
+      branch: story-3-2-9-health-readiness-batch,
+      startedAt: "2026-03-02T20:00:00Z",
     }
 ---
 
@@ -119,7 +132,8 @@ stories:
 | 3.2.6  | ✅ Complete    | #240 | 1             | ~40m     |
 | 3.2.10 | ✅ Complete    | #243 | 1             | ~3h      |
 | 3.2.7  | ✅ Complete    | #249 | 1             | ~12h     |
-| 3.2.8  | 🔄 In Progress | -    | -             | -        |
+| 3.2.8  | ✅ Complete    | #251 | 1             | ~7h 15m  |
+| 3.2.9  | 🔄 In Progress | -    | -             | -        |
 
 ## Activity Log
 
@@ -179,3 +193,9 @@ stories:
 - [12:00] Story 3.2.8: Issue #250 created
 - [12:00] Story 3.2.8: Branch story-3-2-8-auth-domain-retrofit created
 - [12:00] Story 3.2.8: Implementation started (8 task groups, 21 ACs)
+- [19:15] Story 3.2.8: PR #251 created and merged to main (Closes #250)
+- [19:15] Story 3.2.8: Status → done
+- [20:00] Story 3.2.9: Added to scope — Health, Readiness & Batch Operations
+- [20:00] Story 3.2.9: Issue #252 created
+- [20:00] Story 3.2.9: Branch story-3-2-9-health-readiness-batch created
+- [20:00] Story 3.2.9: Implementation started (8 task groups, 17 ACs)
