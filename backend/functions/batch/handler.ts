@@ -93,7 +93,7 @@ async function executeOperation(
     let responseBody: Record<string, unknown> = {};
     if (response.status !== 204) {
       try {
-        responseBody = await response.json();
+        responseBody = (await response.json()) as Record<string, unknown>;
       } catch {
         // Non-JSON response body — treat as opaque success/error
       }
