@@ -276,29 +276,33 @@ export function mockMiddlewareModule(
           };
         }
 
-        // Simulate requireVersion (Story 3.2.7)
+        // Extract expectedVersion from If-Match header (Story 3.2.7/3.2.8)
+        // Always extract if present; only enforce (return 428) when requireVersion is set.
         let expectedVersion: number | undefined;
-        if (opts.requireVersion) {
-          const ifMatch =
-            event.headers?.["if-match"] ??
-            event.headers?.["If-Match"] ??
-            event.headers?.["IF-MATCH"];
-          if (ifMatch === undefined || ifMatch === null) {
-            return {
-              statusCode: 428,
-              headers: {
-                "Content-Type": "application/json",
-                "X-Request-Id": "test-req-id",
+        const ifMatch =
+          event.headers?.["if-match"] ??
+          event.headers?.["If-Match"] ??
+          event.headers?.["IF-MATCH"];
+        if (
+          opts.requireVersion &&
+          (ifMatch === undefined || ifMatch === null)
+        ) {
+          return {
+            statusCode: 428,
+            headers: {
+              "Content-Type": "application/json",
+              "X-Request-Id": "test-req-id",
+            },
+            body: JSON.stringify({
+              error: {
+                code: "PRECONDITION_REQUIRED",
+                message: "If-Match header is required for this operation",
+                requestId: "test-req-id",
               },
-              body: JSON.stringify({
-                error: {
-                  code: "PRECONDITION_REQUIRED",
-                  message: "If-Match header is required for this operation",
-                  requestId: "test-req-id",
-                },
-              }),
-            };
-          }
+            }),
+          };
+        }
+        if (ifMatch !== undefined && ifMatch !== null) {
           const parsed = Number(ifMatch);
           if (!Number.isInteger(parsed) || parsed < 1) {
             return {

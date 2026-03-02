@@ -5,7 +5,7 @@
  * Covers all acceptance criteria: AC1-AC7.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { AppError, ErrorCode } from "@ai-learning-hub/types";
+import { ErrorCode } from "@ai-learning-hub/types";
 import {
   createMockEvent,
   createMockContext,
@@ -19,7 +19,6 @@ import {
 const mockCreateInviteCode = vi.fn();
 const mockListInviteCodesByUser = vi.fn();
 const mockToPublicInviteCode = vi.fn();
-const mockEnforceRateLimit = vi.fn();
 
 vi.mock("@ai-learning-hub/db", () =>
   mockDbModule({
@@ -27,7 +26,6 @@ vi.mock("@ai-learning-hub/db", () =>
     listInviteCodesByUser: (...args: unknown[]) =>
       mockListInviteCodesByUser(...args),
     toPublicInviteCode: (...args: unknown[]) => mockToPublicInviteCode(...args),
-    enforceRateLimit: (...args: unknown[]) => mockEnforceRateLimit(...args),
   })
 );
 
@@ -97,74 +95,6 @@ describe("Invite Codes Handler", () => {
         undefined,
         expect.anything()
       );
-    });
-  });
-
-  describe("AC5: POST rate limiting", () => {
-    it("returns 429 when rate limit exceeded", async () => {
-      expect.assertions(3);
-      mockEnforceRateLimit.mockRejectedValueOnce(
-        new AppError(
-          ErrorCode.RATE_LIMITED,
-          "Rate limit exceeded: 5 invite-generate per 1 day(s)"
-        )
-      );
-
-      const event = createEvent("POST", "user_123");
-      const result = await handler(event, mockContext);
-
-      expect(result.statusCode).toBe(429);
-      const body = JSON.parse(result.body);
-      expect(body.error.code).toBe("RATE_LIMITED");
-      // createInviteCode should NOT be called when rate limited
-      expect(mockCreateInviteCode).not.toHaveBeenCalled();
-    });
-
-    it("calls enforceRateLimit with correct config before generating code", async () => {
-      expect.assertions(3);
-      mockEnforceRateLimit.mockResolvedValueOnce(undefined);
-      mockCreateInviteCode.mockResolvedValueOnce({
-        code: "TestCode12345678",
-        generatedAt: "2026-02-16T12:00:00Z",
-        expiresAt: "2026-02-23T12:00:00Z",
-      });
-
-      const event = createEvent("POST", "user_xyz");
-      await handler(event, mockContext);
-
-      expect(mockEnforceRateLimit).toHaveBeenCalledWith(
-        expect.anything(),
-        "ai-learning-hub-users",
-        expect.objectContaining({
-          operation: "invite-generate",
-          identifier: "user_xyz",
-          limit: 5,
-          windowSeconds: 86400,
-        }),
-        expect.anything()
-      );
-      expect(mockEnforceRateLimit).toHaveBeenCalledTimes(1);
-      expect(mockCreateInviteCode).toHaveBeenCalledTimes(1);
-    });
-
-    it("enforceRateLimit is called before createInviteCode (explicit ordering)", async () => {
-      const callOrder: string[] = [];
-      mockEnforceRateLimit.mockImplementationOnce(async () => {
-        callOrder.push("enforceRateLimit");
-      });
-      mockCreateInviteCode.mockImplementationOnce(async () => {
-        callOrder.push("createInviteCode");
-        return {
-          code: "TestCode12345678",
-          generatedAt: "2026-02-16T12:00:00Z",
-          expiresAt: "2026-02-23T12:00:00Z",
-        };
-      });
-
-      const event = createEvent("POST", "user_123");
-      await handler(event, mockContext);
-
-      expect(callOrder).toEqual(["enforceRateLimit", "createInviteCode"]);
     });
   });
 
@@ -293,24 +223,6 @@ describe("Invite Codes Handler", () => {
 
       const result = await handler(event, createMockContext());
       assertADR008Error(result, ErrorCode.UNAUTHORIZED);
-    });
-
-    it("rate limit exceeded returns ADR-008 compliant 429", async () => {
-      mockEnforceRateLimit.mockRejectedValueOnce(
-        new AppError(
-          ErrorCode.RATE_LIMITED,
-          "Rate limit exceeded: 5 invite-generate per 1 day(s)"
-        )
-      );
-
-      const event = createMockEvent({
-        method: "POST",
-        path: "/users/invite-codes",
-        userId: "user_123",
-      });
-
-      const result = await handler(event, createMockContext());
-      assertADR008Error(result, ErrorCode.RATE_LIMITED);
     });
   });
 });

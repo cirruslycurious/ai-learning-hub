@@ -8,11 +8,7 @@
  * - AC16: Rate limit exceeded → 429 with Retry-After header
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import {
-  AppError,
-  ErrorCode,
-  type OperationScope,
-} from "@ai-learning-hub/types";
+import { ErrorCode, type OperationScope } from "@ai-learning-hub/types";
 import {
   createMockEvent,
   createMockContext,
@@ -25,7 +21,6 @@ import {
 const mockCreateApiKey = vi.fn();
 const mockListApiKeys = vi.fn();
 const mockRevokeApiKey = vi.fn();
-const mockEnforceRateLimit = vi.fn();
 const mockGetDefaultClient = vi.fn(() => ({}));
 
 vi.mock("@ai-learning-hub/db", () => ({
@@ -33,7 +28,12 @@ vi.mock("@ai-learning-hub/db", () => ({
   createApiKey: (...args: unknown[]) => mockCreateApiKey(...args),
   listApiKeys: (...args: unknown[]) => mockListApiKeys(...args),
   revokeApiKey: (...args: unknown[]) => mockRevokeApiKey(...args),
-  enforceRateLimit: (...args: unknown[]) => mockEnforceRateLimit(...args),
+  recordEvent: () => Promise.resolve(),
+  apiKeyCreateRateLimit: {
+    operation: "apikey-create",
+    windowSeconds: 3600,
+    limit: () => 10,
+  },
   USERS_TABLE_CONFIG: {
     tableName: "ai-learning-hub-users",
     partitionKey: "PK",
@@ -165,52 +165,9 @@ describe("Handler Integration Tests (AC13-AC16)", () => {
     });
   });
 
-  describe("AC16: Rate limit exceeded → 429 with Retry-After header", () => {
-    it("returns 429 with ADR-008 shape when rate limit exceeded", async () => {
-      mockEnforceRateLimit.mockRejectedValueOnce(
-        new AppError(
-          ErrorCode.RATE_LIMITED,
-          "Rate limit exceeded: 10 apikey-create per 1 hour(s)",
-          { retryAfter: 1800, limit: 10, current: 11 }
-        )
-      );
-
-      const event = createMockEvent({
-        method: "POST",
-        path: "/users/api-keys",
-        body: { name: "Rate Limited Key", scopes: ["*"] },
-        userId: "user_rate_limited",
-        authMethod: "jwt",
-      });
-
-      const result = await handler(event, mockContext);
-
-      assertADR008Error(result, ErrorCode.RATE_LIMITED);
-      expect(result.headers?.["Retry-After"]).toBe("1800");
-    });
-
-    it("rate limited response has correct 429 status code", async () => {
-      mockEnforceRateLimit.mockRejectedValueOnce(
-        new AppError(
-          ErrorCode.RATE_LIMITED,
-          "Rate limit exceeded: 10 apikey-create per 1 hour(s)",
-          { retryAfter: 3600 }
-        )
-      );
-
-      const event = createMockEvent({
-        method: "POST",
-        path: "/users/api-keys",
-        body: { name: "Key", scopes: ["*"] },
-        userId: "user_limited",
-      });
-
-      const result = await handler(event, mockContext);
-
-      expect(result.statusCode).toBe(429);
-      expect(result.headers?.["Retry-After"]).toBe("3600");
-    });
-  });
+  // Note: Rate limiting (AC16) is now tested at the middleware layer.
+  // Story 3.2.8 moved rate limiting from handler-level enforceRateLimit calls
+  // to wrapHandler middleware config. See middleware rate-limit-integration tests.
 });
 
 /**

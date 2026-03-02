@@ -19,14 +19,12 @@ import {
 const mockCreateApiKey = vi.fn();
 const mockListApiKeys = vi.fn();
 const mockRevokeApiKey = vi.fn();
-const mockEnforceRateLimit = vi.fn();
 
 vi.mock("@ai-learning-hub/db", () =>
   mockDbModule({
     createApiKey: (...args: unknown[]) => mockCreateApiKey(...args),
     listApiKeys: (...args: unknown[]) => mockListApiKeys(...args),
     revokeApiKey: (...args: unknown[]) => mockRevokeApiKey(...args),
-    enforceRateLimit: (...args: unknown[]) => mockEnforceRateLimit(...args),
   })
 );
 
@@ -188,7 +186,7 @@ describe("API Keys Handler", () => {
       );
     });
 
-    it("returns 404 when key does not exist", async () => {
+    it("returns 204 when key does not exist (idempotent revocation)", async () => {
       mockRevokeApiKey.mockRejectedValueOnce(
         new AppError(ErrorCode.NOT_FOUND, "API key not found")
       );
@@ -198,9 +196,9 @@ describe("API Keys Handler", () => {
       });
       const result = await handler(event, mockContext);
 
-      expect(result.statusCode).toBe(404);
-      const body = JSON.parse(result.body);
-      expect(body.error.code).toBe("NOT_FOUND");
+      // Story 3.2.8: Revoke is idempotent — returns 204 even if key not found
+      expect(result.statusCode).toBe(204);
+      expect(result.body).toBe("");
     });
 
     it("returns 400 when no key ID provided", async () => {
@@ -322,89 +320,6 @@ describe("API Keys Handler", () => {
     });
   });
 
-  describe("Rate limiting (AC5, Story 2.7 AC4)", () => {
-    it("returns 429 when rate limit exceeded", async () => {
-      mockEnforceRateLimit.mockRejectedValueOnce(
-        new AppError(
-          ErrorCode.RATE_LIMITED,
-          "Rate limit exceeded: 10 apikey-create per 1 hour(s)"
-        )
-      );
-
-      const event = createEvent(
-        "POST",
-        { name: "Key", scopes: ["*"] },
-        "user_123"
-      );
-      const result = await handler(event, mockContext);
-
-      expect(result.statusCode).toBe(429);
-      const body = JSON.parse(result.body);
-      expect(body.error.code).toBe("RATE_LIMITED");
-      // createApiKey should NOT be called when rate limited
-      expect(mockCreateApiKey).not.toHaveBeenCalled();
-    });
-
-    it("calls enforceRateLimit with correct config before creating key", async () => {
-      mockEnforceRateLimit.mockResolvedValueOnce(undefined);
-      mockCreateApiKey.mockResolvedValueOnce({
-        id: "key_01",
-        name: "Test",
-        key: "raw-key",
-        scopes: ["*"],
-        createdAt: "2026-02-16T12:00:00Z",
-      });
-
-      const event = createEvent(
-        "POST",
-        { name: "Test", scopes: ["*"] },
-        "user_xyz"
-      );
-      await handler(event, mockContext);
-
-      expect(mockEnforceRateLimit).toHaveBeenCalledWith(
-        expect.anything(),
-        "ai-learning-hub-users",
-        expect.objectContaining({
-          operation: "apikey-create",
-          identifier: "user_xyz",
-          limit: 10,
-          windowSeconds: 3600,
-        }),
-        expect.anything()
-      );
-      // Verify rate limit check happens before key creation
-      expect(mockEnforceRateLimit).toHaveBeenCalledTimes(1);
-      expect(mockCreateApiKey).toHaveBeenCalledTimes(1);
-    });
-
-    it("enforceRateLimit is called before createApiKey (explicit ordering)", async () => {
-      const callOrder: string[] = [];
-      mockEnforceRateLimit.mockImplementationOnce(async () => {
-        callOrder.push("enforceRateLimit");
-      });
-      mockCreateApiKey.mockImplementationOnce(async () => {
-        callOrder.push("createApiKey");
-        return {
-          id: "key_01",
-          name: "Test",
-          key: "raw-key",
-          scopes: ["*"],
-          createdAt: "2026-02-16T12:00:00Z",
-        };
-      });
-
-      const event = createEvent(
-        "POST",
-        { name: "Test", scopes: ["*"] },
-        "user_123"
-      );
-      await handler(event, mockContext);
-
-      expect(callOrder).toEqual(["enforceRateLimit", "createApiKey"]);
-    });
-  });
-
   describe("Scope enforcement (D7-AC13)", () => {
     it("returns 403 SCOPE_INSUFFICIENT for API key with insufficient scope", async () => {
       const event = createMockEvent({
@@ -434,7 +349,7 @@ describe("API Keys Handler", () => {
       assertADR008Error(result, ErrorCode.UNAUTHORIZED);
     });
 
-    it("revoke nonexistent key returns ADR-008 compliant error", async () => {
+    it("revoke nonexistent key returns 204 (idempotent)", async () => {
       mockRevokeApiKey.mockRejectedValueOnce(
         new AppError(ErrorCode.NOT_FOUND, "API key not found")
       );
@@ -447,7 +362,9 @@ describe("API Keys Handler", () => {
       });
 
       const result = await handler(event, createMockContext());
-      assertADR008Error(result, ErrorCode.NOT_FOUND);
+      // Story 3.2.8: Revoke is idempotent — returns 204 even if key not found
+      expect(result.statusCode).toBe(204);
+      expect(result.body).toBe("");
     });
   });
 });
