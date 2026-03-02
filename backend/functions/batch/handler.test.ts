@@ -28,7 +28,7 @@ vi.stubGlobal("fetch", mockFetch);
 // Set env var — lazy init means this runs before first handler call
 process.env.API_BASE_URL = "https://api.example.com/dev";
 
-import { handler } from "./handler.js";
+import { handler, _resetApiBaseUrlForTesting } from "./handler.js";
 
 const mockContext = createMockContext();
 
@@ -109,6 +109,27 @@ describe("POST /batch", () => {
     expect(result.statusCode).toBe(400);
     const body = JSON.parse(result.body);
     expect(body.error.code).toBe(ErrorCode.VALIDATION_ERROR);
+  });
+
+  it("returns 400 for malformed JSON body (not 500 INTERNAL_ERROR)", async () => {
+    const event = createMockEvent({
+      method: "POST",
+      path: "/batch",
+      userId: "user123",
+      headers: {
+        authorization: "Bearer test-jwt",
+        "idempotency-key": "batch-key-1",
+      },
+    });
+    // Manually set invalid JSON body (bypassing createMockEvent's JSON.stringify)
+    event.body = "{invalid json!!";
+
+    const result = await handler(event, mockContext);
+    expect(result.statusCode).toBe(400);
+
+    const body = JSON.parse(result.body);
+    expect(body.error.code).toBe(ErrorCode.VALIDATION_ERROR);
+    expect(body.error.message).toBe("Invalid JSON in request body");
   });
 
   it("returns 400 when operations array is empty (AC6)", async () => {
@@ -377,5 +398,41 @@ describe("POST /batch", () => {
 
     expect(body.links).toBeDefined();
     expect(body.links.self).toBe("/batch");
+  });
+
+  it("returns per-operation 502 when API_BASE_URL is not set (Task 5.8)", async () => {
+    // Reset cached URL so lazy init re-reads env var
+    _resetApiBaseUrlForTesting();
+    const original = process.env.API_BASE_URL;
+    delete process.env.API_BASE_URL;
+
+    try {
+      mockFetch.mockImplementation(() =>
+        mockFetchResponse(200, { id: "save-1" })
+      );
+
+      const event = createBatchEvent([
+        {
+          method: "POST",
+          path: "/saves",
+          body: { url: "https://example.com" },
+          headers: { "Idempotency-Key": "op-key-1" },
+        },
+      ]);
+
+      const result = await handler(event, mockContext);
+      expect(result.statusCode).toBe(200);
+
+      const body = JSON.parse(result.body);
+      // getApiBaseUrl() throws inside executeOperation, caught as OPERATION_FAILED
+      expect(body.data.results[0].statusCode).toBe(502);
+      expect(body.data.results[0].error.code).toBe("OPERATION_FAILED");
+      expect(body.data.results[0].error.message).toContain("API_BASE_URL");
+      expect(body.data.summary.failed).toBe(1);
+    } finally {
+      // Restore env var and reset cache for subsequent tests
+      process.env.API_BASE_URL = original;
+      _resetApiBaseUrlForTesting();
+    }
   });
 });

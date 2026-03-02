@@ -40,18 +40,24 @@ async function checkDynamoDB(): Promise<"ok" | "unhealthy"> {
 
   const client = getDefaultClient();
 
+  let timeoutId: NodeJS.Timeout;
   try {
     // Race getItem against a 3s timeout to prevent slow probes
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("DynamoDB probe timeout")), 3000)
-    );
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(
+        () => reject(new Error("DynamoDB probe timeout")),
+        3000
+      );
+    });
     await Promise.race([
       getItem(client, USERS_TABLE_CONFIG, { PK: "HEALTHCHECK", SK: "PROBE" }),
       timeoutPromise,
     ]);
+    clearTimeout(timeoutId!);
     cachedCheck = { result: "ok", expiresAt: Date.now() + CACHE_TTL_MS };
     return "ok";
   } catch {
+    clearTimeout(timeoutId!);
     cachedCheck = {
       result: "unhealthy",
       expiresAt: Date.now() + CACHE_TTL_MS,

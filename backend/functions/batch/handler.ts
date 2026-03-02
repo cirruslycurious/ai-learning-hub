@@ -145,7 +145,15 @@ async function batchHandler(ctx: HandlerContext) {
   const { event, requestId } = ctx;
 
   // Parse and validate request body
-  const body = event.body ? JSON.parse(event.body) : {};
+  let body: unknown;
+  try {
+    body = event.body ? JSON.parse(event.body) : {};
+  } catch {
+    throw new AppError(
+      ErrorCode.VALIDATION_ERROR,
+      "Invalid JSON in request body"
+    );
+  }
   const parsed = batchRequestSchema.safeParse(body);
 
   if (!parsed.success) {
@@ -218,3 +226,10 @@ export const handler = wrapHandler(batchHandler, {
     limit: 60,
   },
 });
+
+/**
+ * Reset cached API base URL for testing purposes only.
+ */
+export function _resetApiBaseUrlForTesting(): void {
+  _apiBaseUrl = undefined;
+}
