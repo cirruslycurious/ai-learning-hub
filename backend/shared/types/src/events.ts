@@ -11,7 +11,9 @@ export type EventEntityType =
   | "tutorial"
   | "link"
   | "user"
-  | "apiKey";
+  | "apiKey"
+  | "userProfile"
+  | "inviteCode";
 
 /**
  * Actor who performed the action

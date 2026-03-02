@@ -189,8 +189,9 @@ export const apiKeyScopesSchema = z
   .describe("API key permission scopes");
 
 /**
- * Update profile request body (PATCH /users/me)
+ * Update profile request body (PATCH /users/me and POST /users/me/update)
  * At least one field must be provided.
+ * Story 3.2.8: Added optional context field for event metadata.
  */
 export const updateProfileBodySchema = z
   .object({
@@ -206,6 +207,7 @@ export const updateProfileBodySchema = z
         message: "globalPreferences must be under 10KB",
       })
       .optional(),
+    context: eventContextSchema,
   })
   .refine(
     (data) =>
@@ -218,6 +220,7 @@ export const updateProfileBodySchema = z
 /**
  * Invite code validation request body schema
  * Code format: 8-16 alphanumeric characters (128-bit entropy)
+ * Story 3.2.8: Added optional context field for event metadata.
  */
 export const validateInviteBodySchema = z.object({
   code: z
@@ -226,6 +229,7 @@ export const validateInviteBodySchema = z.object({
     .max(16)
     .regex(/^[a-zA-Z0-9]+$/, "Code must be alphanumeric")
     .describe("Invite code (8-16 alphanumeric characters)"),
+  context: eventContextSchema,
 });
 
 /**

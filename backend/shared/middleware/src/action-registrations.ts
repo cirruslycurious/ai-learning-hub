@@ -293,6 +293,323 @@ function registerSavesActions(registry: ActionRegistry): void {
 }
 
 /**
+ * Register auth domain actions (Story 3.2.8, AC19).
+ * Includes users/me, api-keys, and invite-codes endpoints.
+ */
+function registerAuthActions(registry: ActionRegistry): void {
+  const authActions: ActionDefinition[] = [
+    // --- Users profile actions ---
+    {
+      actionId: "users:get-profile",
+      description: "Get the authenticated user's profile",
+      method: "GET",
+      urlPattern: "/users/me",
+      entityType: "users",
+      pathParams: [],
+      queryParams: [],
+      inputSchema: null,
+      requiredHeaders: [],
+      requiredScope: "users:read" as OperationScope,
+      expectedErrors: [ErrorCode.NOT_FOUND, ErrorCode.UNAUTHORIZED],
+    },
+    {
+      actionId: "users:update-profile",
+      description: "Update the authenticated user's profile (PATCH)",
+      method: "PATCH",
+      urlPattern: "/users/me",
+      entityType: "users",
+      pathParams: [],
+      queryParams: [],
+      inputSchema: {
+        type: "object",
+        properties: {
+          displayName: { type: "string", maxLength: 255 },
+          globalPreferences: { type: "object" },
+          context: {
+            type: "object",
+            properties: {
+              trigger: { type: "string" },
+              source: { type: "string" },
+              confidence: { type: "number" },
+              upstream_ref: { type: "string" },
+            },
+          },
+        },
+      },
+      requiredHeaders: [
+        {
+          name: "If-Match",
+          format: "\\d+",
+          description: "Expected version for optimistic concurrency",
+        },
+        {
+          name: "Idempotency-Key",
+          format: "[a-zA-Z0-9_\\-.]{1,256}",
+          description: "Client-generated dedup key",
+        },
+      ],
+      requiredScope: "users:write" as OperationScope,
+      expectedErrors: [
+        ErrorCode.NOT_FOUND,
+        ErrorCode.VALIDATION_ERROR,
+        ErrorCode.VERSION_CONFLICT,
+        ErrorCode.UNAUTHORIZED,
+        ErrorCode.RATE_LIMITED,
+      ],
+    },
+    {
+      actionId: "users:update-profile-command",
+      description:
+        "Update the authenticated user's profile via command endpoint",
+      method: "POST",
+      urlPattern: "/users/me/update",
+      entityType: "users",
+      pathParams: [],
+      queryParams: [],
+      inputSchema: {
+        type: "object",
+        properties: {
+          displayName: { type: "string", maxLength: 255 },
+          globalPreferences: { type: "object" },
+          context: {
+            type: "object",
+            properties: {
+              trigger: { type: "string" },
+              source: { type: "string" },
+              confidence: { type: "number" },
+              upstream_ref: { type: "string" },
+            },
+          },
+        },
+      },
+      requiredHeaders: [
+        {
+          name: "If-Match",
+          format: "\\d+",
+          description: "Expected version for optimistic concurrency",
+        },
+        {
+          name: "Idempotency-Key",
+          format: "[a-zA-Z0-9_\\-.]{1,256}",
+          description: "Client-generated dedup key",
+        },
+      ],
+      requiredScope: "users:write" as OperationScope,
+      expectedErrors: [
+        ErrorCode.NOT_FOUND,
+        ErrorCode.VALIDATION_ERROR,
+        ErrorCode.VERSION_CONFLICT,
+        ErrorCode.UNAUTHORIZED,
+        ErrorCode.RATE_LIMITED,
+      ],
+    },
+
+    // --- API Keys actions ---
+    {
+      actionId: "keys:create",
+      description: "Create a new API key",
+      method: "POST",
+      urlPattern: "/users/api-keys",
+      entityType: "keys",
+      pathParams: [],
+      queryParams: [],
+      inputSchema: {
+        type: "object",
+        properties: {
+          name: { type: "string", minLength: 1, maxLength: 255 },
+          scopes: {
+            type: "array",
+            items: { type: "string" },
+            minItems: 1,
+          },
+          context: {
+            type: "object",
+            properties: {
+              trigger: { type: "string" },
+              source: { type: "string" },
+              confidence: { type: "number" },
+              upstream_ref: { type: "string" },
+            },
+          },
+        },
+        required: ["name", "scopes"],
+      },
+      requiredHeaders: [
+        {
+          name: "Idempotency-Key",
+          format: "[a-zA-Z0-9_\\-.]{1,256}",
+          description: "Client-generated dedup key",
+        },
+      ],
+      requiredScope: "keys:manage" as OperationScope,
+      expectedErrors: [
+        ErrorCode.VALIDATION_ERROR,
+        ErrorCode.UNAUTHORIZED,
+        ErrorCode.RATE_LIMITED,
+      ],
+    },
+    {
+      actionId: "keys:list",
+      description: "List the authenticated user's API keys",
+      method: "GET",
+      urlPattern: "/users/api-keys",
+      entityType: "keys",
+      pathParams: [],
+      queryParams: [
+        {
+          name: "limit",
+          type: "number",
+          description: "Max items per page (1-100, default 20)",
+          required: false,
+        },
+        {
+          name: "cursor",
+          type: "string",
+          description: "Pagination cursor from previous response",
+          required: false,
+        },
+      ],
+      inputSchema: null,
+      requiredHeaders: [],
+      requiredScope: "keys:read" as OperationScope,
+      expectedErrors: [ErrorCode.UNAUTHORIZED],
+    },
+    {
+      actionId: "keys:revoke",
+      description: "Revoke an API key (DELETE method)",
+      method: "DELETE",
+      urlPattern: "/users/api-keys/:id",
+      entityType: "keys",
+      pathParams: [
+        { name: "id", type: "string", description: "API key ID (ULID)" },
+      ],
+      queryParams: [],
+      inputSchema: null,
+      requiredHeaders: [
+        {
+          name: "Idempotency-Key",
+          format: "[a-zA-Z0-9_\\-.]{1,256}",
+          description: "Client-generated dedup key",
+        },
+      ],
+      requiredScope: "keys:manage" as OperationScope,
+      expectedErrors: [ErrorCode.NOT_FOUND, ErrorCode.UNAUTHORIZED],
+    },
+    {
+      actionId: "keys:revoke-command",
+      description: "Revoke an API key via command endpoint",
+      method: "POST",
+      urlPattern: "/users/api-keys/:id/revoke",
+      entityType: "keys",
+      pathParams: [
+        { name: "id", type: "string", description: "API key ID (ULID)" },
+      ],
+      queryParams: [],
+      inputSchema: null,
+      requiredHeaders: [
+        {
+          name: "Idempotency-Key",
+          format: "[a-zA-Z0-9_\\-.]{1,256}",
+          description: "Client-generated dedup key",
+        },
+      ],
+      requiredScope: "keys:manage" as OperationScope,
+      expectedErrors: [ErrorCode.NOT_FOUND, ErrorCode.UNAUTHORIZED],
+    },
+
+    // --- Invite codes actions ---
+    {
+      actionId: "invites:generate",
+      description: "Generate a new invite code",
+      method: "POST",
+      urlPattern: "/users/invite-codes",
+      entityType: "invites",
+      pathParams: [],
+      queryParams: [],
+      inputSchema: null,
+      requiredHeaders: [
+        {
+          name: "Idempotency-Key",
+          format: "[a-zA-Z0-9_\\-.]{1,256}",
+          description: "Client-generated dedup key",
+        },
+      ],
+      requiredScope: "invites:manage" as OperationScope,
+      expectedErrors: [ErrorCode.UNAUTHORIZED, ErrorCode.RATE_LIMITED],
+    },
+    {
+      actionId: "invites:list",
+      description: "List the authenticated user's generated invite codes",
+      method: "GET",
+      urlPattern: "/users/invite-codes",
+      entityType: "invites",
+      pathParams: [],
+      queryParams: [
+        {
+          name: "limit",
+          type: "number",
+          description: "Max items per page (1-100, default 20)",
+          required: false,
+        },
+        {
+          name: "cursor",
+          type: "string",
+          description: "Pagination cursor from previous response",
+          required: false,
+        },
+      ],
+      inputSchema: null,
+      requiredHeaders: [],
+      requiredScope: "invites:read" as OperationScope,
+      expectedErrors: [ErrorCode.UNAUTHORIZED],
+    },
+    {
+      actionId: "invites:validate",
+      description: "Validate and redeem an invite code during signup",
+      method: "POST",
+      urlPattern: "/auth/validate-invite",
+      entityType: "invites",
+      pathParams: [],
+      queryParams: [],
+      inputSchema: {
+        type: "object",
+        properties: {
+          code: { type: "string", minLength: 8, maxLength: 16 },
+          context: {
+            type: "object",
+            properties: {
+              trigger: { type: "string" },
+              source: { type: "string" },
+              confidence: { type: "number" },
+              upstream_ref: { type: "string" },
+            },
+          },
+        },
+        required: ["code"],
+      },
+      requiredHeaders: [
+        {
+          name: "Idempotency-Key",
+          format: "[a-zA-Z0-9_\\-.]{1,256}",
+          description: "Client-generated dedup key",
+        },
+      ],
+      requiredScope: "*" as OperationScope, // Any authenticated user can validate
+      expectedErrors: [
+        ErrorCode.VALIDATION_ERROR,
+        ErrorCode.INVALID_INVITE_CODE,
+        ErrorCode.UNAUTHORIZED,
+        ErrorCode.RATE_LIMITED,
+      ],
+    },
+  ];
+
+  for (const action of authActions) {
+    registry.registerAction(action);
+  }
+}
+
+/**
  * Register discoverability actions themselves (Task 7.2).
  */
 function registerDiscoveryActions(registry: ActionRegistry): void {
@@ -353,6 +670,7 @@ const _registeredInstances = new WeakSet<ActionRegistry>();
 export function registerInitialActions(registry: ActionRegistry): void {
   if (_registeredInstances.has(registry)) return;
   registerSavesActions(registry);
+  registerAuthActions(registry); // Story 3.2.8
   registerDiscoveryActions(registry);
   _registeredInstances.add(registry);
 }

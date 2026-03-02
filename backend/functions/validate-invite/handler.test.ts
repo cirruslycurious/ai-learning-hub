@@ -19,14 +19,12 @@ import {
 const mockGetInviteCode = vi.fn();
 const mockRedeemInviteCode = vi.fn();
 const mockGetProfile = vi.fn();
-const mockEnforceRateLimit = vi.fn();
 
 vi.mock("@ai-learning-hub/db", () =>
   mockDbModule({
     getInviteCode: (...args: unknown[]) => mockGetInviteCode(...args),
     redeemInviteCode: (...args: unknown[]) => mockRedeemInviteCode(...args),
     getProfile: (...args: unknown[]) => mockGetProfile(...args),
-    enforceRateLimit: (...args: unknown[]) => mockEnforceRateLimit(...args),
   })
 );
 
@@ -304,87 +302,6 @@ describe("Validate Invite Handler", () => {
 
       // Should return 500 for Clerk failure
       expect(result.statusCode).toBe(500);
-    });
-  });
-
-  describe("Rate limiting (Story 2.7, AC4)", () => {
-    it("returns 429 when rate limit exceeded", async () => {
-      mockEnforceRateLimit.mockRejectedValueOnce(
-        new AppError(
-          ErrorCode.RATE_LIMITED,
-          "Rate limit exceeded: 5 invite-validate per 1 hour(s)"
-        )
-      );
-
-      const event = createEvent({ code: "ABCD1234" }, "user_123");
-      const result = await handler(event, mockContext);
-
-      expect(result.statusCode).toBe(429);
-      const body = JSON.parse(result.body);
-      expect(body.error.code).toBe("RATE_LIMITED");
-    });
-
-    it("enforceRateLimit is called before getInviteCode (explicit ordering)", async () => {
-      const callOrder: string[] = [];
-      mockEnforceRateLimit.mockImplementationOnce(async () => {
-        callOrder.push("enforceRateLimit");
-      });
-      mockGetInviteCode.mockImplementationOnce(async () => {
-        callOrder.push("getInviteCode");
-        return {
-          PK: "CODE#ABCD1234",
-          SK: "META",
-          code: "ABCD1234",
-          generatedBy: "user_gen",
-          generatedAt: "2026-01-01T00:00:00Z",
-        };
-      });
-      mockRedeemInviteCode.mockResolvedValueOnce({
-        PK: "CODE#ABCD1234",
-        SK: "META",
-        code: "ABCD1234",
-        generatedBy: "user_gen",
-        generatedAt: "2026-01-01T00:00:00Z",
-        redeemedBy: "user_123",
-      });
-      mockUpdateUserMetadata.mockResolvedValueOnce({});
-
-      const event = createEvent({ code: "ABCD1234" }, "user_123");
-      await handler(event, mockContext);
-
-      expect(callOrder).toEqual(["enforceRateLimit", "getInviteCode"]);
-    });
-
-    it("calls enforceRateLimit with source IP and correct config", async () => {
-      mockEnforceRateLimit.mockResolvedValueOnce(undefined);
-      const inviteCode = {
-        PK: "CODE#ABCD1234",
-        SK: "META",
-        code: "ABCD1234",
-        generatedBy: "user_gen",
-        generatedAt: "2026-01-01T00:00:00Z",
-      };
-      mockGetInviteCode.mockResolvedValueOnce(inviteCode);
-      mockRedeemInviteCode.mockResolvedValueOnce({
-        ...inviteCode,
-        redeemedBy: "user_123",
-      });
-      mockUpdateUserMetadata.mockResolvedValueOnce({});
-
-      const event = createEvent({ code: "ABCD1234" }, "user_123");
-      await handler(event, mockContext);
-
-      expect(mockEnforceRateLimit).toHaveBeenCalledWith(
-        expect.anything(),
-        "ai-learning-hub-users",
-        expect.objectContaining({
-          operation: "invite-validate",
-          identifier: "127.0.0.1",
-          limit: 5,
-          windowSeconds: 3600,
-        }),
-        expect.anything()
-      );
     });
   });
 

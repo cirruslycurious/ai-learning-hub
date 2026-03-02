@@ -125,6 +125,18 @@ export class AuthRoutesStack extends cdk.Stack {
       );
     }
 
+    // POST /users/me/update — Command endpoint for profile updates (Story 3.2.8, AC9)
+    const usersMeUpdateResource = usersMeResource.addResource("update");
+    usersMeUpdateResource.addCorsPreflight(corsOptions);
+    usersMeUpdateResource.addMethod(
+      "POST",
+      new apigateway.LambdaIntegration(usersMeFunction),
+      {
+        authorizer: apiKeyAuthorizer,
+        authorizationType: apigateway.AuthorizationType.CUSTOM,
+      }
+    );
+
     // /users/api-keys (AC9) -- JWT or API Key
     const apiKeysResource = usersResource.addResource("api-keys");
     apiKeysResource.addCorsPreflight(corsOptions);
@@ -144,6 +156,18 @@ export class AuthRoutesStack extends cdk.Stack {
     apiKeyByIdResource.addCorsPreflight(corsOptions);
     apiKeyByIdResource.addMethod(
       "DELETE",
+      new apigateway.LambdaIntegration(apiKeysFunction),
+      {
+        authorizer: apiKeyAuthorizer,
+        authorizationType: apigateway.AuthorizationType.CUSTOM,
+      }
+    );
+
+    // POST /users/api-keys/{id}/revoke — Command endpoint for key revocation (Story 3.2.8, AC5)
+    const apiKeyRevokeResource = apiKeyByIdResource.addResource("revoke");
+    apiKeyRevokeResource.addCorsPreflight(corsOptions);
+    apiKeyRevokeResource.addMethod(
+      "POST",
       new apigateway.LambdaIntegration(apiKeysFunction),
       {
         authorizer: apiKeyAuthorizer,

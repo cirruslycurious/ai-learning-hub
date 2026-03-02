@@ -121,7 +121,7 @@ development_status:
   3-2-5-cursor-based-pagination: ready-for-dev
   3-2-6-scoped-api-key-permissions: ready-for-dev
   3-2-7-saves-domain-retrofit: ready-for-dev
-  3-2-8-auth-domain-retrofit: backlog
+  3-2-8-auth-domain-retrofit: ready-for-dev
   3-2-9-health-readiness-batch: backlog
   epic-3-2-retrospective: optional
 

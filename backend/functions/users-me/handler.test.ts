@@ -17,12 +17,13 @@ import {
 
 // Mock @ai-learning-hub/db
 const mockGetProfile = vi.fn();
-const mockUpdateProfile = vi.fn();
+const mockUpdateProfileWithEvents = vi.fn();
 
 vi.mock("@ai-learning-hub/db", () =>
   mockDbModule({
     getProfile: (...args: unknown[]) => mockGetProfile(...args),
-    updateProfile: (...args: unknown[]) => mockUpdateProfile(...args),
+    updateProfileWithEvents: (...args: unknown[]) =>
+      mockUpdateProfileWithEvents(...args),
   })
 );
 
@@ -40,13 +41,15 @@ import { handler } from "./handler.js";
 function createEvent(
   method: "GET" | "PATCH",
   body?: Record<string, unknown>,
-  userId?: string
+  userId?: string,
+  headers?: Record<string, string>
 ) {
   return createMockEvent({
     method,
     path: "/users/me",
     body: body ?? null,
     userId,
+    headers,
   });
 }
 
@@ -144,22 +147,29 @@ describe("Users Me Handler", () => {
         displayName: "New Name",
         updatedAt: "2026-02-15T00:00:00Z",
       };
-      mockUpdateProfile.mockResolvedValueOnce(updated);
+      mockUpdateProfileWithEvents.mockResolvedValueOnce({
+        profile: updated,
+        changedFields: ["displayName"],
+        before: { displayName: "Test User" },
+        after: { displayName: "New Name" },
+      });
 
       const event = createEvent(
         "PATCH",
         { displayName: "New Name" },
-        "user_123"
+        "user_123",
+        { "If-Match": "1" }
       );
       const result = await handler(event, mockContext);
       const body = JSON.parse(result.body);
 
       expect(result.statusCode).toBe(200);
       expect(body.data.displayName).toBe("New Name");
-      expect(mockUpdateProfile).toHaveBeenCalledWith(
+      expect(mockUpdateProfileWithEvents).toHaveBeenCalledWith(
         expect.anything(),
         "user_123",
         { displayName: "New Name" },
+        1,
         expect.anything()
       );
     });
@@ -170,12 +180,18 @@ describe("Users Me Handler", () => {
         globalPreferences: { theme: "light", lang: "en" },
         updatedAt: "2026-02-15T00:00:00Z",
       };
-      mockUpdateProfile.mockResolvedValueOnce(updated);
+      mockUpdateProfileWithEvents.mockResolvedValueOnce({
+        profile: updated,
+        changedFields: ["globalPreferences"],
+        before: { globalPreferences: { theme: "dark" } },
+        after: { globalPreferences: { theme: "light", lang: "en" } },
+      });
 
       const event = createEvent(
         "PATCH",
         { globalPreferences: { theme: "light", lang: "en" } },
-        "user_123"
+        "user_123",
+        { "If-Match": "1" }
       );
       const result = await handler(event, mockContext);
       const body = JSON.parse(result.body);
@@ -194,12 +210,24 @@ describe("Users Me Handler", () => {
         globalPreferences: { newPref: true },
         updatedAt: "2026-02-15T00:00:00Z",
       };
-      mockUpdateProfile.mockResolvedValueOnce(updated);
+      mockUpdateProfileWithEvents.mockResolvedValueOnce({
+        profile: updated,
+        changedFields: ["displayName", "globalPreferences"],
+        before: {
+          displayName: "Test User",
+          globalPreferences: { theme: "dark" },
+        },
+        after: {
+          displayName: "Both Updated",
+          globalPreferences: { newPref: true },
+        },
+      });
 
       const event = createEvent(
         "PATCH",
         { displayName: "Both Updated", globalPreferences: { newPref: true } },
-        "user_123"
+        "user_123",
+        { "If-Match": "1" }
       );
       const result = await handler(event, mockContext);
       const body = JSON.parse(result.body);
@@ -245,13 +273,14 @@ describe("Users Me Handler", () => {
     });
 
     it("returns 404 when profile does not exist (PATCH)", async () => {
-      mockUpdateProfile.mockRejectedValueOnce(
+      mockUpdateProfileWithEvents.mockRejectedValueOnce(
         new AppError(ErrorCode.NOT_FOUND, "User profile not found")
       );
       const event = createEvent(
         "PATCH",
         { displayName: "Test" },
-        "nonexistent_user"
+        "nonexistent_user",
+        { "If-Match": "1" }
       );
       const result = await handler(event, mockContext);
 
@@ -284,7 +313,8 @@ describe("Users Me Handler", () => {
       const result = await handler(event, mockContext);
 
       assertADR008Error(result, ErrorCode.METHOD_NOT_ALLOWED);
-      expect(result.headers?.Allow).toBe("GET, PATCH");
+      // Story 3.2.8: POST is now allowed for /users/me/update command endpoint
+      expect(result.headers?.Allow).toBe("GET, PATCH, POST");
     });
   });
 

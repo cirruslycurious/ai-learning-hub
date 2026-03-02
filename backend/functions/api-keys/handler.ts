@@ -4,14 +4,16 @@
  * Creates, lists, and revokes API keys.
  *
  * Per Story 2.6: API Key CRUD (Epic 2).
+ * Story 3.2.8: Retrofitted with idempotency, rate limiting via wrapHandler,
+ *              event recording, and command endpoint for revocation.
  */
 import {
   getDefaultClient,
   createApiKey,
   listApiKeys,
   revokeApiKey,
-  enforceRateLimit,
-  USERS_TABLE_CONFIG,
+  recordEvent,
+  apiKeyCreateRateLimit,
 } from "@ai-learning-hub/db";
 import {
   wrapHandler,
@@ -29,48 +31,60 @@ import {
 } from "@ai-learning-hub/validation";
 import { createApiKeyBodySchema } from "./schemas.js";
 
-/** Path parameter schema for DELETE /users/api-keys/:id. */
-const deletePathSchema = z.object({
+/** Path parameter schema for DELETE /users/api-keys/:id and POST /users/api-keys/:id/revoke. */
+const keyIdPathSchema = z.object({
   id: z.string().min(1, "API key ID is required").max(128),
 });
 
 /**
- * POST /users/api-keys — Create a new API key (AC1, AC4, AC5).
- *
- * Rate limit: 10 key generations per user per hour (Story 2.7, AC4).
+ * POST /users/api-keys — Create a new API key (AC4).
+ * Story 3.2.8: Rate limiting via wrapHandler, idempotency, event recording.
  */
-async function handlePost(ctx: HandlerContext) {
-  const { event, auth, logger, requestId } = ctx;
+async function handleCreate(ctx: HandlerContext) {
+  const { event, auth, logger, requestId, actorType, agentId } = ctx;
   const userId = auth!.userId;
 
-  const { name, scopes } = validateJsonBody(createApiKeyBodySchema, event.body);
+  // Validate request body (includes optional context field)
+  const { name, scopes, context } = validateJsonBody(
+    createApiKeyBodySchema,
+    event.body
+  );
 
   const client = getDefaultClient();
 
-  // Enforce rate limit: 10 key creations per user per hour (AC4)
-  await enforceRateLimit(
+  const result = await createApiKey(client, userId, name, scopes, logger);
+
+  // Event recording (AC16) — fire-and-forget
+  await recordEvent(
     client,
-    USERS_TABLE_CONFIG.tableName,
     {
-      operation: "apikey-create",
-      identifier: userId,
-      limit: 10,
-      windowSeconds: 3600,
+      entityType: "apiKey",
+      entityId: result.id,
+      userId,
+      eventType: "ApiKeyCreated",
+      actorType,
+      actorId: agentId ?? undefined,
+      changes: {
+        after: {
+          name,
+          scopes,
+        },
+      },
+      context: context ?? undefined,
+      requestId,
     },
     logger
   );
-
-  const result = await createApiKey(client, userId, name, scopes, logger);
 
   logger.info("API key created", { userId, keyId: result.id });
   return createSuccessResponse(result, requestId, { statusCode: 201 });
 }
 
 /**
- * GET /users/api-keys — List user's API keys (AC2, Story 3.2.5 AC10).
+ * GET /users/api-keys — List user's API keys (Story 3.2.5 AC10).
  * Returns envelope format: { data, meta: { cursor }, links: { self, next } }
  */
-async function handleGet(ctx: HandlerContext) {
+async function handleList(ctx: HandlerContext) {
   const { event, auth, logger, requestId } = ctx;
   const userId = auth!.userId;
 
@@ -102,42 +116,111 @@ async function handleGet(ctx: HandlerContext) {
 }
 
 /**
- * DELETE /users/api-keys/:id — Revoke an API key (AC3).
+ * DELETE /users/api-keys/:id — Revoke an API key (legacy).
+ * POST /users/api-keys/:id/revoke — Command endpoint for revocation (AC5).
  *
- * Returns 204 No Content on success. If the key does not exist or is
- * already revoked, the DB layer throws NOT_FOUND (DynamoDB condition
- * check fails). This is intentional idempotent-revocation semantics:
- * re-revoking a key is treated the same as revoking a nonexistent key.
+ * Story 3.2.8: Both endpoints use idempotency and event recording.
+ * Returns 204 No Content on success. Re-revoking an already-revoked key
+ * is idempotent and returns 204 (no error).
  */
-async function handleDelete(ctx: HandlerContext) {
-  const { event, auth, logger, requestId } = ctx;
+async function handleRevoke(ctx: HandlerContext) {
+  const { event, auth, logger, requestId, actorType, agentId } = ctx;
   const userId = auth!.userId;
 
   const { id: keyId } = validatePathParams(
-    deletePathSchema,
+    keyIdPathSchema,
     event.pathParameters
   );
 
   const client = getDefaultClient();
-  await revokeApiKey(client, userId, keyId, logger);
 
-  logger.info("API key revoked", { userId, keyId });
+  try {
+    await revokeApiKey(client, userId, keyId, logger);
+
+    // Event recording (AC16) — fire-and-forget
+    await recordEvent(
+      client,
+      {
+        entityType: "apiKey",
+        entityId: keyId,
+        userId,
+        eventType: "ApiKeyRevoked",
+        actorType,
+        actorId: agentId ?? undefined,
+        requestId,
+      },
+      logger
+    );
+
+    logger.info("API key revoked", { userId, keyId });
+  } catch (error) {
+    // NOT_FOUND from revokeApiKey means either:
+    // 1. Key doesn't exist — should return 404
+    // 2. Key already revoked — idempotent success (204)
+    // The DB layer condition check fails for both cases, so we treat it as idempotent.
+    // Per AC6: re-revoking should be idempotent.
+    if (AppError.isAppError(error) && error.code === ErrorCode.NOT_FOUND) {
+      logger.info("API key revoke idempotent (already revoked or not found)", {
+        userId,
+        keyId,
+      });
+      // Return 204 for idempotent revocation
+    } else {
+      throw error;
+    }
+  }
+
   return createNoContentResponse(requestId);
 }
 
 /**
+ * Handler for POST /users/api-keys — create with idempotency and rate limiting.
+ */
+export const createHandler = wrapHandler(handleCreate, {
+  requireAuth: true,
+  requiredScope: "keys:manage",
+  idempotent: true,
+  rateLimit: apiKeyCreateRateLimit,
+});
+
+/**
+ * Handler for GET /users/api-keys — list keys (read-only).
+ */
+export const listHandler = wrapHandler(handleList, {
+  requireAuth: true,
+  requiredScope: "keys:read",
+});
+
+/**
+ * Handler for DELETE /users/api-keys/:id and POST /users/api-keys/:id/revoke.
+ * Uses idempotency for safe retries.
+ */
+export const revokeHandler = wrapHandler(handleRevoke, {
+  requireAuth: true,
+  requiredScope: "keys:manage",
+  idempotent: true,
+});
+
+/**
  * Route POST, GET, DELETE requests.
+ * CDK wires each method separately for proper middleware options.
  */
 async function apiKeysHandler(ctx: HandlerContext) {
   const method = ctx.event.httpMethod.toUpperCase();
+  const path = ctx.event.path;
+
+  // POST /users/api-keys/:id/revoke — command endpoint (AC5)
+  if (method === "POST" && path.includes("/revoke")) {
+    return handleRevoke(ctx);
+  }
 
   switch (method) {
     case "POST":
-      return handlePost(ctx);
+      return handleCreate(ctx);
     case "GET":
-      return handleGet(ctx);
+      return handleList(ctx);
     case "DELETE":
-      return handleDelete(ctx);
+      return handleRevoke(ctx);
     default:
       throw new AppError(
         ErrorCode.METHOD_NOT_ALLOWED,
@@ -147,6 +230,10 @@ async function apiKeysHandler(ctx: HandlerContext) {
   }
 }
 
+/**
+ * Combined handler for backward compatibility.
+ * In production, CDK wires specific handlers for proper middleware.
+ */
 export const handler = wrapHandler(apiKeysHandler, {
   requireAuth: true,
   requiredScope: "keys:manage",

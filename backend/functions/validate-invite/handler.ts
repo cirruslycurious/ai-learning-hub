@@ -5,17 +5,20 @@
  * in DynamoDB and updates Clerk publicMetadata to set inviteValidated = true.
  *
  * Per Story 2.4: Invite Validation Endpoint (Epic 2).
+ * Story 3.2.8: Retrofitted with response envelope, idempotency via wrapHandler,
+ *              rate limiting via wrapHandler, and event recording.
  */
 import { createClerkClient } from "@clerk/backend";
 import {
   getDefaultClient,
   getInviteCode,
   redeemInviteCode,
-  enforceRateLimit,
-  USERS_TABLE_CONFIG,
+  recordEvent,
+  inviteValidateRateLimit,
 } from "@ai-learning-hub/db";
 import {
   wrapHandler,
+  createSuccessResponse,
   getClerkSecretKey,
   type HandlerContext,
 } from "@ai-learning-hub/middleware";
@@ -33,22 +36,22 @@ function validateCodeUsability(
   code: NonNullable<Awaited<ReturnType<typeof getInviteCode>>>,
   userId: string
 ): string | null {
-  // AC7: Idempotent — if this user already redeemed this code, return success
+  // Idempotent — if this user already redeemed this code, return success
   if (code.redeemedBy === userId) {
     return null; // Idempotent success
   }
 
-  // AC3: Already redeemed by someone else
+  // Already redeemed by someone else
   if (code.redeemedBy) {
     return "Invite code has already been used";
   }
 
-  // AC3: Revoked
+  // Revoked
   if (code.isRevoked) {
     return "Invite code has been revoked";
   }
 
-  // AC3: Expired
+  // Expired
   if (code.expiresAt && new Date(code.expiresAt) < new Date()) {
     return "Invite code has expired";
   }
@@ -56,35 +59,25 @@ function validateCodeUsability(
   return null; // Valid
 }
 
+/**
+ * POST /auth/validate-invite — Validate and redeem an invite code.
+ * Story 3.2.8: Response envelope, idempotency, rate limiting, event recording.
+ */
 async function validateInviteHandler(ctx: HandlerContext) {
-  const { event, auth, logger } = ctx;
+  const { event, auth, logger, requestId, actorType, agentId } = ctx;
 
   // Auth is guaranteed by wrapHandler with requireAuth: true
   const userId = auth!.userId;
 
-  // Validate request body (AC1)
-  const { code } = validateJsonBody(validateInviteBodySchema, event.body);
+  // Validate request body (includes optional context field)
+  const { code, context } = validateJsonBody(
+    validateInviteBodySchema,
+    event.body
+  );
 
   const client = getDefaultClient();
 
-  // Enforce rate limit: 5 invite validations per IP per hour (Story 2.7, AC4)
-  // TODO: When behind CloudFront, event.requestContext.identity.sourceIp will be
-  // the CDN edge IP, not the real client IP. Use the X-Forwarded-For header
-  // (first IP in the chain) for accurate per-client rate limiting in production.
-  const sourceIp = event.requestContext?.identity?.sourceIp ?? "unknown";
-  await enforceRateLimit(
-    client,
-    USERS_TABLE_CONFIG.tableName,
-    {
-      operation: "invite-validate",
-      identifier: sourceIp,
-      limit: 5,
-      windowSeconds: 3600,
-    },
-    logger
-  );
-
-  // Look up invite code in invite-codes table (AC1)
+  // Look up invite code in invite-codes table
   const inviteCode = await getInviteCode(client, code, logger);
 
   if (!inviteCode) {
@@ -100,11 +93,32 @@ async function validateInviteHandler(ctx: HandlerContext) {
     throw new AppError(ErrorCode.INVALID_INVITE_CODE, validationError);
   }
 
-  // AC2: Redeem the code in DynamoDB (conditional update prevents double-redemption)
+  // Redeem the code in DynamoDB (conditional update prevents double-redemption)
   // Skip DynamoDB write for idempotent case (already redeemed by this user)
   if (!isIdempotent) {
     try {
       await redeemInviteCode(client, code, userId, logger);
+
+      // Event recording (AC18) — fire-and-forget
+      await recordEvent(
+        client,
+        {
+          entityType: "inviteCode",
+          entityId: code,
+          userId,
+          eventType: "InviteCodeRedeemed",
+          actorType,
+          actorId: agentId ?? undefined,
+          changes: {
+            after: {
+              redeemedBy: userId,
+            },
+          },
+          context: context ?? undefined,
+          requestId,
+        },
+        logger
+      );
     } catch (error: unknown) {
       // Race condition: another request redeemed the code between lookup and update.
       // The ConditionalCheckFailedException surfaces as NOT_FOUND from the DB layer.
@@ -124,13 +138,11 @@ async function validateInviteHandler(ctx: HandlerContext) {
   } else {
     logger.info(
       "Invite already redeemed by user, re-attempting Clerk update (idempotent)",
-      {
-        userId,
-      }
+      { userId }
     );
   }
 
-  // AC2: Update Clerk publicMetadata to set inviteValidated = true
+  // Update Clerk publicMetadata to set inviteValidated = true
   // Always attempt Clerk update, including idempotent retries (Issue #6 fix:
   // if a prior attempt succeeded in DynamoDB but failed in Clerk, this retry
   // will complete the Clerk metadata update and unblock the user).
@@ -146,9 +158,12 @@ async function validateInviteHandler(ctx: HandlerContext) {
     code: code.slice(0, 4) + "***",
   });
 
-  return { success: true };
+  // AC3: Return response envelope with success
+  return createSuccessResponse({ success: true, validated: true }, requestId);
 }
 
 export const handler = wrapHandler(validateInviteHandler, {
   requireAuth: true,
+  idempotent: true,
+  rateLimit: inviteValidateRateLimit,
 });
