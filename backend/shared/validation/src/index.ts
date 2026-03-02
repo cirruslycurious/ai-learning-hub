@@ -26,6 +26,7 @@ export {
   validateInviteBodySchema,
   createSaveSchema,
   updateSaveSchema,
+  updateMetadataCommandSchema,
   listSavesQuerySchema,
   saveIdPathSchema,
 } from "./schemas.js";

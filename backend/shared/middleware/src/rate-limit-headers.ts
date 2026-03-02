@@ -8,22 +8,10 @@
  * - X-RateLimit-Reset: Unix epoch seconds for window reset
  */
 import type { APIGatewayProxyResult } from "aws-lambda";
-import type { AuthContext } from "@ai-learning-hub/types";
 import type { RateLimitResult } from "@ai-learning-hub/db";
 
-/**
- * Rate limit middleware configuration for wrapHandler (AC9)
- */
-export interface RateLimitMiddlewareConfig {
-  /** Rate limit counter key (e.g., "saves-write") */
-  operation: string;
-  /** Window size in seconds */
-  windowSeconds: number;
-  /** Static limit or function receiving auth context for tier-based limits */
-  limit: number | ((auth: AuthContext | null) => number);
-  /** Identifier source: userId (default) or sourceIp */
-  identifierSource?: "userId" | "sourceIp";
-}
+// Re-export from types so existing consumers of middleware don't break
+export type { RateLimitMiddlewareConfig } from "@ai-learning-hub/types";
 
 /**
  * Calculate the Unix epoch seconds for the end of the current rate limit window.

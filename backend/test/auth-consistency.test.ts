@@ -63,6 +63,7 @@ const HANDLER_REF_TO_DIR: Record<string, string> = {
   savesUpdateFunction: "saves-update",
   savesDeleteFunction: "saves-delete",
   savesRestoreFunction: "saves-restore",
+  savesEventsFunction: "saves-events",
   actionsCatalogFunction: "actions-catalog",
   stateGraphFunction: "state-graph",
 };

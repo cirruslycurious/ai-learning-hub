@@ -5,6 +5,8 @@
  * Auto-restores soft-deleted saves on re-save.
  *
  * Story 3.1b: Create Save API (Epic 3).
+ * Story 3.2.7: Retrofitted with idempotency, rate limiting, event recording,
+ *              version field, scope permissions, and context metadata.
  */
 import {
   getDefaultClient,
@@ -12,18 +14,22 @@ import {
   updateItem,
   transactWriteItems,
   TransactionCancelledError,
-  enforceRateLimit,
   SAVES_TABLE_CONFIG,
-  USERS_TABLE_CONFIG,
-  SAVES_WRITE_RATE_LIMIT,
   toPublicSave,
+  savesWriteRateLimit,
+  recordEvent,
 } from "@ai-learning-hub/db";
 import {
   wrapHandler,
   createSuccessResponse,
   type HandlerContext,
 } from "@ai-learning-hub/middleware";
-import { AppError, ErrorCode, ContentType } from "@ai-learning-hub/types";
+import {
+  AppError,
+  ErrorCode,
+  ContentType,
+  INITIAL_VERSION,
+} from "@ai-learning-hub/types";
 import type { SaveItem, PublicSave } from "@ai-learning-hub/types";
 import {
   normalizeUrl,
@@ -73,17 +79,6 @@ async function savesCreateHandler(ctx: HandlerContext) {
   const body = validateJsonBody(createSaveSchema, event.body);
 
   const client = getDefaultClient();
-
-  // Rate limit: 200 saves per hour
-  await enforceRateLimit(
-    client,
-    USERS_TABLE_CONFIG.tableName,
-    {
-      ...SAVES_WRITE_RATE_LIMIT,
-      identifier: userId,
-    },
-    logger
-  );
 
   // Normalize URL and compute hash
   let normalizedUrl: string;
@@ -146,6 +141,7 @@ async function savesCreateHandler(ctx: HandlerContext) {
     tags: body.tags ?? [],
     isTutorial: false,
     linkedProjectCount: 0,
+    version: INITIAL_VERSION,
     createdAt: now,
     updatedAt: now,
   };
@@ -184,13 +180,15 @@ async function savesCreateHandler(ctx: HandlerContext) {
         userId,
         urlHash,
         requestId,
+        body.context,
+        ctx,
         logger
       );
     }
     throw error;
   }
 
-  // Fire-and-forget event emission (AC4, AC6)
+  // Fire-and-forget EventBridge event emission
   emitEvent<SavesEventDetailType, SavesEventDetail>(
     eventBus.ebClient,
     eventBus.busName,
@@ -205,6 +203,31 @@ async function savesCreateHandler(ctx: HandlerContext) {
         urlHash,
         contentType,
       },
+    },
+    logger
+  );
+
+  // Event history recording (Story 3.2.7) — awaited, but recordEvent() catches
+  // I/O errors internally. Validation errors propagate to surface programming bugs.
+  await recordEvent(
+    client,
+    {
+      entityType: "save",
+      entityId: saveId,
+      userId,
+      eventType: "SaveCreated",
+      actorType: ctx.actorType,
+      actorId: ctx.agentId ?? undefined,
+      changes: {
+        after: {
+          url: body.url,
+          title: body.title,
+          contentType,
+          tags: body.tags ?? [],
+        },
+      },
+      context: body.context ?? undefined,
+      requestId: ctx.requestId,
     },
     logger
   );
@@ -224,6 +247,8 @@ async function handleTransactionFailure(
   userId: string,
   urlHash: string,
   requestId: string,
+  context: Record<string, unknown> | undefined,
+  ctx: HandlerContext,
   logger: HandlerContext["logger"]
 ) {
   // Check for active save
@@ -275,8 +300,12 @@ async function handleTransactionFailure(
         SAVES_TABLE_CONFIG,
         {
           key: { PK: `USER#${userId}`, SK: softDeleted.SK },
-          updateExpression: "REMOVE deletedAt SET updatedAt = :now",
-          expressionAttributeValues: { ":now": now },
+          updateExpression:
+            "REMOVE deletedAt SET updatedAt = :now, version = :nextVer",
+          expressionAttributeValues: {
+            ":now": now,
+            ":nextVer": softDeleted.version + 1,
+          },
           conditionExpression: "attribute_exists(deletedAt)",
           returnValues: "ALL_NEW",
         },
@@ -298,6 +327,22 @@ async function handleTransactionFailure(
             urlHash: softDeleted.urlHash,
             contentType: softDeleted.contentType,
           },
+        },
+        logger
+      );
+
+      // Event history recording — awaited, catches I/O errors internally
+      await recordEvent(
+        client,
+        {
+          entityType: "save",
+          entityId: softDeleted.saveId,
+          userId,
+          eventType: "SaveRestored",
+          actorType: ctx.actorType,
+          actorId: ctx.agentId ?? undefined,
+          context: context ?? undefined,
+          requestId: ctx.requestId,
         },
         logger
       );
@@ -333,5 +378,7 @@ async function handleTransactionFailure(
 
 export const handler = wrapHandler(savesCreateHandler, {
   requireAuth: true,
-  requiredScope: "saves:write",
+  requiredScope: "saves:create",
+  idempotent: true,
+  rateLimit: savesWriteRateLimit,
 });

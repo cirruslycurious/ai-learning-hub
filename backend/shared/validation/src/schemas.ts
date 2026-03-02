@@ -2,6 +2,7 @@
  * Common validation schemas using Zod
  */
 import { z } from "zod";
+import { eventContextSchema } from "./event-context.js";
 
 /** Default number of items per page (matches @ai-learning-hub/db) */
 const DEFAULT_PAGE_SIZE = 25;
@@ -246,6 +247,7 @@ export const createSaveSchema = z.object({
     .optional(),
   contentType: contentTypeSchema.optional(),
   tags: tagsSchema,
+  context: eventContextSchema,
 });
 
 /**
@@ -292,6 +294,7 @@ export const updateSaveSchema = z
       .optional(),
     contentType: contentTypeSchema.optional(),
     tags: tagsSchema.optional(),
+    context: eventContextSchema,
   })
   .refine(
     (data) =>
@@ -300,6 +303,13 @@ export const updateSaveSchema = z
       data.contentType !== undefined ||
       data.tags !== undefined,
     {
-      message: "At least one field must be provided",
+      message:
+        "At least one field (title, userNotes, contentType, tags) must be provided",
     }
   );
+
+/**
+ * CQRS command schema for POST /saves/:saveId/update-metadata (Story 3.2.7).
+ * Identical to updateSaveSchema — named alias for semantic clarity in action registry.
+ */
+export const updateMetadataCommandSchema = updateSaveSchema;

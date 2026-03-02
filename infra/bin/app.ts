@@ -125,6 +125,8 @@ const savesRoutesStack = new SavesRoutesStack(app, "AiLearningHubSavesRoutes", {
   savesTable: tablesStack.savesTable,
   usersTable: tablesStack.usersTable,
   inviteCodesTable: tablesStack.inviteCodesTable,
+  idempotencyTable: tablesStack.idempotencyTable,
+  eventsTable: tablesStack.eventsTable,
   eventBus: eventsStack.eventBus,
 });
 savesRoutesStack.addDependency(apiGatewayStack);

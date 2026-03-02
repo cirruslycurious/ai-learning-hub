@@ -82,6 +82,7 @@ export interface MockEventOptions {
   scopes?: string[];
   pathParameters?: Record<string, string> | null;
   queryStringParameters?: Record<string, string> | null;
+  headers?: Record<string, string>;
 }
 
 /**
@@ -103,13 +104,14 @@ export function createMockEvent(
     scopes,
     pathParameters = null,
     queryStringParameters = null,
+    headers: extraHeaders,
   } = options;
 
   return {
     httpMethod: method,
     path,
     body: body ? JSON.stringify(body) : null,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...extraHeaders },
     multiValueHeaders: {},
     isBase64Encoded: false,
     pathParameters,
@@ -274,6 +276,50 @@ export function mockMiddlewareModule(
           };
         }
 
+        // Simulate requireVersion (Story 3.2.7)
+        let expectedVersion: number | undefined;
+        if (opts.requireVersion) {
+          const ifMatch =
+            event.headers?.["if-match"] ??
+            event.headers?.["If-Match"] ??
+            event.headers?.["IF-MATCH"];
+          if (ifMatch === undefined || ifMatch === null) {
+            return {
+              statusCode: 428,
+              headers: {
+                "Content-Type": "application/json",
+                "X-Request-Id": "test-req-id",
+              },
+              body: JSON.stringify({
+                error: {
+                  code: "PRECONDITION_REQUIRED",
+                  message: "If-Match header is required for this operation",
+                  requestId: "test-req-id",
+                },
+              }),
+            };
+          }
+          const parsed = Number(ifMatch);
+          if (!Number.isInteger(parsed) || parsed < 1) {
+            return {
+              statusCode: 400,
+              headers: {
+                "Content-Type": "application/json",
+                "X-Request-Id": "test-req-id",
+              },
+              body: JSON.stringify({
+                error: {
+                  code: "VALIDATION_ERROR",
+                  message:
+                    "If-Match header must be a positive integer version number",
+                  requestId: "test-req-id",
+                },
+              }),
+            };
+          }
+          expectedVersion = parsed;
+        }
+
         try {
           // Extract agent identity with validation (Story 3.2.4)
           // Inlined to avoid importing from @ai-learning-hub/middleware which
@@ -300,6 +346,7 @@ export function mockMiddlewareModule(
             startTime: Date.now(),
             agentId: rawAgentId,
             actorType: rawAgentId ? "agent" : "human",
+            ...(expectedVersion !== undefined && { expectedVersion }),
           });
 
           // If result is already an API Gateway response, return as-is

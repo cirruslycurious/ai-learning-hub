@@ -3,6 +3,7 @@
  *
  * Story 3.3, Task 3: Tests for soft-delete save endpoint.
  * Story 3.1.3: Migrated to shared test utilities.
+ * Story 3.2.7: Retrofitted with version increment, event recording.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AppError, ErrorCode } from "@ai-learning-hub/types";
@@ -22,13 +23,13 @@ import {
 // Mock @ai-learning-hub/db — using shared mockDbModule with handler-specific mocks
 const mockGetItem = vi.fn();
 const mockUpdateItem = vi.fn();
-const mockEnforceRateLimit = vi.fn();
+const mockRecordEvent = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("@ai-learning-hub/db", () =>
   mockDbModule({
     getItem: (...args: unknown[]) => mockGetItem(...args),
     updateItem: (...args: unknown[]) => mockUpdateItem(...args),
-    enforceRateLimit: (...args: unknown[]) => mockEnforceRateLimit(...args),
+    recordEvent: (...args: unknown[]) => mockRecordEvent(...args),
   })
 );
 
@@ -71,12 +72,10 @@ function createDeleteEvent(saveId: string = VALID_SAVE_ID, userId = "user123") {
 describe("Saves Delete Handler — DELETE /saves/:saveId", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockEnforceRateLimit.mockResolvedValue(undefined);
   });
 
   describe("AC3: Soft delete sets deletedAt and returns 204", () => {
     it("returns 204 on successful soft delete", async () => {
-      // Conditional update succeeds — returns ALL_OLD (pre-update item)
       mockUpdateItem.mockResolvedValueOnce(
         createTestSaveItem(VALID_SAVE_ID, SAVE_OVERRIDES)
       );
@@ -88,7 +87,7 @@ describe("Saves Delete Handler — DELETE /saves/:saveId", () => {
       expect(result.body).toBe("");
     });
 
-    it("passes correct update expression with deletedAt and updatedAt", async () => {
+    it("passes correct update expression with deletedAt, updatedAt, and version increment", async () => {
       mockUpdateItem.mockResolvedValueOnce(
         createTestSaveItem(VALID_SAVE_ID, SAVE_OVERRIDES)
       );
@@ -111,12 +110,12 @@ describe("Saves Delete Handler — DELETE /saves/:saveId", () => {
       const callArgs = mockUpdateItem.mock.calls[0][2];
       expect(callArgs.updateExpression).toContain("deletedAt");
       expect(callArgs.updateExpression).toContain("updatedAt");
+      expect(callArgs.updateExpression).toContain("version = version + :one");
     });
   });
 
   describe("AC4: Emits SaveDeleted event on active → deleted", () => {
-    it("emits SaveDeleted with correct detail including normalizedUrl and urlHash", async () => {
-      // ALL_OLD returns pre-update item with normalizedUrl/urlHash
+    it("emits SaveDeleted with correct detail", async () => {
       mockUpdateItem.mockResolvedValueOnce(
         createTestSaveItem(VALID_SAVE_ID, SAVE_OVERRIDES)
       );
@@ -144,11 +143,9 @@ describe("Saves Delete Handler — DELETE /saves/:saveId", () => {
 
   describe("AC6: 404 when save does not exist or wrong user", () => {
     it("returns 404 with 'Save not found' when item is missing", async () => {
-      // Conditional update fails (item does not exist)
       mockUpdateItem.mockRejectedValueOnce(
         new AppError(ErrorCode.NOT_FOUND, "Item not found")
       );
-      // Disambiguation: getItem returns null (truly missing)
       mockGetItem.mockResolvedValueOnce(null);
 
       const event = createDeleteEvent();
@@ -162,11 +159,9 @@ describe("Saves Delete Handler — DELETE /saves/:saveId", () => {
 
   describe("AC8: Idempotent — already deleted returns 204", () => {
     it("returns 204 when save is already soft-deleted", async () => {
-      // Conditional update fails (deletedAt exists)
       mockUpdateItem.mockRejectedValueOnce(
         new AppError(ErrorCode.NOT_FOUND, "Item not found")
       );
-      // Disambiguation: getItem returns item with deletedAt set
       mockGetItem.mockResolvedValueOnce(
         createTestSaveItem(VALID_SAVE_ID, {
           ...SAVE_OVERRIDES,
@@ -208,8 +203,8 @@ describe("Saves Delete Handler — DELETE /saves/:saveId", () => {
     });
   });
 
-  describe("Rate limiting", () => {
-    it("enforces write rate limit", async () => {
+  describe("Event history recording (Story 3.2.7)", () => {
+    it("records SaveDeleted event on successful delete", async () => {
       mockUpdateItem.mockResolvedValueOnce(
         createTestSaveItem(VALID_SAVE_ID, SAVE_OVERRIDES)
       );
@@ -217,17 +212,33 @@ describe("Saves Delete Handler — DELETE /saves/:saveId", () => {
       const event = createDeleteEvent();
       await handler(event, mockContext);
 
-      expect(mockEnforceRateLimit).toHaveBeenCalledWith(
+      expect(mockRecordEvent).toHaveBeenCalledWith(
         expect.anything(),
-        expect.any(String),
         expect.objectContaining({
-          operation: "saves-write",
-          identifier: "user123",
-          limit: 200,
-          windowSeconds: 3600,
+          entityType: "save",
+          entityId: VALID_SAVE_ID,
+          eventType: "SaveDeleted",
+          userId: "user123",
         }),
         expect.anything()
       );
+    });
+
+    it("does NOT record event on idempotent delete", async () => {
+      mockUpdateItem.mockRejectedValueOnce(
+        new AppError(ErrorCode.NOT_FOUND, "Item not found")
+      );
+      mockGetItem.mockResolvedValueOnce(
+        createTestSaveItem(VALID_SAVE_ID, {
+          ...SAVE_OVERRIDES,
+          deletedAt: "2026-02-21T00:00:00Z",
+        })
+      );
+
+      const event = createDeleteEvent();
+      await handler(event, mockContext);
+
+      expect(mockRecordEvent).not.toHaveBeenCalled();
     });
   });
 
@@ -244,19 +255,15 @@ describe("Saves Delete Handler — DELETE /saves/:saveId", () => {
     });
   });
 
-  // ──────────────────────────────────────────────────────────────
-  // Story 3.1.7 — API key scope enforcement tests
-  // ──────────────────────────────────────────────────────────────
-
   describe("AC6: API key scope enforcement", () => {
-    it("rejects capture-only key (saves:write) with 403 SCOPE_INSUFFICIENT", async () => {
+    it("rejects capture-only key with 403 SCOPE_INSUFFICIENT", async () => {
       const event = createMockEvent({
         method: "DELETE",
         path: `/saves/${VALID_SAVE_ID}`,
         pathParameters: { saveId: VALID_SAVE_ID },
         userId: "user_123",
         authMethod: "api-key",
-        scopes: ["saves:write"],
+        scopes: ["capture"],
       });
       const result = await handler(event, mockContext);
 

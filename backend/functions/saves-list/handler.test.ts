@@ -900,13 +900,13 @@ describe("Saves List Handler — GET /saves", () => {
   // ──────────────────────────────────────────────────────────────
 
   describe("AC6: API key scope enforcement", () => {
-    it("rejects capture-only key (saves:write) with 403 SCOPE_INSUFFICIENT", async () => {
+    it("rejects capture-only key with 403 SCOPE_INSUFFICIENT", async () => {
       const event = createMockEvent({
         method: "GET",
         path: "/saves",
         userId: "user_123",
         authMethod: "api-key",
-        scopes: ["saves:write"],
+        scopes: ["capture"],
       });
       const result = await handler(event, mockContext);
 

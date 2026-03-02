@@ -3,6 +3,8 @@
  *
  * Story 3.3, Task 2: Tests for update save metadata endpoint.
  * Story 3.1.3: Migrated to shared test utilities.
+ * Story 3.2.7: Retrofitted with optimistic concurrency (If-Match),
+ *              event history recording, version increment.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AppError, ErrorCode, ContentType } from "@ai-learning-hub/types";
@@ -20,13 +22,15 @@ import {
 } from "../../test-utils/index.js";
 
 // Mock @ai-learning-hub/db — using shared mockDbModule with handler-specific mocks
+const mockGetItem = vi.fn();
 const mockUpdateItem = vi.fn();
-const mockEnforceRateLimit = vi.fn();
+const mockRecordEvent = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("@ai-learning-hub/db", () =>
   mockDbModule({
+    getItem: (...args: unknown[]) => mockGetItem(...args),
     updateItem: (...args: unknown[]) => mockUpdateItem(...args),
-    enforceRateLimit: (...args: unknown[]) => mockEnforceRateLimit(...args),
+    recordEvent: (...args: unknown[]) => mockRecordEvent(...args),
   })
 );
 
@@ -59,12 +63,14 @@ const SAVE_OVERRIDES: Partial<SaveItem> = {
   tags: ["test"],
   updatedAt: "2026-02-23T00:00:00Z",
   title: "Updated Title",
+  version: 1,
 };
 
 function createUpdateEvent(
   body?: Record<string, unknown> | null,
   saveId: string = VALID_SAVE_ID,
-  userId = "user123"
+  userId = "user123",
+  version = 1
 ) {
   return createMockEvent({
     method: "PATCH",
@@ -72,13 +78,17 @@ function createUpdateEvent(
     userId,
     body: body !== undefined ? body : { title: "Updated Title" },
     pathParameters: { saveId },
+    headers: { "If-Match": String(version) },
   });
 }
 
 describe("Saves Update Handler — PATCH /saves/:saveId", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockEnforceRateLimit.mockResolvedValue(undefined);
+    // Default: pre-read returns existing item
+    mockGetItem.mockResolvedValue(
+      createTestSaveItem(VALID_SAVE_ID, SAVE_OVERRIDES)
+    );
   });
 
   describe("AC1: Updates specified fields, omitted fields unchanged", () => {
@@ -86,6 +96,7 @@ describe("Saves Update Handler — PATCH /saves/:saveId", () => {
       const updatedItem = createTestSaveItem(VALID_SAVE_ID, {
         ...SAVE_OVERRIDES,
         title: "New Title",
+        version: 2,
       });
       mockUpdateItem.mockResolvedValueOnce(updatedItem);
 
@@ -102,29 +113,25 @@ describe("Saves Update Handler — PATCH /saves/:saveId", () => {
       expect(result.headers?.["X-Request-Id"]).toBe("test-req-id");
     });
 
-    it("only updates provided fields in DynamoDB expression", async () => {
+    it("pre-reads item for existence check and before snapshot", async () => {
       const updatedItem = createTestSaveItem(VALID_SAVE_ID, {
         ...SAVE_OVERRIDES,
         userNotes: "My notes",
+        version: 2,
       });
       mockUpdateItem.mockResolvedValueOnce(updatedItem);
 
       const event = createUpdateEvent({ userNotes: "My notes" });
       await handler(event, mockContext);
 
-      expect(mockUpdateItem).toHaveBeenCalledWith(
+      // getItem called with consistent read
+      expect(mockGetItem).toHaveBeenCalledWith(
         expect.anything(),
         expect.anything(),
-        expect.objectContaining({
-          key: { PK: "USER#user123", SK: `SAVE#${VALID_SAVE_ID}` },
-        }),
+        { PK: "USER#user123", SK: `SAVE#${VALID_SAVE_ID}` },
+        { consistentRead: true },
         expect.anything()
       );
-
-      // Verify the update expression includes userNotes and updatedAt
-      const callArgs = mockUpdateItem.mock.calls[0][2];
-      expect(callArgs.updateExpression).toContain("userNotes");
-      expect(callArgs.updateExpression).toContain("updatedAt");
     });
 
     it("updates multiple fields at once", async () => {
@@ -133,6 +140,7 @@ describe("Saves Update Handler — PATCH /saves/:saveId", () => {
         title: "New Title",
         userNotes: "New notes",
         tags: ["tag1", "tag2"],
+        version: 2,
       });
       mockUpdateItem.mockResolvedValueOnce(updatedItem);
 
@@ -156,6 +164,7 @@ describe("Saves Update Handler — PATCH /saves/:saveId", () => {
       const updatedItem = createTestSaveItem(VALID_SAVE_ID, {
         ...SAVE_OVERRIDES,
         title: "New Title",
+        version: 2,
       });
       mockUpdateItem.mockResolvedValueOnce(updatedItem);
 
@@ -185,6 +194,7 @@ describe("Saves Update Handler — PATCH /saves/:saveId", () => {
         ...SAVE_OVERRIDES,
         title: "New Title",
         contentType: ContentType.VIDEO,
+        version: 2,
       });
       mockUpdateItem.mockResolvedValueOnce(updatedItem);
 
@@ -202,10 +212,8 @@ describe("Saves Update Handler — PATCH /saves/:saveId", () => {
   });
 
   describe("AC5: 404 when save does not exist or wrong user", () => {
-    it("returns 404 with 'Save not found' when save does not exist", async () => {
-      mockUpdateItem.mockRejectedValueOnce(
-        new AppError(ErrorCode.NOT_FOUND, "Item not found")
-      );
+    it("returns 404 with 'Save not found' when pre-read finds nothing", async () => {
+      mockGetItem.mockResolvedValueOnce(null);
 
       const event = createUpdateEvent({ title: "Test" });
       const result = await handler(event, mockContext);
@@ -217,10 +225,12 @@ describe("Saves Update Handler — PATCH /saves/:saveId", () => {
   });
 
   describe("AC7: 404 when save is soft-deleted", () => {
-    it("returns 404 for soft-deleted save (condition fails)", async () => {
-      // ConditionExpression includes attribute_not_exists(deletedAt)
-      mockUpdateItem.mockRejectedValueOnce(
-        new AppError(ErrorCode.NOT_FOUND, "Item not found")
+    it("returns 404 for soft-deleted save (pre-read has deletedAt)", async () => {
+      mockGetItem.mockResolvedValueOnce(
+        createTestSaveItem(VALID_SAVE_ID, {
+          ...SAVE_OVERRIDES,
+          deletedAt: "2026-02-21T00:00:00Z",
+        })
       );
 
       const event = createUpdateEvent({ title: "Test" });
@@ -270,26 +280,82 @@ describe("Saves Update Handler — PATCH /saves/:saveId", () => {
     });
   });
 
-  describe("Rate limiting", () => {
-    it("enforces rate limit before processing", async () => {
-      const updatedItem = createTestSaveItem(VALID_SAVE_ID, SAVE_OVERRIDES);
+  describe("Optimistic concurrency (Story 3.2.7)", () => {
+    it("returns 428 when If-Match header is missing", async () => {
+      const event = createMockEvent({
+        method: "PATCH",
+        path: `/saves/${VALID_SAVE_ID}`,
+        userId: "user123",
+        body: { title: "Test" },
+        pathParameters: { saveId: VALID_SAVE_ID },
+      });
+      const result = await handler(event, mockContext);
+
+      expect(result.statusCode).toBe(428);
+      const body = JSON.parse(result.body);
+      expect(body.error.code).toBe("PRECONDITION_REQUIRED");
+    });
+
+    it("passes version condition expression to updateItem", async () => {
+      const updatedItem = createTestSaveItem(VALID_SAVE_ID, {
+        ...SAVE_OVERRIDES,
+        version: 2,
+      });
       mockUpdateItem.mockResolvedValueOnce(updatedItem);
 
       const event = createUpdateEvent({ title: "Test" });
       await handler(event, mockContext);
 
-      expect(mockEnforceRateLimit).toHaveBeenCalledWith(
+      const callArgs = mockUpdateItem.mock.calls[0][2];
+      expect(callArgs.conditionExpression).toBe(
+        "attribute_exists(PK) AND attribute_not_exists(deletedAt) AND version = :expectedVersion"
+      );
+    });
+
+    it("returns 409 VERSION_CONFLICT when condition check fails", async () => {
+      mockUpdateItem.mockRejectedValueOnce(
+        new AppError(ErrorCode.NOT_FOUND, "Item not found")
+      );
+
+      const event = createUpdateEvent({ title: "Test" });
+      const result = await handler(event, mockContext);
+
+      expect(result.statusCode).toBe(409);
+      const body = JSON.parse(result.body);
+      expect(body.error.code).toBe("VERSION_CONFLICT");
+    });
+  });
+
+  describe("Event history recording (Story 3.2.7)", () => {
+    it("records SaveMetadataUpdated event with field-level changes", async () => {
+      const updatedItem = createTestSaveItem(VALID_SAVE_ID, {
+        ...SAVE_OVERRIDES,
+        title: "New Title",
+        version: 2,
+      });
+      mockUpdateItem.mockResolvedValueOnce(updatedItem);
+
+      const event = createUpdateEvent({ title: "New Title" });
+      await handler(event, mockContext);
+
+      expect(mockRecordEvent).toHaveBeenCalledWith(
         expect.anything(),
-        expect.any(String),
         expect.objectContaining({
-          operation: "saves-write",
-          identifier: "user123",
-          limit: 200,
-          windowSeconds: 3600,
+          entityType: "save",
+          entityId: VALID_SAVE_ID,
+          eventType: "SaveMetadataUpdated",
+          changes: expect.objectContaining({
+            changedFields: ["title"],
+            before: expect.objectContaining({ title: "Updated Title" }),
+            after: expect.objectContaining({ title: "New Title" }),
+          }),
         }),
         expect.anything()
       );
     });
+
+    // Note: recordEvent() is internally fire-and-forget for I/O errors.
+    // No handler-level try/catch needed — validation errors propagate (by design).
   });
 
   describe("Authentication", () => {
@@ -299,25 +365,11 @@ describe("Saves Update Handler — PATCH /saves/:saveId", () => {
         path: `/saves/${VALID_SAVE_ID}`,
         body: { title: "Test" },
         pathParameters: { saveId: VALID_SAVE_ID },
+        headers: { "If-Match": "1" },
       });
       const result = await handler(event, mockContext);
 
       assertADR008Error(result, ErrorCode.UNAUTHORIZED, 401);
-    });
-  });
-
-  describe("Conditional write includes attribute_not_exists(deletedAt)", () => {
-    it("passes correct condition expression to updateItem", async () => {
-      const updatedItem = createTestSaveItem(VALID_SAVE_ID, SAVE_OVERRIDES);
-      mockUpdateItem.mockResolvedValueOnce(updatedItem);
-
-      const event = createUpdateEvent({ title: "Test" });
-      await handler(event, mockContext);
-
-      const callArgs = mockUpdateItem.mock.calls[0][2];
-      expect(callArgs.conditionExpression).toBe(
-        "attribute_exists(PK) AND attribute_not_exists(deletedAt)"
-      );
     });
   });
 
@@ -326,7 +378,7 @@ describe("Saves Update Handler — PATCH /saves/:saveId", () => {
   // ──────────────────────────────────────────────────────────────
 
   describe("AC6: API key scope enforcement", () => {
-    it("rejects capture-only key (saves:write) with 403 SCOPE_INSUFFICIENT", async () => {
+    it("rejects capture-only key with 403 SCOPE_INSUFFICIENT", async () => {
       const event = createMockEvent({
         method: "PATCH",
         path: `/saves/${VALID_SAVE_ID}`,
@@ -334,7 +386,8 @@ describe("Saves Update Handler — PATCH /saves/:saveId", () => {
         body: { title: "Updated" },
         userId: "user_123",
         authMethod: "api-key",
-        scopes: ["saves:write"],
+        scopes: ["capture"],
+        headers: { "If-Match": "1" },
       });
       const result = await handler(event, mockContext);
 
@@ -342,7 +395,10 @@ describe("Saves Update Handler — PATCH /saves/:saveId", () => {
     });
 
     it("allows full-access key (*) to PATCH /saves/:saveId", async () => {
-      const updated = createTestSaveItem(VALID_SAVE_ID, SAVE_OVERRIDES);
+      const updated = createTestSaveItem(VALID_SAVE_ID, {
+        ...SAVE_OVERRIDES,
+        version: 2,
+      });
       mockUpdateItem.mockResolvedValueOnce(updated);
 
       const event = createMockEvent({
@@ -353,6 +409,7 @@ describe("Saves Update Handler — PATCH /saves/:saveId", () => {
         userId: "user_123",
         authMethod: "api-key",
         scopes: ["*"],
+        headers: { "If-Match": "1" },
       });
       const result = await handler(event, mockContext);
 

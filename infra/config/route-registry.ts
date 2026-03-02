@@ -30,6 +30,7 @@ export type HandlerRef =
   | "savesUpdateFunction"
   | "savesDeleteFunction"
   | "savesRestoreFunction"
+  | "savesEventsFunction"
   | "actionsCatalogFunction"
   | "stateGraphFunction";
 
@@ -88,13 +89,15 @@ export const ROUTE_REGISTRY: RouteEntry[] = [
   },
   // Epic 3 — Save URLs (Core CRUD)
   //
-  // API key scope matrix (Story 3.1.7):
-  //   POST   /saves                  → requiredScope: "saves:write" (capture-only keys CAN create)
-  //   GET    /saves                  → requiredScope: "*"           (capture-only keys CANNOT list)
-  //   GET    /saves/{saveId}         → requiredScope: "*"           (capture-only keys CANNOT read)
-  //   PATCH  /saves/{saveId}         → requiredScope: "*"           (capture-only keys CANNOT update)
-  //   DELETE /saves/{saveId}         → requiredScope: "*"           (capture-only keys CANNOT delete)
-  //   POST   /saves/{saveId}/restore → requiredScope: "*"           (capture-only keys CANNOT restore)
+  // API key scope matrix (Story 3.2.7):
+  //   POST   /saves                           → requiredScope: "saves:create"
+  //   GET    /saves                           → requiredScope: "saves:read"
+  //   GET    /saves/{saveId}                  → requiredScope: "saves:read"
+  //   PATCH  /saves/{saveId}                  → requiredScope: "saves:write"
+  //   DELETE /saves/{saveId}                  → requiredScope: "saves:write"
+  //   POST   /saves/{saveId}/restore          → requiredScope: "saves:write"
+  //   POST   /saves/{saveId}/update-metadata  → requiredScope: "saves:write"
+  //   GET    /saves/{saveId}/events           → requiredScope: "saves:read"
   //
   // Scope enforced in each handler via wrapHandler({ requiredScope }).
   // JWT users bypass scope checks (all scopes implicitly granted).
@@ -140,6 +143,21 @@ export const ROUTE_REGISTRY: RouteEntry[] = [
     authType: "jwt-or-apikey",
     handlerRef: "savesRestoreFunction",
     epic: "Epic-3",
+  },
+  // Epic 3.2.7 — Command Endpoint Pattern & Saves Domain Retrofit
+  {
+    path: "/saves/{saveId}/update-metadata",
+    methods: ["POST"],
+    authType: "jwt-or-apikey",
+    handlerRef: "savesUpdateFunction",
+    epic: "Epic-3.2",
+  },
+  {
+    path: "/saves/{saveId}/events",
+    methods: ["GET"],
+    authType: "jwt-or-apikey",
+    handlerRef: "savesEventsFunction",
+    epic: "Epic-3.2",
   },
   // Epic 3.2.10 — Proactive Action Discoverability
   {

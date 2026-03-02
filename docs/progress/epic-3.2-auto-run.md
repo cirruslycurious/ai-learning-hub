@@ -1,9 +1,9 @@
 ---
 epic_id: Epic-3.2
 status: in-progress
-scope: ["3.2.1", "3.2.2", "3.2.3", "3.2.4", "3.2.5", "3.2.6", "3.2.10"]
+scope: ["3.2.1", "3.2.2", "3.2.3", "3.2.4", "3.2.5", "3.2.6", "3.2.10", "3.2.7"]
 started: 2026-02-25T12:00:00Z
-last_updated: 2026-02-28T12:00:00Z
+last_updated: 2026-03-01T12:00:00Z
 stories:
   "3.2.1":
     {
@@ -67,11 +67,20 @@ stories:
     }
   "3.2.10":
     {
-      status: in-progress,
+      status: done,
       issue: 242,
       pr: 243,
       branch: story-3-2-10-proactive-action-discoverability,
       startedAt: "2026-02-28T12:00:00Z",
+      completedAt: "2026-02-28T15:00:00Z",
+      reviewRounds: 1,
+    }
+  "3.2.7":
+    {
+      status: in-progress,
+      issue: 245,
+      branch: story-3-2-7-command-endpoint-pattern-saves-domain-retrofit,
+      startedAt: "2026-03-01T12:00:00Z",
     }
 ---
 
@@ -79,15 +88,16 @@ stories:
 
 # Epic 3.2 Auto-Run Progress
 
-| Story  | Status        | PR   | Review Rounds | Duration |
-| ------ | ------------- | ---- | ------------- | -------- |
-| 3.2.1  | Done          | #226 | 1             | ~12h     |
-| 3.2.2  | Done          | #228 | 2             | ~18h     |
-| 3.2.3  | Done          | #230 | 1             | ~2h      |
-| 3.2.4  | Done          | #234 | 1             | ~1h      |
-| 3.2.5  | Done          | #236 | 1             | ~3h      |
-| 3.2.6  | Done          | #240 | 1             | ~40m     |
-| 3.2.10 | Ready for Dev | —    | —             | —        |
+| Story  | Status         | PR   | Review Rounds | Duration |
+| ------ | -------------- | ---- | ------------- | -------- |
+| 3.2.1  | ✅ Complete    | #226 | 1             | ~12h     |
+| 3.2.2  | ✅ Complete    | #228 | 2             | ~18h     |
+| 3.2.3  | ✅ Complete    | #230 | 1             | ~2h      |
+| 3.2.4  | ✅ Complete    | #234 | 1             | ~1h      |
+| 3.2.5  | ✅ Complete    | #236 | 1             | ~3h      |
+| 3.2.6  | ✅ Complete    | #240 | 1             | ~40m     |
+| 3.2.10 | ✅ Complete    | #243 | 1             | ~3h      |
+| 3.2.7  | 🔄 In Progress | -    | -             | -        |
 
 ## Activity Log
 
@@ -139,5 +149,6 @@ stories:
 - [14:40] Story 3.2.6: Status → done
 - [14:40] Epic 3.2: All 6 stories complete → status: done
 - [12:00] Story 3.2.10: Added to scope — Proactive Action Discoverability
-- [12:00] Story 3.2.10: Story created via BMAD create-story workflow with advanced elicitation (24 ACs, 9 task groups)
-- [12:00] Story 3.2.10: Status → ready-for-dev
+- [12:00] Story 3.2.10: Implementation complete, PR #243 merged to main
+- [12:00] Story 3.2.10: Status → done
+- [00:00] Story 3.2.7: Added to scope — Command Endpoint Pattern & Saves Domain Retrofit

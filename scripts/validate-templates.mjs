@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable security/detect-non-literal-fs-filename -- reads local template files only */
 /**
  * Validates GitHub issue and PR templates:
  * - Issue templates: YAML frontmatter (name, labels) and required sections

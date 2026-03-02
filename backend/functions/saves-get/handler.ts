@@ -76,5 +76,5 @@ async function savesGetHandler(ctx: HandlerContext) {
 
 export const handler = wrapHandler(savesGetHandler, {
   requireAuth: true,
-  requiredScope: "*",
+  requiredScope: "saves:read",
 });

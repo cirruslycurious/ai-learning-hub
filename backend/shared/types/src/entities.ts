@@ -38,6 +38,7 @@ export interface Save extends BaseEntity {
   isTutorial: boolean; // Default false
   tutorialStatus?: TutorialStatus | null;
   linkedProjectCount: number; // Default 0
+  version: number; // Optimistic concurrency version (Story 3.2.7)
   lastAccessedAt?: string; // Updated on GET /saves/:id
   enrichedAt?: string; // Set by Epic 9 enrichment
   deletedAt?: string; // Soft delete marker

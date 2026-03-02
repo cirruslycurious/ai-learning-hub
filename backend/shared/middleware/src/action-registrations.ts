@@ -42,8 +42,8 @@ function registerSavesActions(registry: ActionRegistry): void {
           description: "Client-generated dedup key",
         },
       ],
-      // Must match handler's wrapHandler requiredScope ("saves:write")
-      requiredScope: "saves:write" as OperationScope,
+      // Must match handler's wrapHandler requiredScope ("saves:create")
+      requiredScope: "saves:create" as OperationScope,
       expectedErrors: [
         ErrorCode.VALIDATION_ERROR,
         ErrorCode.DUPLICATE_SAVE,
@@ -168,17 +168,13 @@ function registerSavesActions(registry: ActionRegistry): void {
       inputSchema: null,
       requiredHeaders: [
         {
-          name: "If-Match",
-          format: "\\d+",
-          description: "Expected version for optimistic concurrency",
+          name: "Idempotency-Key",
+          format: "[a-zA-Z0-9_\\-.]{1,256}",
+          description: "Client-generated dedup key",
         },
       ],
       requiredScope: "saves:write" as OperationScope,
-      expectedErrors: [
-        ErrorCode.NOT_FOUND,
-        ErrorCode.VERSION_CONFLICT,
-        ErrorCode.UNAUTHORIZED,
-      ],
+      expectedErrors: [ErrorCode.NOT_FOUND, ErrorCode.UNAUTHORIZED],
     },
     {
       actionId: "saves:restore",
@@ -204,6 +200,90 @@ function registerSavesActions(registry: ActionRegistry): void {
         ErrorCode.CONFLICT,
         ErrorCode.UNAUTHORIZED,
       ],
+    },
+    {
+      actionId: "saves:update-metadata",
+      description:
+        "Update save metadata via CQRS command (explicit command semantics)",
+      method: "POST",
+      urlPattern: "/saves/:id/update-metadata",
+      entityType: "saves",
+      pathParams: [
+        { name: "id", type: "string", description: "Save ID (ULID)" },
+      ],
+      queryParams: [],
+      inputSchema: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          userNotes: { type: "string" },
+          contentType: { type: "string" },
+          tags: { type: "array", items: { type: "string" } },
+          context: {
+            type: "object",
+            properties: {
+              trigger: { type: "string" },
+              source: { type: "string" },
+              confidence: { type: "number" },
+              upstream_ref: { type: "string" },
+            },
+          },
+        },
+      },
+      requiredHeaders: [
+        {
+          name: "Idempotency-Key",
+          format: "[a-zA-Z0-9_\\-.]{1,256}",
+          description: "Client-generated dedup key",
+        },
+        {
+          name: "If-Match",
+          format: "\\d+",
+          description: "Expected version for optimistic concurrency",
+        },
+      ],
+      requiredScope: "saves:write" as OperationScope,
+      expectedErrors: [
+        ErrorCode.NOT_FOUND,
+        ErrorCode.VALIDATION_ERROR,
+        ErrorCode.VERSION_CONFLICT,
+        ErrorCode.UNAUTHORIZED,
+        ErrorCode.RATE_LIMITED,
+      ],
+    },
+    {
+      actionId: "saves:events",
+      description: "Query event history for a save",
+      method: "GET",
+      urlPattern: "/saves/:id/events",
+      entityType: "saves",
+      pathParams: [
+        { name: "id", type: "string", description: "Save ID (ULID)" },
+      ],
+      queryParams: [
+        {
+          name: "limit",
+          type: "number",
+          description: "Max events per page (1-200, default 50)",
+          required: false,
+        },
+        {
+          name: "cursor",
+          type: "string",
+          description: "Pagination cursor from previous response",
+          required: false,
+        },
+        {
+          name: "since",
+          type: "string",
+          description: "ISO 8601 timestamp to filter events after",
+          required: false,
+        },
+      ],
+      inputSchema: null,
+      requiredHeaders: [],
+      requiredScope: "saves:read" as OperationScope,
+      expectedErrors: [ErrorCode.NOT_FOUND, ErrorCode.UNAUTHORIZED],
     },
   ];
 

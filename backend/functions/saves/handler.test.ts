@@ -21,7 +21,7 @@ import {
 const mockQueryItems = vi.fn();
 const mockUpdateItem = vi.fn();
 const mockTransactWriteItems = vi.fn();
-const mockEnforceRateLimit = vi.fn();
+const mockRecordEvent = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("@ai-learning-hub/db", () => {
   // TransactionCancelledError is handler-specific (only saves-create uses it)
@@ -39,7 +39,7 @@ vi.mock("@ai-learning-hub/db", () => {
       updateItem: (...args: unknown[]) => mockUpdateItem(...args),
       transactWriteItems: (...args: unknown[]) =>
         mockTransactWriteItems(...args),
-      enforceRateLimit: (...args: unknown[]) => mockEnforceRateLimit(...args),
+      recordEvent: (...args: unknown[]) => mockRecordEvent(...args),
     }),
     TransactionCancelledError: _MockTransactionCancelledError,
   };
@@ -366,41 +366,27 @@ describe("Saves Create Handler", () => {
     });
   });
 
-  describe("AC7: Uses shared libraries", () => {
-    it("calls enforceRateLimit with correct config", async () => {
+  describe("AC7: Event history recording (Story 3.2.7)", () => {
+    it("records SaveCreated event after successful save", async () => {
       mockQueryItems.mockResolvedValue({ items: [], hasMore: false });
       mockTransactWriteItems.mockResolvedValue(undefined);
 
       const event = createSaveEvent({ url: "https://example.com" }, "user_xyz");
       await handler(event, mockContext);
 
-      expect(mockEnforceRateLimit).toHaveBeenCalledWith(
+      expect(mockRecordEvent).toHaveBeenCalledWith(
         expect.anything(),
-        expect.any(String),
         expect.objectContaining({
-          operation: "saves-write",
-          identifier: "user_xyz",
-          limit: 200,
-          windowSeconds: 3600,
+          entityType: "save",
+          eventType: "SaveCreated",
+          userId: "user_xyz",
         }),
         expect.anything()
       );
     });
 
-    it("returns 429 when rate limited", async () => {
-      mockEnforceRateLimit.mockRejectedValueOnce(
-        new AppError(
-          ErrorCode.RATE_LIMITED,
-          "Rate limit exceeded: 200 saves-create per 1 hour(s)"
-        )
-      );
-
-      const event = createSaveEvent({ url: "https://example.com" }, "user_123");
-      const result = await handler(event, mockContext);
-
-      assertADR008Error(result, ErrorCode.RATE_LIMITED, 429);
-      expect(mockTransactWriteItems).not.toHaveBeenCalled();
-    });
+    // Note: recordEvent() is internally fire-and-forget for I/O errors.
+    // No handler-level try/catch needed — validation errors propagate (by design).
   });
 
   describe("AC8: Two-layer duplicate detection", () => {
@@ -679,7 +665,7 @@ describe("Saves Create Handler", () => {
   // ──────────────────────────────────────────────────────────────
 
   describe("AC6: API key scope enforcement", () => {
-    it("allows capture-only key (saves:write) to POST /saves", async () => {
+    it("allows saves:write key to POST /saves (saves:write grants saves:create)", async () => {
       mockQueryItems.mockResolvedValue({ items: [], hasMore: false });
       mockTransactWriteItems.mockResolvedValue(undefined);
 

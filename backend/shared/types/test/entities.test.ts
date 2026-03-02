@@ -95,6 +95,7 @@ describe("Entity Types", () => {
         isTutorial: false,
         tutorialStatus: null,
         linkedProjectCount: 0,
+        version: 1,
         createdAt: "2026-02-04T12:00:00.000Z",
         updatedAt: "2026-02-04T12:00:00.000Z",
       };
@@ -118,6 +119,7 @@ describe("Entity Types", () => {
         tags: [],
         isTutorial: false,
         linkedProjectCount: 0,
+        version: 1,
         createdAt: "2026-02-04T12:00:00.000Z",
         updatedAt: "2026-02-04T12:00:00.000Z",
       };
