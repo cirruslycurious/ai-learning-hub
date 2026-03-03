@@ -112,10 +112,15 @@ export const agentNativeBehaviorScenarios: ScenarioDefinition[] = [
         assertStatus(res.status, 409, "AN3: stale If-Match");
         assertADR008(res.body, "VERSION_CONFLICT");
 
-        const err = (res.body as { error: { currentVersion?: number } }).error;
-        if (typeof err.currentVersion !== "number") {
+        const err = (
+          res.body as {
+            error: { details?: { currentVersion?: number } };
+          }
+        ).error;
+        const currentVersion = err.details?.currentVersion;
+        if (typeof currentVersion !== "number") {
           throw new Error(
-            `AN3: expected currentVersion (number) in error body, got: ${JSON.stringify(err)}`
+            `AN3: expected details.currentVersion (number) in error body, got: ${JSON.stringify(err)}`
           );
         }
 
@@ -188,15 +193,21 @@ export const agentNativeBehaviorScenarios: ScenarioDefinition[] = [
         assertStatus(res.status, 403, "AN5: insufficient scope");
         assertADR008(res.body, "SCOPE_INSUFFICIENT");
 
-        const err = (res.body as { error: Record<string, unknown> }).error;
-        if (!err.required_scope) {
+        const err = (
+          res.body as {
+            error: {
+              details?: { required_scope?: string; granted_scopes?: string[] };
+            };
+          }
+        ).error;
+        if (!err.details?.required_scope) {
           throw new Error(
-            `AN5: missing required_scope in error body: ${JSON.stringify(err)}`
+            `AN5: missing details.required_scope in error body: ${JSON.stringify(err)}`
           );
         }
-        if (!err.granted_scopes) {
+        if (!err.details?.granted_scopes) {
           throw new Error(
-            `AN5: missing granted_scopes in error body: ${JSON.stringify(err)}`
+            `AN5: missing details.granted_scopes in error body: ${JSON.stringify(err)}`
           );
         }
 
@@ -213,16 +224,21 @@ export const agentNativeBehaviorScenarios: ScenarioDefinition[] = [
     },
   },
 
-  // AN6: Rate limit headers present
+  // AN6: Rate limit headers present on rate-limited endpoints
   {
     id: "AN6",
-    name: "GET /users/me → X-RateLimit-* headers present",
+    name: "POST /saves → X-RateLimit-* headers present",
     async run() {
       const client = getClient();
       const auth = jwtAuth();
 
-      const res = await client.get("/users/me", { auth });
-      assertStatus(res.status, 200, "AN6: GET /users/me");
+      // POST /saves is rate-limited via savesWriteRateLimit
+      const res = await client.post(
+        "/saves",
+        { url: `https://example.com/an6-${Date.now()}` },
+        { auth, headers: idempotencyKey() }
+      );
+      assertStatus(res.status, 201, "AN6: POST /saves");
 
       assertHeader(res.headers, "x-ratelimit-limit", "AN6: X-RateLimit-Limit");
       assertHeader(
@@ -231,6 +247,10 @@ export const agentNativeBehaviorScenarios: ScenarioDefinition[] = [
         "AN6: X-RateLimit-Remaining"
       );
       assertHeader(res.headers, "x-ratelimit-reset", "AN6: X-RateLimit-Reset");
+
+      // Cleanup
+      const saveId = (res.body as { data: { saveId: string } }).data.saveId;
+      await deleteSave(saveId, auth).catch(() => undefined);
 
       return res.status;
     },

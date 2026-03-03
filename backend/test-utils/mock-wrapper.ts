@@ -480,6 +480,49 @@ export function mockMiddlewareModule(
     }),
     buildResourceActions: vi.fn().mockReturnValue([]),
     handleError: vi.fn(),
+    // Direct-call helpers used by combined handlers that route per-method
+    requireScope: (
+      auth: { isApiKey?: boolean; scopes?: string[] },
+      requiredScope: string
+    ) => {
+      if (!auth?.isApiKey) return; // JWT gets full access
+      const scopes = auth.scopes ?? [];
+      if (!checkScopeAccess(scopes, requiredScope)) {
+        const err = Object.assign(
+          new Error(`API key lacks required scope: ${requiredScope}`),
+          {
+            code: "SCOPE_INSUFFICIENT",
+            statusCode: 403,
+            details: {
+              required_scope: requiredScope,
+              granted_scopes: scopes,
+            },
+          }
+        );
+        throw err;
+      }
+    },
+    extractIfMatch: (event: APIGatewayProxyEvent): number => {
+      const headers = event.headers ?? {};
+      const value =
+        headers["if-match"] ?? headers["If-Match"] ?? headers["IF-MATCH"];
+      if (value === undefined || value === null) {
+        throw Object.assign(
+          new Error("If-Match header is required for this operation"),
+          { code: "PRECONDITION_REQUIRED", statusCode: 428 }
+        );
+      }
+      const version = Number(value);
+      if (!Number.isInteger(version) || version < 1) {
+        throw Object.assign(
+          new Error(
+            "If-Match header must be a positive integer version number"
+          ),
+          { code: "VALIDATION_ERROR", statusCode: 400 }
+        );
+      }
+      return version;
+    },
     ...extraExports,
   };
 }

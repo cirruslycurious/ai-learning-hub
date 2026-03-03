@@ -19,6 +19,8 @@ import {
   wrapHandler,
   createSuccessResponse,
   buildResourceActions,
+  requireScope,
+  extractIfMatch,
   type HandlerContext,
 } from "@ai-learning-hub/middleware";
 import { AppError, ErrorCode } from "@ai-learning-hub/types";
@@ -92,14 +94,6 @@ async function handleUpdate(ctx: HandlerContext) {
     event.body
   );
 
-  // Version is required for update operations (AC8)
-  if (expectedVersion === undefined) {
-    throw new AppError(
-      ErrorCode.VALIDATION_ERROR,
-      "If-Match header is required for profile updates"
-    );
-  }
-
   const client = getDefaultClient();
 
   // Update with version check and get before/after state for event recording
@@ -145,21 +139,44 @@ async function handleUpdate(ctx: HandlerContext) {
 /**
  * Route GET, PATCH, POST requests.
  * Story 3.2.8: Added POST support for /users/me/update command endpoint.
+ *
+ * The combined handler applies per-method middleware (scope enforcement,
+ * If-Match extraction) that the separate readHandler/writeHandler exports
+ * get from their wrapHandler options. This is necessary because CDK wires
+ * a single Lambda function for all /users/me methods.
  */
 async function usersMeHandler(ctx: HandlerContext) {
   const method = ctx.event.httpMethod.toUpperCase();
   const path = ctx.event.path;
 
-  // POST /users/me/update — command endpoint (AC9)
-  if (method === "POST" && path.endsWith("/update")) {
+  const isWrite =
+    method === "PATCH" || (method === "POST" && path.endsWith("/update"));
+
+  if (isWrite) {
+    // Scope enforcement: require users:write for mutations (AC14)
+    if (ctx.auth) {
+      requireScope(ctx.auth, "users:write");
+    }
+    // Extract If-Match version for optimistic concurrency (AC8)
+    // Optional: profiles without a version field (pre-3.2.8) can still be updated;
+    // the first write bootstraps versioning via if_not_exists in the update expression.
+    const ifMatch =
+      ctx.event.headers?.["if-match"] ??
+      ctx.event.headers?.["If-Match"] ??
+      ctx.event.headers?.["IF-MATCH"];
+    if (ifMatch != null) {
+      ctx.expectedVersion = extractIfMatch(ctx.event);
+    }
     return handleUpdate(ctx);
   }
 
   switch (method) {
     case "GET":
+      // Scope enforcement: require users:read for reads (AC14)
+      if (ctx.auth) {
+        requireScope(ctx.auth, "users:read");
+      }
       return handleGet(ctx);
-    case "PATCH":
-      return handleUpdate(ctx);
     case "POST":
       // POST without /update suffix is not allowed
       throw new AppError(

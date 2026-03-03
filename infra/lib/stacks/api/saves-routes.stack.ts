@@ -155,11 +155,14 @@ export class SavesRoutesStack extends cdk.Stack {
       })
     );
 
-    // Read-only environment (no idempotency/events tables needed)
+    // Read-only environment — still needs all table env vars because
+    // @ai-learning-hub/db barrel export triggers module-level requireEnv() calls
     const readOnlyEnv = {
       SAVES_TABLE_NAME: savesTable.tableName,
       USERS_TABLE_NAME: usersTable.tableName,
       INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
+      IDEMPOTENCY_TABLE_NAME: idempotencyTable.tableName,
+      EVENTS_TABLE_NAME: eventsTable.tableName,
       NODE_OPTIONS: "--enable-source-maps",
     };
 
@@ -328,10 +331,7 @@ export class SavesRoutesStack extends cdk.Stack {
         memorySize: 256,
         timeout: cdk.Duration.seconds(10),
         tracing: lambda.Tracing.ACTIVE,
-        environment: {
-          ...readOnlyEnv,
-          EVENTS_TABLE_NAME: eventsTable.tableName,
-        },
+        environment: readOnlyEnv,
         bundling: readOnlyBundling,
       }
     );

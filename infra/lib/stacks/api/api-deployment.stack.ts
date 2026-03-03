@@ -39,14 +39,19 @@ export class ApiDeploymentStack extends cdk.Stack {
     const { restApiId, stageName = "dev", webAcl } = props;
 
     // --- Deployment ---
-    // A new CfnDeployment is created on every synth because the Description
-    // includes a timestamp. CloudFormation treats Description changes as a
-    // resource replacement, which creates a fresh API Gateway deployment
-    // snapshot that includes all current routes.
-    const deployment = new apigateway.CfnDeployment(this, "Deployment", {
-      restApiId,
-      description: `Managed by ApiDeploymentStack — ${new Date().toISOString()}`,
-    });
+    // A new CfnDeployment must be created (REPLACED, not updated) on every
+    // synth so API Gateway takes a fresh snapshot of all current routes.
+    // Description-only changes do NOT trigger CloudFormation replacement —
+    // we must change the logical ID to force resource replacement.
+    const deploymentHash = Date.now().toString(36);
+    const deployment = new apigateway.CfnDeployment(
+      this,
+      `Deployment${deploymentHash}`,
+      {
+        restApiId,
+        description: `Managed by ApiDeploymentStack — ${new Date().toISOString()}`,
+      }
+    );
 
     // --- Stage ---
     const stage = new apigateway.CfnStage(this, "Stage", {

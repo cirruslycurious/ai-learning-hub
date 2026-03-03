@@ -221,16 +221,22 @@ export const apiKeyScenarios: ScenarioDefinition[] = [
         assertStatus(res.status, 403, "PATCH /users/me with saves:write key");
         assertADR008(res.body, "SCOPE_INSUFFICIENT");
 
-        // Validate error body contains scope information
-        const err = (res.body as { error: Record<string, unknown> }).error;
-        if (!err.required_scope) {
+        // Validate error body contains scope information (in error.details per ADR-008)
+        const err = (
+          res.body as {
+            error: {
+              details?: { required_scope?: string; granted_scopes?: string[] };
+            };
+          }
+        ).error;
+        if (!err.details?.required_scope) {
           throw new Error(
-            `AC6: missing required_scope in error body: ${JSON.stringify(res.body)}`
+            `AC6: missing details.required_scope in error body: ${JSON.stringify(res.body)}`
           );
         }
-        if (!err.granted_scopes) {
+        if (!err.details?.granted_scopes) {
           throw new Error(
-            `AC6: missing granted_scopes in error body: ${JSON.stringify(res.body)}`
+            `AC6: missing details.granted_scopes in error body: ${JSON.stringify(res.body)}`
           );
         }
 

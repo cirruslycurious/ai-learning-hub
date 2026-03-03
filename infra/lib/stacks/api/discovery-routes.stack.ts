@@ -8,6 +8,7 @@
  */
 import * as cdk from "aws-cdk-lib";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
+import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as nodejs from "aws-cdk-lib/aws-lambda-nodejs";
 import { NagSuppressions } from "cdk-nag";
@@ -21,6 +22,16 @@ export interface DiscoveryRoutesStackProps extends cdk.StackProps {
   rootResourceId: string;
   /** API Key authorizer for jwt-or-apikey routes (from ApiGatewayStack) */
   apiKeyAuthorizer: apigateway.IAuthorizer;
+  /** Users table (required by @ai-learning-hub/db barrel import) */
+  usersTable: dynamodb.ITable;
+  /** Invite codes table (required by @ai-learning-hub/db barrel import) */
+  inviteCodesTable: dynamodb.ITable;
+  /** Saves table (required by @ai-learning-hub/db barrel import) */
+  savesTable: dynamodb.ITable;
+  /** Idempotency table (required by @ai-learning-hub/db barrel import) */
+  idempotencyTable: dynamodb.ITable;
+  /** Events table (required by @ai-learning-hub/db barrel import) */
+  eventsTable: dynamodb.ITable;
 }
 
 export class DiscoveryRoutesStack extends cdk.Stack {
@@ -30,7 +41,16 @@ export class DiscoveryRoutesStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: DiscoveryRoutesStackProps) {
     super(scope, id, props);
 
-    const { restApiId, rootResourceId, apiKeyAuthorizer } = props;
+    const {
+      restApiId,
+      rootResourceId,
+      apiKeyAuthorizer,
+      usersTable,
+      inviteCodesTable,
+      savesTable,
+      idempotencyTable,
+      eventsTable,
+    } = props;
 
     // Import REST API
     const restApi = apigateway.RestApi.fromRestApiAttributes(
@@ -75,6 +95,17 @@ export class DiscoveryRoutesStack extends cdk.Stack {
       externalModules: ["@aws-sdk/client-dynamodb", "@aws-sdk/lib-dynamodb"],
     };
 
+    // Common environment — these Lambdas import from @ai-learning-hub/middleware
+    // which transitively imports @ai-learning-hub/db barrel (module-level requireEnv)
+    const commonEnv = {
+      NODE_OPTIONS: "--enable-source-maps",
+      USERS_TABLE_NAME: usersTable.tableName,
+      INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
+      SAVES_TABLE_NAME: savesTable.tableName,
+      IDEMPOTENCY_TABLE_NAME: idempotencyTable.tableName,
+      EVENTS_TABLE_NAME: eventsTable.tableName,
+    };
+
     // Actions Catalog Lambda — GET /actions (AC1, AC7)
     this.actionsCatalogFunction = new nodejs.NodejsFunction(
       this,
@@ -91,9 +122,7 @@ export class DiscoveryRoutesStack extends cdk.Stack {
         memorySize: 256,
         timeout: cdk.Duration.seconds(10),
         tracing: lambda.Tracing.ACTIVE,
-        environment: {
-          NODE_OPTIONS: "--enable-source-maps",
-        },
+        environment: commonEnv,
         bundling: bundlingConfig,
       }
     );
@@ -114,9 +143,7 @@ export class DiscoveryRoutesStack extends cdk.Stack {
         memorySize: 256,
         timeout: cdk.Duration.seconds(10),
         tracing: lambda.Tracing.ACTIVE,
-        environment: {
-          NODE_OPTIONS: "--enable-source-maps",
-        },
+        environment: commonEnv,
         bundling: bundlingConfig,
       }
     );

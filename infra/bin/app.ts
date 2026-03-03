@@ -46,6 +46,8 @@ const authStack = new AuthStack(app, "AiLearningHubAuth", {
   usersTable: tablesStack.usersTable,
   inviteCodesTable: tablesStack.inviteCodesTable,
   savesTable: tablesStack.savesTable,
+  idempotencyTable: tablesStack.idempotencyTable,
+  eventsTable: tablesStack.eventsTable,
 });
 authStack.addDependency(tablesStack);
 
@@ -145,9 +147,15 @@ const discoveryRoutesStack = new DiscoveryRoutesStack(
     restApiId: apiGatewayStack.restApi.restApiId,
     rootResourceId: apiGatewayStack.restApi.restApiRootResourceId,
     apiKeyAuthorizer: apiGatewayStack.apiKeyAuthorizer,
+    usersTable: tablesStack.usersTable,
+    inviteCodesTable: tablesStack.inviteCodesTable,
+    savesTable: tablesStack.savesTable,
+    idempotencyTable: tablesStack.idempotencyTable,
+    eventsTable: tablesStack.eventsTable,
   }
 );
 discoveryRoutesStack.addDependency(apiGatewayStack);
+discoveryRoutesStack.addDependency(tablesStack);
 
 // Ops Routes Stack - Story 3.2.9 health, readiness, batch endpoints (ADR-006: after ApiGateway + Tables)
 const opsRoutesStack = new OpsRoutesStack(app, "AiLearningHubOpsRoutes", {
@@ -158,7 +166,10 @@ const opsRoutesStack = new OpsRoutesStack(app, "AiLearningHubOpsRoutes", {
   rootResourceId: apiGatewayStack.restApi.restApiRootResourceId,
   apiKeyAuthorizer: apiGatewayStack.apiKeyAuthorizer,
   usersTable: tablesStack.usersTable,
+  inviteCodesTable: tablesStack.inviteCodesTable,
+  savesTable: tablesStack.savesTable,
   idempotencyTable: tablesStack.idempotencyTable,
+  eventsTable: tablesStack.eventsTable,
   stageName,
 });
 opsRoutesStack.addDependency(apiGatewayStack);

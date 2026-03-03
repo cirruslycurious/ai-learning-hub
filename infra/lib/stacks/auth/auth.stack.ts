@@ -20,6 +20,8 @@ export interface AuthStackProps extends cdk.StackProps {
   usersTable: dynamodb.ITable;
   inviteCodesTable: dynamodb.ITable;
   savesTable: dynamodb.ITable;
+  idempotencyTable: dynamodb.ITable;
+  eventsTable: dynamodb.ITable;
 }
 
 export class AuthStack extends cdk.Stack {
@@ -33,7 +35,13 @@ export class AuthStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: AuthStackProps) {
     super(scope, id, props);
 
-    const { usersTable, inviteCodesTable, savesTable } = props;
+    const {
+      usersTable,
+      inviteCodesTable,
+      savesTable,
+      idempotencyTable,
+      eventsTable,
+    } = props;
 
     // JWT Authorizer Lambda (ADR-013)
     this.jwtAuthorizerFunction = new lambdaNode.NodejsFunction(
@@ -57,6 +65,8 @@ export class AuthStack extends cdk.Stack {
           USERS_TABLE_NAME: usersTable.tableName,
           INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
           SAVES_TABLE_NAME: savesTable.tableName,
+          IDEMPOTENCY_TABLE_NAME: idempotencyTable.tableName,
+          EVENTS_TABLE_NAME: eventsTable.tableName,
         },
         bundling: {
           minify: true,
@@ -163,6 +173,8 @@ export class AuthStack extends cdk.Stack {
           USERS_TABLE_NAME: usersTable.tableName,
           INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
           SAVES_TABLE_NAME: savesTable.tableName,
+          IDEMPOTENCY_TABLE_NAME: idempotencyTable.tableName,
+          EVENTS_TABLE_NAME: eventsTable.tableName,
         },
         bundling: {
           minify: true,
@@ -269,6 +281,8 @@ export class AuthStack extends cdk.Stack {
           USERS_TABLE_NAME: usersTable.tableName,
           INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
           SAVES_TABLE_NAME: savesTable.tableName,
+          IDEMPOTENCY_TABLE_NAME: idempotencyTable.tableName,
+          EVENTS_TABLE_NAME: eventsTable.tableName,
         },
         bundling: {
           minify: true,
@@ -352,6 +366,8 @@ export class AuthStack extends cdk.Stack {
           INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
           USERS_TABLE_NAME: usersTable.tableName,
           SAVES_TABLE_NAME: savesTable.tableName,
+          IDEMPOTENCY_TABLE_NAME: idempotencyTable.tableName,
+          EVENTS_TABLE_NAME: eventsTable.tableName,
         },
         bundling: {
           minify: true,
@@ -456,6 +472,8 @@ export class AuthStack extends cdk.Stack {
           USERS_TABLE_NAME: usersTable.tableName,
           INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
           SAVES_TABLE_NAME: savesTable.tableName,
+          IDEMPOTENCY_TABLE_NAME: idempotencyTable.tableName,
+          EVENTS_TABLE_NAME: eventsTable.tableName,
         },
         bundling: {
           minify: true,
@@ -538,6 +556,8 @@ export class AuthStack extends cdk.Stack {
           INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
           USERS_TABLE_NAME: usersTable.tableName,
           SAVES_TABLE_NAME: savesTable.tableName,
+          IDEMPOTENCY_TABLE_NAME: idempotencyTable.tableName,
+          EVENTS_TABLE_NAME: eventsTable.tableName,
         },
         bundling: {
           minify: true,

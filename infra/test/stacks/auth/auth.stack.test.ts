@@ -34,12 +34,27 @@ describe("AuthStack", () => {
       partitionKey: { name: "PK", type: dynamodb.AttributeType.STRING },
       sortKey: { name: "SK", type: dynamodb.AttributeType.STRING },
     });
+    const idempotencyTable = new dynamodb.Table(
+      tablesStack,
+      "IdempotencyTable",
+      {
+        tableName: "ai-learning-hub-idempotency",
+        partitionKey: { name: "PK", type: dynamodb.AttributeType.STRING },
+      }
+    );
+    const eventsTable = new dynamodb.Table(tablesStack, "EventsTable", {
+      tableName: "ai-learning-hub-events",
+      partitionKey: { name: "PK", type: dynamodb.AttributeType.STRING },
+      sortKey: { name: "SK", type: dynamodb.AttributeType.STRING },
+    });
 
     const stack = new AuthStack(app, "TestAuthStack", {
       env: awsEnv,
       usersTable,
       inviteCodesTable,
       savesTable,
+      idempotencyTable,
+      eventsTable,
     });
     template = Template.fromStack(stack);
   });

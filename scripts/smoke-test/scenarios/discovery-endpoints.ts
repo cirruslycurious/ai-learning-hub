@@ -7,7 +7,12 @@
 
 import type { ScenarioDefinition } from "../types.js";
 import { getClient } from "../client.js";
-import { assertStatus, assertResponseEnvelope, jwtAuth } from "../helpers.js";
+import {
+  assertStatus,
+  assertResponseEnvelope,
+  assertADR008,
+  jwtAuth,
+} from "../helpers.js";
 
 export const discoveryEndpointScenarios: ScenarioDefinition[] = [
   // DS1: GET /actions (+ entity filter)
@@ -79,24 +84,17 @@ export const discoveryEndpointScenarios: ScenarioDefinition[] = [
     },
   },
 
-  // DS2: GET /states/saves
+  // DS2: GET /states/saves — no state graph registered for saves entity
   {
     id: "DS2",
-    name: "GET /states/saves → 200 + state graph data",
+    name: "GET /states/saves → 404 (no state graph registered)",
     async run() {
       const client = getClient();
       const auth = jwtAuth();
 
       const res = await client.get("/states/saves", { auth });
-      assertStatus(res.status, 200, "DS2: GET /states/saves");
-      assertResponseEnvelope(res.body);
-
-      const body = res.body as {
-        links: { self: string };
-      };
-      if (!body.links?.self) {
-        throw new Error("DS2: missing links.self in state graph response");
-      }
+      assertStatus(res.status, 404, "DS2: GET /states/saves");
+      assertADR008(res.body, "NOT_FOUND");
 
       return res.status;
     },
