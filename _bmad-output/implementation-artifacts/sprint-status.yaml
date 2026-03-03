@@ -125,6 +125,11 @@ development_status:
   3-2-9-health-readiness-batch: ready-for-dev
   epic-3-2-retrospective: optional
 
+  # Epic 3.5: Code Cleanup & Technical Integrity (stories generated from code review)
+  epic-3-5-cleanup: in-progress
+  3-5-1-epic-1-code-cleanup: in-progress
+  epic-3-5-retrospective: optional
+
   # Epic 4: Project Management (stories TBD)
   epic-4: backlog
   epic-4-retrospective: optional

@@ -26,6 +26,10 @@ For **Claude Code hooks** (PreToolUse, PostToolUse, Stop): see `.claude/hooks/RE
 
 Start with project-level only; add module/feature CLAUDE.md files as the codebase grows.
 
+## Ephemeral Files
+
+Files named `review-findings-*.md` and `dedup-findings-*.md` in `_bmad-output/implementation-artifacts/` are ephemeral session outputs from the epic auto-review loop. They may be archived or deleted — they are not canonical documentation.
+
 ## Full Sources
 
 **Canonical path for planning output:** `_bmad-output/planning-artifacts/` is BMAD planning output and may be regenerated; do not edit it directly for product docs. See this README for the canonical reference.

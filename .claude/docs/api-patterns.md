@@ -66,6 +66,10 @@ Lambdas use `@ai-learning-hub/middleware`:
 
 All API handlers must use `wrapHandler`; do not return raw responses. Authorizers do not use the wrapper (they use `createLogger()` from `@ai-learning-hub/logging`).
 
+## Logging
+
+API handlers receive `ctx.logger` automatically via `wrapHandler` — no manual logger creation needed. Authorizer Lambdas (JWT, API Key) cannot use `wrapHandler` because they return API Gateway authorizer policy documents, not HTTP responses. Authorizers must call `createLogger()` from `@ai-learning-hub/logging` once per invocation and pass the resulting logger explicitly.
+
 ## Rules
 
 - **No Lambda-to-Lambda:** Call APIs via HTTP or emit events (EventBridge). Never `lambda.invoke()`.

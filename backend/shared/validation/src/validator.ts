@@ -2,18 +2,18 @@
  * Validation utilities and error formatting
  */
 import { z, ZodError, ZodSchema } from "zod";
-import { AppError, ErrorCode } from "@ai-learning-hub/types";
+import {
+  AppError,
+  ErrorCode,
+  type FieldValidationError,
+} from "@ai-learning-hub/types";
 
 /**
- * Validation error details (AC6: enhanced with constraint and allowed_values)
+ * Validation error details — re-exported from @ai-learning-hub/types
+ * where the canonical FieldValidationError interface lives.
+ * Direction: types owns the shape; validation aliases it to avoid circular deps.
  */
-export interface ValidationErrorDetail {
-  field: string;
-  message: string;
-  code: string;
-  constraint?: string;
-  allowed_values?: string[];
-}
+export type ValidationErrorDetail = FieldValidationError;
 
 /**
  * Format Zod errors into a structured array (AC7: constraint extraction)

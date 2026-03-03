@@ -72,6 +72,8 @@ export class SavesRoutesStack extends cdk.Stack {
     // CORS preflight config — must match api-gateway.stack.ts since imported
     // APIs do NOT inherit defaultCorsPreflightOptions
     const corsOptions: apigateway.CorsOptions = {
+      // ALL_ORIGINS: agent callers may originate from arbitrary origins;
+      // frontend origin enforcement is at the CloudFront level.
       allowOrigins: apigateway.Cors.ALL_ORIGINS,
       allowMethods: apigateway.Cors.ALL_METHODS,
       allowHeaders: [
@@ -141,11 +143,23 @@ export class SavesRoutesStack extends cdk.Stack {
       }
     );
 
-    // IAM permissions
+    // IAM permissions — savesTable + idempotency retain broad grants; usersTable + eventsTable narrowed
     savesTable.grantReadWriteData(this.savesCreateFunction);
-    usersTable.grantReadWriteData(this.savesCreateFunction);
     idempotencyTable.grantReadWriteData(this.savesCreateFunction);
-    eventsTable.grantReadWriteData(this.savesCreateFunction);
+    // usersTable: UpdateItem only (rate-limit counter increment)
+    this.savesCreateFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["dynamodb:UpdateItem"],
+        resources: [usersTable.tableArn],
+      })
+    );
+    // eventsTable: PutItem only (append-only event recording)
+    this.savesCreateFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["dynamodb:PutItem"],
+        resources: [eventsTable.tableArn],
+      })
+    );
 
     // EventBridge PutEvents permission
     this.savesCreateFunction.addToRolePolicy(
@@ -215,8 +229,13 @@ export class SavesRoutesStack extends cdk.Stack {
         bundling: readOnlyBundling,
       }
     );
-    // grantReadWriteData for updateItem (lastAccessedAt)
-    savesTable.grantReadWriteData(savesGetFunction);
+    // Least-privilege: GetItem (read save), UpdateItem (lastAccessedAt)
+    savesGetFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
+        resources: [savesTable.tableArn],
+      })
+    );
     this.savesGetFunction = savesGetFunction;
 
     // saves-update — PATCH + POST update-metadata /saves/:saveId (Story 3.3, 3.2.7)
@@ -240,9 +259,21 @@ export class SavesRoutesStack extends cdk.Stack {
       }
     );
     savesTable.grantReadWriteData(savesUpdateFunction);
-    usersTable.grantReadWriteData(savesUpdateFunction);
     idempotencyTable.grantReadWriteData(savesUpdateFunction);
-    eventsTable.grantReadWriteData(savesUpdateFunction);
+    // usersTable: UpdateItem only (rate-limit counter increment)
+    savesUpdateFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["dynamodb:UpdateItem"],
+        resources: [usersTable.tableArn],
+      })
+    );
+    // eventsTable: PutItem only (append-only event recording)
+    savesUpdateFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["dynamodb:PutItem"],
+        resources: [eventsTable.tableArn],
+      })
+    );
     savesUpdateFunction.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ["events:PutEvents"],
@@ -272,9 +303,21 @@ export class SavesRoutesStack extends cdk.Stack {
       }
     );
     savesTable.grantReadWriteData(savesDeleteFunction);
-    usersTable.grantReadWriteData(savesDeleteFunction);
     idempotencyTable.grantReadWriteData(savesDeleteFunction);
-    eventsTable.grantReadWriteData(savesDeleteFunction);
+    // usersTable: UpdateItem only (rate-limit counter increment)
+    savesDeleteFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["dynamodb:UpdateItem"],
+        resources: [usersTable.tableArn],
+      })
+    );
+    // eventsTable: PutItem only (append-only event recording)
+    savesDeleteFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["dynamodb:PutItem"],
+        resources: [eventsTable.tableArn],
+      })
+    );
     savesDeleteFunction.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ["events:PutEvents"],
@@ -304,9 +347,21 @@ export class SavesRoutesStack extends cdk.Stack {
       }
     );
     savesTable.grantReadWriteData(savesRestoreFunction);
-    usersTable.grantReadWriteData(savesRestoreFunction);
     idempotencyTable.grantReadWriteData(savesRestoreFunction);
-    eventsTable.grantReadWriteData(savesRestoreFunction);
+    // usersTable: UpdateItem only (rate-limit counter increment)
+    savesRestoreFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["dynamodb:UpdateItem"],
+        resources: [usersTable.tableArn],
+      })
+    );
+    // eventsTable: PutItem only (append-only event recording)
+    savesRestoreFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["dynamodb:PutItem"],
+        resources: [eventsTable.tableArn],
+      })
+    );
     savesRestoreFunction.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ["events:PutEvents"],
@@ -442,7 +497,7 @@ export class SavesRoutesStack extends cdk.Stack {
       {
         id: "AwsSolutions-IAM5",
         reason:
-          "DynamoDB table grants include index ARNs with wildcards, which is standard CDK behavior",
+          "Index ARN wildcards are standard CDK behavior for GSI access; remaining broad grants are on savesTable and idempotencyTable only",
       },
       {
         id: "AwsSolutions-L1",

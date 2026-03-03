@@ -55,8 +55,9 @@ export interface ApiSuccessResponse<T> {
 
 /**
  * Field-level validation error detail (AC14)
- * Canonical type for individual field validation errors in API responses.
- * Mirrors ValidationErrorDetail from @ai-learning-hub/validation.
+ * Canonical source of truth for field validation error shape.
+ * @ai-learning-hub/validation imports this type (as ValidationErrorDetail)
+ * to avoid circular dependency (validation depends on types, not vice versa).
  */
 export interface FieldValidationError {
   field: string;

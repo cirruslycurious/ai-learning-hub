@@ -66,6 +66,8 @@ export class OpsRoutesStack extends cdk.Stack {
     // CORS preflight config — must match api-gateway.stack.ts since imported
     // APIs do NOT inherit defaultCorsPreflightOptions
     const corsOptions: apigateway.CorsOptions = {
+      // ALL_ORIGINS: agent callers may originate from arbitrary origins;
+      // frontend origin enforcement is at the CloudFront level.
       allowOrigins: apigateway.Cors.ALL_ORIGINS,
       allowMethods: apigateway.Cors.ALL_METHODS,
       allowHeaders: [

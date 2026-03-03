@@ -21,10 +21,7 @@ import {
   type HandlerContext,
 } from "@ai-learning-hub/middleware";
 import { AppError, ErrorCode } from "@ai-learning-hub/types";
-import {
-  validateQueryParams,
-  paginationQuerySchema,
-} from "@ai-learning-hub/validation";
+import { validateQueryParams, paginationQuerySchema } from "./schemas.js";
 
 /**
  * POST /users/invite-codes — Generate a new invite code (AC10).

@@ -378,10 +378,16 @@ export class AuthStack extends cdk.Stack {
       }
     );
 
-    // Grant read/write to invite-codes table (GetItem for lookup, UpdateItem for redemption)
-    // TODO: Narrow to explicit actions (dynamodb:GetItem + dynamodb:UpdateItem) in a future story.
-    // AC16 only covers authorizer Lambdas; this function is out of scope for D7.
-    inviteCodesTable.grantReadWriteData(this.validateInviteFunction);
+    // Least-privilege: GetItem for invite lookup, UpdateItem for redemption
+    this.validateInviteFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
+        resources: [
+          inviteCodesTable.tableArn,
+          `${inviteCodesTable.tableArn}/index/*`,
+        ],
+      })
+    );
 
     // Grant least-privilege: only UpdateItem needed for rate limit counter increments (Story 2.7)
     this.validateInviteFunction.addToRolePolicy(
@@ -432,7 +438,7 @@ export class AuthStack extends cdk.Stack {
         {
           id: "AwsSolutions-IAM5",
           reason:
-            "Wildcard permissions for DynamoDB table read/write and X-Ray are scoped to specific table ARN by CDK grantReadWriteData",
+            "Index ARN wildcards are standard CDK behavior for GSI access; X-Ray tracing is managed by CDK Lambda construct",
         },
       ],
       true
@@ -568,10 +574,16 @@ export class AuthStack extends cdk.Stack {
       }
     );
 
-    // Grant read/write to invite-codes table (PutItem for create, Query for list via GSI)
-    // TODO: Narrow to explicit actions (dynamodb:PutItem + dynamodb:Query) in a future story.
-    // AC16 only covers authorizer Lambdas; this function is out of scope for D7.
-    inviteCodesTable.grantReadWriteData(this.generateInviteFunction);
+    // Least-privilege: PutItem for create, Query for list via GSI
+    this.generateInviteFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["dynamodb:PutItem", "dynamodb:Query"],
+        resources: [
+          inviteCodesTable.tableArn,
+          `${inviteCodesTable.tableArn}/index/*`,
+        ],
+      })
+    );
 
     // Grant least-privilege: only UpdateItem needed for rate limit counter increments
     this.generateInviteFunction.addToRolePolicy(
@@ -605,7 +617,7 @@ export class AuthStack extends cdk.Stack {
         {
           id: "AwsSolutions-IAM5",
           reason:
-            "Wildcard permissions for DynamoDB table read/write and X-Ray are scoped to specific table ARN by CDK grantReadWriteData",
+            "Index ARN wildcards are standard CDK behavior for GSI access; X-Ray tracing is managed by CDK Lambda construct",
         },
       ],
       true

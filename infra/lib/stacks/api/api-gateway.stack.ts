@@ -21,6 +21,10 @@ import * as lambda from "aws-cdk-lib/aws-lambda";
 // wafv2 import removed — WAF association moved to ApiDeploymentStack
 import { NagSuppressions } from "cdk-nag";
 import { Construct } from "constructs";
+// Canonical value lives in @ai-learning-hub/middleware (AUTHORIZER_CACHE_TTL).
+// CDK runs as CJS and cannot require() the ESM middleware package at synth time,
+// so we duplicate the constant here. Keep in sync with middleware/authorizerConstants.ts.
+const AUTHORIZER_CACHE_TTL = 300;
 
 export interface ApiGatewayStackProps extends cdk.StackProps {
   /** JWT authorizer Lambda ARN (from AuthStack.jwtAuthorizerFunction.functionArn).
@@ -157,7 +161,7 @@ export class ApiGatewayStack extends cdk.Stack {
     this.jwtAuthorizer = new apigateway.TokenAuthorizer(this, "JwtAuthorizer", {
       handler: jwtAuthorizerFunction,
       identitySource: apigateway.IdentitySource.header("Authorization"),
-      resultsCacheTtl: cdk.Duration.seconds(300),
+      resultsCacheTtl: cdk.Duration.seconds(AUTHORIZER_CACHE_TTL),
       authorizerName: "jwt-authorizer",
     });
 
