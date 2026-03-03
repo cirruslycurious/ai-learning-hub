@@ -8,10 +8,17 @@
 
 import type { ScenarioDefinition } from "../types.js";
 import { getClient } from "../client.js";
-import { assertStatus, assertADR008, jwtAuth } from "../helpers.js";
+import {
+  assertStatus,
+  assertADR008,
+  jwtAuth,
+  idempotencyKey,
+  createSave,
+  deleteSave,
+} from "../helpers.js";
 
 export const savesValidationScenarios: ScenarioDefinition[] = [
-  // SV1: Invalid URL → 400 VALIDATION_ERROR
+  // SV1: Invalid URL → 400 VALIDATION_ERROR (Story 3.2.11: + Idempotency-Key)
   {
     id: "SV1",
     name: "POST /saves with invalid URL → 400 VALIDATION_ERROR",
@@ -19,7 +26,14 @@ export const savesValidationScenarios: ScenarioDefinition[] = [
       const client = getClient();
       const auth = jwtAuth();
 
-      const res = await client.post("/saves", { url: "not-a-url" }, { auth });
+      const res = await client.post(
+        "/saves",
+        { url: "not-a-url" },
+        {
+          auth,
+          headers: idempotencyKey(),
+        }
+      );
       assertStatus(res.status, 400, "SV1: POST /saves invalid URL");
       assertADR008(res.body, "VALIDATION_ERROR");
 
@@ -62,6 +76,7 @@ export const savesValidationScenarios: ScenarioDefinition[] = [
   },
 
   // SV4: Immutable field (url) in PATCH → 400 VALIDATION_ERROR
+  // Story 3.2.11: uses createSave/deleteSave helpers, sends If-Match + Idempotency-Key
   {
     id: "SV4",
     name: "PATCH /saves/:saveId with immutable url field → 400 VALIDATION_ERROR",
@@ -69,33 +84,28 @@ export const savesValidationScenarios: ScenarioDefinition[] = [
       const client = getClient();
       const auth = jwtAuth();
 
-      // Create a temporary save for this test
-      const uniqueUrl = `https://example.com/smoke-validation-${Date.now()}`;
-      const createRes = await client.post(
-        "/saves",
-        { url: uniqueUrl },
-        { auth }
-      );
-      assertStatus(createRes.status, 201, "SV4: setup POST /saves");
-
-      const saveId = (createRes.body as { data: { saveId: string } }).data
-        .saveId;
+      const save = await createSave(auth);
 
       try {
-        // Attempt to PATCH with immutable field
+        // Attempt to PATCH with immutable field — send required headers
         const res = await client.patch(
-          `/saves/${saveId}`,
+          `/saves/${save.saveId}`,
           { url: "https://changed.com" },
-          { auth }
+          {
+            auth,
+            headers: {
+              ...idempotencyKey(),
+              "If-Match": String(save.version),
+            },
+          }
         );
         assertStatus(res.status, 400, "SV4: PATCH immutable field");
         assertADR008(res.body, "VALIDATION_ERROR");
 
         return res.status;
       } finally {
-        // Cleanup: soft-delete the temporary save
         try {
-          await client.delete(`/saves/${saveId}`, { auth });
+          await deleteSave(save.saveId, auth);
         } catch {
           // Cleanup errors are non-fatal
         }

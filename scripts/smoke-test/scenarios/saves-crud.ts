@@ -13,7 +13,10 @@ import {
   assertStatus,
   assertADR008,
   assertSaveShape,
+  assertCursorPagination,
   jwtAuth,
+  idempotencyKey,
+  deleteSave,
 } from "../helpers.js";
 
 // ULID: 26 uppercase alphanumeric characters — aligned with the backend's
@@ -23,6 +26,7 @@ const ULID_RE = /^[0-9A-Z]{26}$/;
 // Module-level shared state for the lifecycle chain
 let createdSaveId: string | null = null;
 let createdSaveUrl: string | null = null;
+let createdSaveVersion: number = 1;
 let registerCleanupFn: ((fn: CleanupFn) => void) | null = null;
 
 /**
@@ -33,7 +37,7 @@ export function initSavesCrudCleanup(register: (fn: CleanupFn) => void): void {
 }
 
 export const savesCrudScenarios: ScenarioDefinition[] = [
-  // SC1: Create save
+  // SC1: Create save (Story 3.2.11: + Idempotency-Key, store version)
   {
     id: "SC1",
     name: "POST /saves — create with unique URL → 201 + save shape",
@@ -42,11 +46,19 @@ export const savesCrudScenarios: ScenarioDefinition[] = [
       const auth = jwtAuth();
       const uniqueUrl = `https://example.com/smoke-test-${Date.now()}`;
 
-      const res = await client.post("/saves", { url: uniqueUrl }, { auth });
+      const res = await client.post(
+        "/saves",
+        { url: uniqueUrl },
+        {
+          auth,
+          headers: idempotencyKey(),
+        }
+      );
       assertStatus(res.status, 201, "SC1: POST /saves");
       assertSaveShape(res.body);
 
-      const data = (res.body as { data: { saveId: string } }).data;
+      const data = (res.body as { data: { saveId: string; version: number } })
+        .data;
 
       // AC: saveId is a valid ULID (26 chars, Crockford Base32)
       if (!ULID_RE.test(data.saveId)) {
@@ -55,16 +67,13 @@ export const savesCrudScenarios: ScenarioDefinition[] = [
 
       createdSaveId = data.saveId;
       createdSaveUrl = uniqueUrl;
+      createdSaveVersion = data.version ?? 1;
 
       // Register cleanup: soft-delete the save after all scenarios.
-      // Use jwtAuth() and getClient() at execution time to avoid stale tokens.
       if (registerCleanupFn) {
         registerCleanupFn(async () => {
           try {
-            const freshAuth = jwtAuth();
-            await getClient().delete(`/saves/${createdSaveId}`, {
-              auth: freshAuth,
-            });
+            if (createdSaveId) await deleteSave(createdSaveId, jwtAuth());
           } catch {
             // Cleanup errors are non-fatal
           }
@@ -105,10 +114,10 @@ export const savesCrudScenarios: ScenarioDefinition[] = [
     },
   },
 
-  // SC3: List saves (verifies save appears in list)
+  // SC3: List saves (Story 3.2.11: cursor pagination shape)
   {
     id: "SC3",
-    name: "GET /saves — list contains created save + hasMore present",
+    name: "GET /saves — list contains created save + cursor pagination shape",
     async run() {
       if (!createdSaveId) throw new Error("SC3 requires SC1 (no saveId)");
       const client = getClient();
@@ -116,23 +125,14 @@ export const savesCrudScenarios: ScenarioDefinition[] = [
 
       const res = await client.get("/saves", { auth });
       assertStatus(res.status, 200, "SC3: GET /saves");
+      assertCursorPagination(res.body);
 
       const body = res.body as {
-        data: { items: Array<{ saveId: string }>; hasMore: boolean };
+        data: Array<{ saveId: string }>;
+        meta: { cursor: string | null };
+        links: { self: string };
       };
-      if (!Array.isArray(body.data?.items)) {
-        throw new Error(
-          `SC3: data.items is not an array: ${JSON.stringify(res.body)}`
-        );
-      }
-      if (body.data.hasMore === undefined) {
-        throw new Error(
-          `SC3: data.hasMore is missing: ${JSON.stringify(res.body)}`
-        );
-      }
-      const found = body.data.items.some(
-        (item) => item.saveId === createdSaveId
-      );
+      const found = body.data.some((item) => item.saveId === createdSaveId);
       if (!found) {
         throw new Error(`SC3: Created save ${createdSaveId} not found in list`);
       }
@@ -141,7 +141,7 @@ export const savesCrudScenarios: ScenarioDefinition[] = [
     },
   },
 
-  // SC4: Update save
+  // SC4: Update save (Story 3.2.11: + Idempotency-Key, If-Match, store new version)
   {
     id: "SC4",
     name: "PATCH /saves/:saveId — update title → 200 + title changed",
@@ -153,14 +153,25 @@ export const savesCrudScenarios: ScenarioDefinition[] = [
       const res = await client.patch(
         `/saves/${createdSaveId}`,
         { title: "Smoke Test Updated" },
-        { auth }
+        {
+          auth,
+          headers: {
+            ...idempotencyKey(),
+            "If-Match": String(createdSaveVersion),
+          },
+        }
       );
       assertStatus(res.status, 200, "SC4: PATCH /saves/:saveId");
       assertSaveShape(res.body);
 
       const data = (
         res.body as {
-          data: { title: string; createdAt: string; updatedAt: string };
+          data: {
+            title: string;
+            version: number;
+            createdAt: string;
+            updatedAt: string;
+          };
         }
       ).data;
       if (data.title !== "Smoke Test Updated") {
@@ -171,12 +182,13 @@ export const savesCrudScenarios: ScenarioDefinition[] = [
           `SC4: updatedAt (${data.updatedAt}) < createdAt (${data.createdAt})`
         );
       }
+      createdSaveVersion = data.version ?? createdSaveVersion + 1;
 
       return res.status;
     },
   },
 
-  // SC5: Delete save (soft-delete)
+  // SC5: Delete save (Story 3.2.11: + Idempotency-Key)
   {
     id: "SC5",
     name: "DELETE /saves/:saveId — soft-delete → 204",
@@ -185,7 +197,10 @@ export const savesCrudScenarios: ScenarioDefinition[] = [
       const client = getClient();
       const auth = jwtAuth();
 
-      const res = await client.delete(`/saves/${createdSaveId}`, { auth });
+      const res = await client.delete(`/saves/${createdSaveId}`, {
+        auth,
+        headers: idempotencyKey(),
+      });
       assertStatus(res.status, 204, "SC5: DELETE /saves/:saveId");
 
       return res.status;
@@ -209,7 +224,7 @@ export const savesCrudScenarios: ScenarioDefinition[] = [
     },
   },
 
-  // SC7: Restore deleted save
+  // SC7: Restore deleted save (Story 3.2.11: + Idempotency-Key)
   {
     id: "SC7",
     name: "POST /saves/:saveId/restore — restore → 200 + no deletedAt",
@@ -221,7 +236,7 @@ export const savesCrudScenarios: ScenarioDefinition[] = [
       const res = await client.post(
         `/saves/${createdSaveId}/restore`,
         undefined,
-        { auth }
+        { auth, headers: idempotencyKey() }
       );
       assertStatus(res.status, 200, "SC7: POST /saves/:saveId/restore");
       assertSaveShape(res.body);
