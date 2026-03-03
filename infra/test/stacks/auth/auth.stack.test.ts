@@ -102,22 +102,7 @@ describe("AuthStack", () => {
   });
 
   describe("IAM Permissions", () => {
-    it("grants the Lambda read/write access to users table", () => {
-      // CDK grantReadWriteData creates a policy with DynamoDB actions
-      // The actions may be in one or multiple statements depending on CDK version
-      template.hasResourceProperties("AWS::IAM::Policy", {
-        PolicyDocument: {
-          Statement: Match.arrayWith([
-            Match.objectLike({
-              Action: Match.arrayWith(["dynamodb:PutItem"]),
-              Effect: "Allow",
-            }),
-          ]),
-        },
-      });
-    });
-
-    it("grants the Lambda ssm:GetParameter for the Clerk secret key", () => {
+    it("grants ssm:GetParameter for the Clerk secret key", () => {
       template.hasResourceProperties("AWS::IAM::Policy", {
         PolicyDocument: {
           Statement: Match.arrayWith([
@@ -128,6 +113,118 @@ describe("AuthStack", () => {
           ]),
         },
       });
+    });
+
+    it("validateInviteFunction gets GetItem + UpdateItem on inviteCodesTable (AC12)", () => {
+      const policies = template.findResources("AWS::IAM::Policy");
+      const validateInvitePolicies = Object.values(policies).filter(
+        (resource) => {
+          const statements =
+            resource.Properties?.PolicyDocument?.Statement ?? [];
+          const hasGetUpdateOnly = statements.some(
+            (s: Record<string, unknown>) => {
+              const actions = s.Action;
+              if (!Array.isArray(actions)) return false;
+              return (
+                actions.includes("dynamodb:GetItem") &&
+                actions.includes("dynamodb:UpdateItem") &&
+                !actions.includes("dynamodb:PutItem") &&
+                !actions.includes("dynamodb:Query") &&
+                actions.length === 2
+              );
+            }
+          );
+          const roles = resource.Properties?.Roles ?? [];
+          const attachedToValidateInvite = roles.some(
+            (r: Record<string, unknown>) => {
+              const ref = r.Ref ?? "";
+              return typeof ref === "string" && ref.includes("ValidateInvite");
+            }
+          );
+          return hasGetUpdateOnly && attachedToValidateInvite;
+        }
+      );
+      expect(validateInvitePolicies.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("generateInviteFunction gets PutItem + Query on inviteCodesTable (AC12)", () => {
+      const policies = template.findResources("AWS::IAM::Policy");
+      const generateInvitePolicies = Object.values(policies).filter(
+        (resource) => {
+          const statements =
+            resource.Properties?.PolicyDocument?.Statement ?? [];
+          const hasPutQuery = statements.some((s: Record<string, unknown>) => {
+            const actions = s.Action;
+            if (!Array.isArray(actions)) return false;
+            return (
+              actions.includes("dynamodb:PutItem") &&
+              actions.includes("dynamodb:Query") &&
+              !actions.includes("dynamodb:GetItem") &&
+              !actions.includes("dynamodb:DeleteItem") &&
+              actions.length === 2
+            );
+          });
+          const roles = resource.Properties?.Roles ?? [];
+          const attachedToGenerateInvite = roles.some(
+            (r: Record<string, unknown>) => {
+              const ref = r.Ref ?? "";
+              return typeof ref === "string" && ref.includes("GenerateInvite");
+            }
+          );
+          return hasPutQuery && attachedToGenerateInvite;
+        }
+      );
+      expect(generateInvitePolicies.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("jwtAuthorizerFunction gets GetItem + PutItem + UpdateItem + Query on usersTable (AC12)", () => {
+      const policies = template.findResources("AWS::IAM::Policy");
+      const jwtPolicies = Object.values(policies).filter((resource) => {
+        const statements = resource.Properties?.PolicyDocument?.Statement ?? [];
+        const hasFourActions = statements.some((s: Record<string, unknown>) => {
+          const actions = s.Action;
+          if (!Array.isArray(actions)) return false;
+          return (
+            actions.includes("dynamodb:GetItem") &&
+            actions.includes("dynamodb:PutItem") &&
+            actions.includes("dynamodb:UpdateItem") &&
+            actions.includes("dynamodb:Query") &&
+            actions.length === 4
+          );
+        });
+        const roles = resource.Properties?.Roles ?? [];
+        const attachedToJwt = roles.some((r: Record<string, unknown>) => {
+          const ref = r.Ref ?? "";
+          return typeof ref === "string" && ref.includes("JwtAuthorizer");
+        });
+        return hasFourActions && attachedToJwt;
+      });
+      expect(jwtPolicies.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("usersMeFunction gets GetItem + UpdateItem on usersTable (AC12)", () => {
+      const policies = template.findResources("AWS::IAM::Policy");
+      const usersMePolicies = Object.values(policies).filter((resource) => {
+        const statements = resource.Properties?.PolicyDocument?.Statement ?? [];
+        const hasGetUpdate = statements.some((s: Record<string, unknown>) => {
+          const actions = s.Action;
+          if (!Array.isArray(actions)) return false;
+          return (
+            actions.includes("dynamodb:GetItem") &&
+            actions.includes("dynamodb:UpdateItem") &&
+            !actions.includes("dynamodb:PutItem") &&
+            !actions.includes("dynamodb:Query") &&
+            actions.length === 2
+          );
+        });
+        const roles = resource.Properties?.Roles ?? [];
+        const attachedToUsersMe = roles.some((r: Record<string, unknown>) => {
+          const ref = r.Ref ?? "";
+          return typeof ref === "string" && ref.includes("UsersMe");
+        });
+        return hasGetUpdate && attachedToUsersMe;
+      });
+      expect(usersMePolicies.length).toBeGreaterThanOrEqual(1);
     });
   });
 

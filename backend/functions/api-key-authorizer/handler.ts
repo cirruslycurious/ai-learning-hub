@@ -29,14 +29,6 @@ import {
   getClerkSecretKey,
 } from "@ai-learning-hub/middleware";
 
-/**
- * Authorizer cache TTL in seconds.
- * This value will be consumed by the CDK ApiStack when configuring the
- * API Gateway RequestAuthorizer's resultsCacheTtl.
- * TODO: Wire into API Gateway RequestAuthorizer in the API story.
- */
-export const AUTHORIZER_CACHE_TTL = 300;
-
 function hashApiKey(apiKey: string): string {
   return createHash("sha256").update(apiKey).digest("hex");
 }

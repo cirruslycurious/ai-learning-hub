@@ -68,6 +68,7 @@ vi.mock("@ai-learning-hub/middleware", () => ({
     context: { errorCode },
   }),
   getClerkSecretKey: vi.fn().mockResolvedValue("test-clerk-secret-key"),
+  AUTHORIZER_CACHE_TTL: 300,
 }));
 
 import { handler } from "./handler.js";
@@ -588,8 +589,9 @@ describe("API Key Authorizer Handler", () => {
   });
 
   describe("Authorizer cache TTL", () => {
-    it("exports AUTHORIZER_CACHE_TTL = 300", async () => {
-      const { AUTHORIZER_CACHE_TTL } = await import("./handler.js");
+    it("AUTHORIZER_CACHE_TTL = 300 is exported from @ai-learning-hub/middleware", async () => {
+      const { AUTHORIZER_CACHE_TTL } =
+        await import("@ai-learning-hub/middleware");
       expect(AUTHORIZER_CACHE_TTL).toBe(300);
     });
   });

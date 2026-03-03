@@ -111,5 +111,8 @@ export type {
   HttpMethod,
 } from "@ai-learning-hub/types";
 
+// Authorizer constants (shared between handlers and CDK)
+export { AUTHORIZER_CACHE_TTL } from "./authorizerConstants.js";
+
 // SSM utilities
 export { getClerkSecretKey, resetClerkSecretKeyCache } from "./ssm.js";

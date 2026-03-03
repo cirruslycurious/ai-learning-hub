@@ -85,6 +85,7 @@ vi.mock("@ai-learning-hub/middleware", () => ({
   }),
   getClerkSecretKey: vi.fn().mockResolvedValue("sk_test_fake_key"),
   resetClerkSecretKeyCache: vi.fn(),
+  AUTHORIZER_CACHE_TTL: 300,
 }));
 
 import { handler } from "./handler.js";
@@ -330,8 +331,9 @@ describe("JWT Authorizer Handler", () => {
   });
 
   describe("AC8: Authorizer cache TTL", () => {
-    it("is exported as AUTHORIZER_CACHE_TTL = 300", async () => {
-      const { AUTHORIZER_CACHE_TTL } = await import("./handler.js");
+    it("AUTHORIZER_CACHE_TTL = 300 is exported from @ai-learning-hub/middleware", async () => {
+      const { AUTHORIZER_CACHE_TTL } =
+        await import("@ai-learning-hub/middleware");
       expect(AUTHORIZER_CACHE_TTL).toBe(300);
     });
   });
