@@ -3,11 +3,13 @@
  * Phase registry for grouped scenario execution.
  *
  * Story 3.1.6: Introduces phase-based grouping with --phase=N and --up-to=N support.
+ * Story 3.2.11: Added ops, discovery, agent-native to Phase 1; command to Phase 2;
+ * batch to Phase 3.
  *
  * Phase numbering:
- *   Phase 1: Infrastructure & Auth (existing AC1–AC14)
- *   Phase 2: Saves CRUD Lifecycle (SC1–SC8)
- *   Phase 3: (reserved for future)
+ *   Phase 1: Infrastructure & Auth (existing AC1–AC14, + OP1–OP2, DS1–DS2, AN1, AN5, AN6, AN8)
+ *   Phase 2: Saves CRUD Lifecycle (SC1–SC8, + CM1–CM4, AN2, AN3, AN4, AN7)
+ *   Phase 3: Batch Operations (BA1–BA3)
  *   Phase 4: Saves Validation Errors (SV1–SV4)
  *   Phases 5–6: (reserved for future)
  *   Phase 7: EventBridge Verification (EB1–EB3)
@@ -44,6 +46,22 @@ import {
   eventBridgeVerifyScenarios,
   initEventBridgeCleanup,
 } from "./scenarios/eventbridge-verify.js";
+import { opsEndpointScenarios } from "./scenarios/ops-endpoints.js";
+import { discoveryEndpointScenarios } from "./scenarios/discovery-endpoints.js";
+import { commandEndpointScenarios } from "./scenarios/command-endpoints.js";
+import { batchOperationScenarios } from "./scenarios/batch-operations.js";
+import { agentNativeBehaviorScenarios } from "./scenarios/agent-native-behaviors.js";
+
+// Split agent-native scenarios by phase dependency:
+// Phase 1 (no saves dependency): AN1, AN5, AN6, AN8
+// Phase 2 (saves-dependent): AN2, AN3, AN4, AN7
+const phase1AgentNativeIds = new Set(["AN1", "AN5", "AN6", "AN8"]);
+const phase1AgentNative = agentNativeBehaviorScenarios.filter((s) =>
+  phase1AgentNativeIds.has(s.id)
+);
+const phase2AgentNative = agentNativeBehaviorScenarios.filter(
+  (s) => !phase1AgentNativeIds.has(s.id)
+);
 
 export const phases: Phase[] = [
   {
@@ -55,6 +73,9 @@ export const phases: Phase[] = [
       ...routeConnectivityScenarios,
       ...userProfileScenarios,
       ...rateLimitingScenarios,
+      ...opsEndpointScenarios,
+      ...discoveryEndpointScenarios,
+      ...phase1AgentNative,
     ],
     init: (registerCleanup) => {
       initApiKeyCleanup(registerCleanup);
@@ -63,12 +84,20 @@ export const phases: Phase[] = [
   {
     id: 2,
     name: "Saves CRUD Lifecycle",
-    scenarios: [...savesCrudScenarios],
+    scenarios: [
+      ...savesCrudScenarios,
+      ...commandEndpointScenarios,
+      ...phase2AgentNative,
+    ],
     init: (registerCleanup) => {
       initSavesCrudCleanup(registerCleanup);
     },
   },
-  // Phase 3 reserved for future use
+  {
+    id: 3,
+    name: "Batch Operations",
+    scenarios: [...batchOperationScenarios],
+  },
   {
     id: 4,
     name: "Saves Validation Errors",

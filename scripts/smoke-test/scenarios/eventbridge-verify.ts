@@ -13,7 +13,13 @@
 import type { ScenarioDefinition, CleanupFn } from "../types.js";
 import { ScenarioSkipped } from "../types.js";
 import { getClient } from "../client.js";
-import { assertStatus, assertSaveShape, jwtAuth } from "../helpers.js";
+import {
+  assertStatus,
+  assertSaveShape,
+  jwtAuth,
+  idempotencyKey,
+  deleteSave,
+} from "../helpers.js";
 import { waitForLogEvent } from "../cloudwatch-helpers.js";
 
 // Module-level shared state for the EB1→EB2→EB3 chain
@@ -59,7 +65,14 @@ export const eventBridgeVerifyScenarios: ScenarioDefinition[] = [
       // Record time before API call to bound the CloudWatch query window
       const queryStartEpochMs = Date.now() - 30_000;
 
-      const res = await client.post("/saves", { url: uniqueUrl }, { auth });
+      const res = await client.post(
+        "/saves",
+        { url: uniqueUrl },
+        {
+          auth,
+          headers: idempotencyKey(),
+        }
+      );
       assertStatus(res.status, 201, "EB1: POST /saves");
       assertSaveShape(res.body);
 
@@ -69,7 +82,14 @@ export const eventBridgeVerifyScenarios: ScenarioDefinition[] = [
       // Flush: hit SavesCreateFunction again to thaw the Lambda context and let
       // the fire-and-forget PutEvents from the main request complete.
       const flushUrl = `https://example.com/eb-flush-${Date.now()}`;
-      const flushRes = await client.post("/saves", { url: flushUrl }, { auth });
+      const flushRes = await client.post(
+        "/saves",
+        { url: flushUrl },
+        {
+          auth,
+          headers: idempotencyKey(),
+        }
+      );
       if (flushRes.status === 201) {
         flushSaveId = (flushRes.body as { data: { saveId: string } }).data
           .saveId;
@@ -80,11 +100,10 @@ export const eventBridgeVerifyScenarios: ScenarioDefinition[] = [
       if (registerCleanupFn) {
         registerCleanupFn(async () => {
           const cleanupAuth = jwtAuth();
-          const cleanupClient = getClient();
           for (const id of [createdSaveId, flushSaveId]) {
             if (!id) continue;
             try {
-              await cleanupClient.delete(`/saves/${id}`, { auth: cleanupAuth });
+              await deleteSave(id, cleanupAuth);
             } catch {
               // Cleanup errors are non-fatal
             }
@@ -136,19 +155,39 @@ export const eventBridgeVerifyScenarios: ScenarioDefinition[] = [
       // Record time before update
       const updateStartEpochMs = Date.now() - 30_000;
 
+      // Fetch current version for If-Match
+      const getRes = await client.get(`/saves/${createdSaveId}`, { auth });
+      const saveVersion =
+        (getRes.body as { data: { version?: number } })?.data?.version ?? 1;
+
       const res = await client.patch(
         `/saves/${createdSaveId}`,
         { title: "EB2 Smoke" },
-        { auth }
+        {
+          auth,
+          headers: {
+            ...idempotencyKey(),
+            "If-Match": String(saveVersion),
+          },
+        }
       );
       assertStatus(res.status, 200, "EB2: PATCH /saves/:saveId");
 
       // Flush: hit SavesUpdateFunction again to thaw context
       if (flushSaveId) {
+        const flushGet = await client.get(`/saves/${flushSaveId}`, { auth });
+        const flushVersion =
+          (flushGet.body as { data: { version?: number } })?.data?.version ?? 1;
         await client.patch(
           `/saves/${flushSaveId}`,
           { title: "EB2 Flush" },
-          { auth }
+          {
+            auth,
+            headers: {
+              ...idempotencyKey(),
+              "If-Match": String(flushVersion),
+            },
+          }
         );
       }
 
@@ -190,12 +229,15 @@ export const eventBridgeVerifyScenarios: ScenarioDefinition[] = [
       // Record time before delete
       const deleteStartEpochMs = Date.now() - 30_000;
 
-      const res = await client.delete(`/saves/${createdSaveId}`, { auth });
+      const res = await client.delete(`/saves/${createdSaveId}`, {
+        auth,
+        headers: idempotencyKey(),
+      });
       assertStatus(res.status, 204, "EB3: DELETE /saves/:saveId");
 
       // Flush: hit SavesDeleteFunction again to thaw context
       if (flushSaveId) {
-        await client.delete(`/saves/${flushSaveId}`, { auth });
+        await deleteSave(flushSaveId, auth);
         flushSaveId = null; // already cleaned up
       }
 

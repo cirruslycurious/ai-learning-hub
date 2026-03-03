@@ -3,6 +3,7 @@
  * Aggregates all scenario definitions in execution order.
  *
  * Story 3.1.6: Added saves-crud and saves-validation exports.
+ * Story 3.2.11: Added ops, discovery, command, batch, agent-native exports.
  * Phase-grouped execution is handled by phases.ts; this file
  * re-exports individual scenario arrays for flexibility.
  */
@@ -14,6 +15,11 @@ export { userProfileScenarios } from "./user-profile.js";
 export { rateLimitingScenarios } from "./rate-limiting.js";
 export { savesCrudScenarios, initSavesCrudCleanup } from "./saves-crud.js";
 export { savesValidationScenarios } from "./saves-validation.js";
+export { opsEndpointScenarios } from "./ops-endpoints.js";
+export { discoveryEndpointScenarios } from "./discovery-endpoints.js";
+export { commandEndpointScenarios } from "./command-endpoints.js";
+export { batchOperationScenarios } from "./batch-operations.js";
+export { agentNativeBehaviorScenarios } from "./agent-native-behaviors.js";
 
 import { jwtAuthScenarios } from "./jwt-auth.js";
 import { apiKeyScenarios } from "./api-key-auth.js";
@@ -22,6 +28,11 @@ import { userProfileScenarios } from "./user-profile.js";
 import { rateLimitingScenarios } from "./rate-limiting.js";
 import { savesCrudScenarios } from "./saves-crud.js";
 import { savesValidationScenarios } from "./saves-validation.js";
+import { opsEndpointScenarios } from "./ops-endpoints.js";
+import { discoveryEndpointScenarios } from "./discovery-endpoints.js";
+import { commandEndpointScenarios } from "./command-endpoints.js";
+import { batchOperationScenarios } from "./batch-operations.js";
+import { agentNativeBehaviorScenarios } from "./agent-native-behaviors.js";
 
 /**
  * Flat list of all scenarios across all phases.
@@ -36,6 +47,11 @@ export const scenarios = [
   ...routeConnectivityScenarios,
   ...userProfileScenarios,
   ...rateLimitingScenarios,
+  ...opsEndpointScenarios,
+  ...discoveryEndpointScenarios,
+  ...agentNativeBehaviorScenarios,
   ...savesCrudScenarios,
+  ...commandEndpointScenarios,
   ...savesValidationScenarios,
+  ...batchOperationScenarios,
 ];

@@ -9,6 +9,7 @@ import {
   assertStatus,
   assertUserProfileShape,
   randomInvalidKey,
+  idempotencyKey,
 } from "../helpers.js";
 import type { ScenarioDefinition, CleanupFn } from "../types.js";
 
@@ -39,7 +40,7 @@ async function createKey(
     const res = await getClient().post(
       "/users/api-keys",
       { name, scopes },
-      { auth: { type: "jwt", token: jwt } }
+      { auth: { type: "jwt", token: jwt }, headers: idempotencyKey() }
     );
 
     if (res.status === 429) {
@@ -78,6 +79,7 @@ async function createKey(
 async function deleteKey(id: string, jwt: string): Promise<number> {
   const res = await getClient().delete(`/users/api-keys/${id}`, {
     auth: { type: "jwt", token: jwt },
+    headers: idempotencyKey(),
   });
   return res.status;
 }
@@ -193,22 +195,45 @@ export const apiKeyScenarios: ScenarioDefinition[] = [
 
   {
     id: "AC6",
-    name: "Capture-scope API key → PATCH /users/me → 200 (no handler-level scope enforcement yet)",
+    name: "saves:write API key → PATCH /users/me → 403 SCOPE_INSUFFICIENT",
     async run() {
       const jwt = process.env.SMOKE_TEST_CLERK_JWT;
       if (!jwt) throw new Error("SMOKE_TEST_CLERK_JWT is required for AC6");
 
-      // NOTE: The users-me handler does not enforce scopes at the handler level.
-      // Scope enforcement (SCOPE_INSUFFICIENT) is a future story.
-      // For now, any valid API key can PATCH /users/me regardless of scopes.
-      const key = await createKey(jwt, ["saves:write"], "smoke-capture-key");
+      // Story 3.2.11: Scope enforcement is now active. saves:write cannot access
+      // PATCH /users/me which requires users:write.
+      const key = await createKey(jwt, ["saves:write"], "smoke-scope-key");
       try {
+        // Need to fetch version for If-Match since PATCH /users/me requires it,
+        // but we're using API key auth with wrong scope — the scope check happens
+        // before version check, so we still get 403.
         const res = await getClient().patch(
           "/users/me",
           { displayName: "Scope Test" },
-          { auth: { type: "apikey", key: key.keyValue } }
+          {
+            auth: { type: "apikey", key: key.keyValue },
+            headers: {
+              ...idempotencyKey(),
+              "If-Match": "1",
+            },
+          }
         );
-        assertStatus(res.status, 200, "PATCH /users/me with capture-scope key");
+        assertStatus(res.status, 403, "PATCH /users/me with saves:write key");
+        assertADR008(res.body, "SCOPE_INSUFFICIENT");
+
+        // Validate error body contains scope information
+        const err = (res.body as { error: Record<string, unknown> }).error;
+        if (!err.required_scope) {
+          throw new Error(
+            `AC6: missing required_scope in error body: ${JSON.stringify(res.body)}`
+          );
+        }
+        if (!err.granted_scopes) {
+          throw new Error(
+            `AC6: missing granted_scopes in error body: ${JSON.stringify(res.body)}`
+          );
+        }
+
         return res.status;
       } finally {
         await deleteKey(key.id, jwt).catch(() => undefined);
