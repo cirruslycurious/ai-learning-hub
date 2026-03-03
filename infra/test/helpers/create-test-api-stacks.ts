@@ -220,6 +220,11 @@ export function createTestApiStacks(): TestApiStacks {
       restApiId: apiGatewayStack.restApi.restApiId,
       rootResourceId: apiGatewayStack.restApi.restApiRootResourceId,
       apiKeyAuthorizer: apiGatewayStack.apiKeyAuthorizer,
+      usersTable,
+      inviteCodesTable,
+      savesTable,
+      idempotencyTable,
+      eventsTable,
     }
   );
 
@@ -229,7 +234,10 @@ export function createTestApiStacks(): TestApiStacks {
     rootResourceId: apiGatewayStack.restApi.restApiRootResourceId,
     apiKeyAuthorizer: apiGatewayStack.apiKeyAuthorizer,
     usersTable,
+    inviteCodesTable,
+    savesTable,
     idempotencyTable,
+    eventsTable,
     stageName: "dev",
   });
 

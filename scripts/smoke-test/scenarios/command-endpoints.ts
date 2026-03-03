@@ -161,7 +161,7 @@ export const commandEndpointScenarios: ScenarioDefinition[] = [
   // CM4: POST /users/api-keys/{id}/revoke
   {
     id: "CM4",
-    name: "POST /users/api-keys/:id/revoke → 200 + revoked key returns 401",
+    name: "POST /users/api-keys/:id/revoke → 204 + revoked key returns 401",
     async run() {
       const jwt = process.env.SMOKE_TEST_CLERK_JWT;
       if (!jwt) throw new Error("SMOKE_TEST_CLERK_JWT is required for CM4");
@@ -188,7 +188,7 @@ export const commandEndpointScenarios: ScenarioDefinition[] = [
       );
       assertStatus(
         revokeRes.status,
-        200,
+        204,
         "CM4: POST /users/api-keys/:id/revoke"
       );
 

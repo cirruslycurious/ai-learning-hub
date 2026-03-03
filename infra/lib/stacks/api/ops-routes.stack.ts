@@ -24,8 +24,14 @@ export interface OpsRoutesStackProps extends cdk.StackProps {
   apiKeyAuthorizer: apigateway.IAuthorizer;
   /** Users table for readiness check + rate limiting */
   usersTable: dynamodb.ITable;
+  /** Invite codes table (required by @ai-learning-hub/db barrel import) */
+  inviteCodesTable: dynamodb.ITable;
+  /** Saves table (required by @ai-learning-hub/db barrel import) */
+  savesTable: dynamodb.ITable;
   /** Idempotency table for batch operations */
   idempotencyTable: dynamodb.ITable;
+  /** Events table (required by @ai-learning-hub/db barrel import) */
+  eventsTable: dynamodb.ITable;
   /** Stage name for constructing API_BASE_URL */
   stageName: string;
 }
@@ -43,7 +49,10 @@ export class OpsRoutesStack extends cdk.Stack {
       rootResourceId,
       apiKeyAuthorizer,
       usersTable,
+      inviteCodesTable,
+      savesTable,
       idempotencyTable,
+      eventsTable,
       stageName,
     } = props;
 
@@ -105,6 +114,11 @@ export class OpsRoutesStack extends cdk.Stack {
       tracing: lambda.Tracing.ACTIVE,
       environment: {
         NODE_OPTIONS: "--enable-source-maps",
+        USERS_TABLE_NAME: usersTable.tableName,
+        INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
+        SAVES_TABLE_NAME: savesTable.tableName,
+        IDEMPOTENCY_TABLE_NAME: idempotencyTable.tableName,
+        EVENTS_TABLE_NAME: eventsTable.tableName,
       },
       bundling: bundlingConfig,
     });
@@ -128,6 +142,10 @@ export class OpsRoutesStack extends cdk.Stack {
         environment: {
           NODE_OPTIONS: "--enable-source-maps",
           USERS_TABLE_NAME: usersTable.tableName,
+          INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
+          SAVES_TABLE_NAME: savesTable.tableName,
+          IDEMPOTENCY_TABLE_NAME: idempotencyTable.tableName,
+          EVENTS_TABLE_NAME: eventsTable.tableName,
         },
         bundling: bundlingConfig,
       }
@@ -153,8 +171,11 @@ export class OpsRoutesStack extends cdk.Stack {
       environment: {
         NODE_OPTIONS: "--enable-source-maps",
         API_BASE_URL: apiBaseUrl,
-        IDEMPOTENCY_TABLE_NAME: idempotencyTable.tableName,
         USERS_TABLE_NAME: usersTable.tableName,
+        INVITE_CODES_TABLE_NAME: inviteCodesTable.tableName,
+        SAVES_TABLE_NAME: savesTable.tableName,
+        IDEMPOTENCY_TABLE_NAME: idempotencyTable.tableName,
+        EVENTS_TABLE_NAME: eventsTable.tableName,
       },
       bundling: bundlingConfig,
     });

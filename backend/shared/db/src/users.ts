@@ -268,11 +268,12 @@ export async function updateProfile(
   // Build dynamic SET expression from provided fields
   const setExpressions: string[] = [
     "updatedAt = :now",
-    "version = version + :one",
+    "version = if_not_exists(version, :zero) + :one",
   ];
   const expressionAttributeValues: Record<string, unknown> = {
     ":now": now,
     ":one": 1,
+    ":zero": 0,
   };
 
   if (fields.displayName !== undefined) {
@@ -342,7 +343,7 @@ export async function updateProfileWithEvents(
   client: DynamoDBDocumentClient,
   clerkId: string,
   fields: UpdateProfileFields,
-  expectedVersion: number,
+  expectedVersion: number | undefined,
   logger?: Logger
 ): Promise<UpdateProfileResult> {
   const log = logger ?? createLogger({ userId: clerkId });

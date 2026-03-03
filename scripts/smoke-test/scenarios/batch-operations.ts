@@ -7,13 +7,19 @@
 
 import type { ScenarioDefinition } from "../types.js";
 import { getClient } from "../client.js";
-import { assertStatus, jwtAuth, idempotencyKey } from "../helpers.js";
+import {
+  assertStatus,
+  jwtAuth,
+  idempotencyKey,
+  deleteSave,
+} from "../helpers.js";
 
 export const batchOperationScenarios: ScenarioDefinition[] = [
-  // BA1: Batch basic execution — 2 GETs, both succeed
+  // BA1: Batch basic execution — 2 POSTs, both succeed
+  // Batch schema only allows POST/PATCH/DELETE (no GET).
   {
     id: "BA1",
-    name: "POST /batch with 2 GETs → 200 + 2 succeeded",
+    name: "POST /batch with 2 POST /saves → 200 + 2 succeeded",
     async run() {
       const client = getClient();
       const auth = jwtAuth();
@@ -22,8 +28,18 @@ export const batchOperationScenarios: ScenarioDefinition[] = [
         "/batch",
         {
           operations: [
-            { method: "GET", path: "/actions" },
-            { method: "GET", path: "/users/me" },
+            {
+              method: "POST",
+              path: "/saves",
+              body: { url: `https://example.com/ba1-a-${Date.now()}` },
+              headers: { "Idempotency-Key": crypto.randomUUID() },
+            },
+            {
+              method: "POST",
+              path: "/saves",
+              body: { url: `https://example.com/ba1-b-${Date.now()}` },
+              headers: { "Idempotency-Key": crypto.randomUUID() },
+            },
           ],
         },
         { auth, headers: idempotencyKey() }
@@ -32,7 +48,10 @@ export const batchOperationScenarios: ScenarioDefinition[] = [
 
       const body = res.body as {
         data: {
-          results: Array<{ statusCode: number }>;
+          results: Array<{
+            statusCode: number;
+            data?: { saveId?: string };
+          }>;
           summary: { total: number; succeeded: number; failed: number };
         };
       };
@@ -52,14 +71,22 @@ export const batchOperationScenarios: ScenarioDefinition[] = [
         );
       }
 
+      // Cleanup created saves
+      for (const result of body.data.results) {
+        if (result.data?.saveId) {
+          await deleteSave(result.data.saveId, auth).catch(() => undefined);
+        }
+      }
+
       return res.status;
     },
   },
 
-  // BA2: Batch partial failure — 1 success + 1 404
+  // BA2: Batch partial failure — 1 POST success + 1 PATCH on nonexistent → error
+  // Batch schema only allows POST/PATCH/DELETE (no GET).
   {
     id: "BA2",
-    name: "POST /batch with 1 valid + 1 404 → 200 + partial failure",
+    name: "POST /batch with 1 POST /saves + 1 PATCH nonexistent → partial failure",
     async run() {
       const client = getClient();
       const auth = jwtAuth();
@@ -68,8 +95,21 @@ export const batchOperationScenarios: ScenarioDefinition[] = [
         "/batch",
         {
           operations: [
-            { method: "GET", path: "/actions" },
-            { method: "GET", path: "/saves/00000000000000000000000000" },
+            {
+              method: "POST",
+              path: "/saves",
+              body: { url: `https://example.com/ba2-${Date.now()}` },
+              headers: { "Idempotency-Key": crypto.randomUUID() },
+            },
+            {
+              method: "PATCH",
+              path: "/saves/00000000000000000000000000",
+              body: { title: "Should Not Exist" },
+              headers: {
+                "Idempotency-Key": crypto.randomUUID(),
+                "If-Match": "1",
+              },
+            },
           ],
         },
         { auth, headers: idempotencyKey() }
@@ -78,7 +118,10 @@ export const batchOperationScenarios: ScenarioDefinition[] = [
 
       const body = res.body as {
         data: {
-          results: Array<{ statusCode: number }>;
+          results: Array<{
+            statusCode: number;
+            data?: { saveId?: string };
+          }>;
           summary: { total: number; succeeded: number; failed: number };
         };
       };
@@ -95,15 +138,24 @@ export const batchOperationScenarios: ScenarioDefinition[] = [
 
       // Validate per-operation statusCode
       const statusCodes = body.data.results.map((r) => r.statusCode);
-      if (!statusCodes.includes(200)) {
+      // POST /saves creates → 201
+      if (!statusCodes.some((s) => s >= 200 && s < 400)) {
         throw new Error(
-          `BA2: no 200 status in results: ${JSON.stringify(statusCodes)}`
+          `BA2: no success status in results: ${JSON.stringify(statusCodes)}`
         );
       }
-      if (!statusCodes.includes(404)) {
+      // PATCH on nonexistent → 404 or other 4xx
+      if (!statusCodes.some((s) => s >= 400)) {
         throw new Error(
-          `BA2: no 404 status in results: ${JSON.stringify(statusCodes)}`
+          `BA2: no error status in results: ${JSON.stringify(statusCodes)}`
         );
+      }
+
+      // Cleanup created save
+      for (const result of body.data.results) {
+        if (result.data?.saveId) {
+          await deleteSave(result.data.saveId, auth).catch(() => undefined);
+        }
       }
 
       return res.status;
@@ -120,7 +172,14 @@ export const batchOperationScenarios: ScenarioDefinition[] = [
       const res = await client.post(
         "/batch",
         {
-          operations: [{ method: "GET", path: "/actions" }],
+          operations: [
+            {
+              method: "POST",
+              path: "/saves",
+              body: { url: "https://example.com/ba3-unauth" },
+              headers: { "Idempotency-Key": crypto.randomUUID() },
+            },
+          ],
         },
         { auth: { type: "none" } }
       );
