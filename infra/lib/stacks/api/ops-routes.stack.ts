@@ -234,16 +234,12 @@ export class OpsRoutesStack extends cdk.Stack {
       },
     ]);
 
-    const lambdaNagSuppressions = [
+    // Common suppressions (managed policy + runtime) for all functions
+    const commonSuppressions = [
       {
         id: "AwsSolutions-IAM4",
         reason:
           "Lambda basic execution role (CloudWatch Logs, X-Ray) is managed by CDK construct",
-      },
-      {
-        id: "AwsSolutions-IAM5",
-        reason:
-          "X-Ray tracing (Tracing.ACTIVE) generates wildcard Resource::* policy managed by CDK construct",
       },
       {
         id: "AwsSolutions-L1",
@@ -252,19 +248,62 @@ export class OpsRoutesStack extends cdk.Stack {
       },
     ];
 
+    for (const fn of [
+      this.healthFunction,
+      this.readinessFunction,
+      this.batchFunction,
+    ]) {
+      NagSuppressions.addResourceSuppressions(fn, commonSuppressions, true);
+    }
+
+    // IAM5 suppressions with appliesTo constraints
+    // healthFunction: X-Ray only (no DynamoDB grants)
     NagSuppressions.addResourceSuppressions(
       this.healthFunction,
-      lambdaNagSuppressions,
+      [
+        {
+          id: "AwsSolutions-IAM5",
+          reason: "X-Ray tracing requires Resource::*",
+          appliesTo: ["Resource::*"],
+        },
+      ],
       true
     );
+
+    // readinessFunction: X-Ray + usersTable/index/* (grantReadData)
     NagSuppressions.addResourceSuppressions(
       this.readinessFunction,
-      lambdaNagSuppressions,
+      [
+        {
+          id: "AwsSolutions-IAM5",
+          reason:
+            "X-Ray tracing requires Resource::*; grantReadData generates index/* wildcard for GSI access on usersTable",
+          appliesTo: [
+            "Resource::*",
+            { regex: "/^Resource::.*UsersTable.*\\/index\\/\\*$/" },
+          ],
+        },
+      ],
       true
     );
+
+    // batchFunction: X-Ray + idempotencyTable/index/* + usersTable/index/*
     NagSuppressions.addResourceSuppressions(
       this.batchFunction,
-      lambdaNagSuppressions,
+      [
+        {
+          id: "AwsSolutions-IAM5",
+          reason:
+            "X-Ray tracing requires Resource::*; grantReadWriteData/grantReadData generate index/* wildcards for GSI access on idempotencyTable and usersTable",
+          appliesTo: [
+            "Resource::*",
+            {
+              regex: "/^Resource::.*IdempotencyTable.*\\/index\\/\\*$/",
+            },
+            { regex: "/^Resource::.*UsersTable.*\\/index\\/\\*$/" },
+          ],
+        },
+      ],
       true
     );
   }

@@ -488,16 +488,12 @@ export class SavesRoutesStack extends cdk.Stack {
       },
     ]);
 
-    const nagSuppressions = [
+    // Common suppressions (managed policy + runtime) for all functions
+    const commonSuppressions = [
       {
         id: "AwsSolutions-IAM4",
         reason:
           "Lambda basic execution role (CloudWatch Logs, X-Ray) is managed by CDK construct",
-      },
-      {
-        id: "AwsSolutions-IAM5",
-        reason:
-          "Index ARN wildcards are standard CDK behavior for GSI access; remaining broad grants are on savesTable and idempotencyTable only",
       },
       {
         id: "AwsSolutions-L1",
@@ -506,39 +502,94 @@ export class SavesRoutesStack extends cdk.Stack {
       },
     ];
 
-    NagSuppressions.addResourceSuppressions(
+    for (const fn of [
       this.savesCreateFunction,
-      nagSuppressions,
-      true
-    );
+      savesListFunction,
+      savesGetFunction,
+      savesUpdateFunction,
+      savesDeleteFunction,
+      savesRestoreFunction,
+      savesEventsFunction,
+    ]) {
+      NagSuppressions.addResourceSuppressions(fn, commonSuppressions, true);
+    }
+
+    // IAM5 suppressions with appliesTo constraints (AC9)
+    // All functions: Resource::* from X-Ray tracing (xray:PutTraceSegments on Resource: *)
+    // Functions with grantReadWriteData/grantReadData: index/* wildcards for GSI access
+
+    // Mutation functions: X-Ray + savesTable/index/* + idempotencyTable/index/*
+    for (const fn of [
+      this.savesCreateFunction,
+      savesUpdateFunction,
+      savesDeleteFunction,
+      savesRestoreFunction,
+    ]) {
+      NagSuppressions.addResourceSuppressions(
+        fn,
+        [
+          {
+            id: "AwsSolutions-IAM5",
+            reason:
+              "X-Ray tracing requires Resource::*; grantReadWriteData generates index/* wildcards for GSI access on savesTable and idempotencyTable",
+            appliesTo: [
+              "Resource::*",
+              { regex: "/^Resource::.*SavesTable.*\\/index\\/\\*$/" },
+              {
+                regex: "/^Resource::.*IdempotencyTable.*\\/index\\/\\*$/",
+              },
+            ],
+          },
+        ],
+        true
+      );
+    }
+
+    // savesListFunction: X-Ray + savesTable/index/*
     NagSuppressions.addResourceSuppressions(
       savesListFunction,
-      nagSuppressions,
+      [
+        {
+          id: "AwsSolutions-IAM5",
+          reason:
+            "X-Ray tracing requires Resource::*; grantReadData generates index/* wildcard for GSI access on savesTable",
+          appliesTo: [
+            "Resource::*",
+            { regex: "/^Resource::.*SavesTable.*\\/index\\/\\*$/" },
+          ],
+        },
+      ],
       true
     );
+
+    // savesGetFunction: X-Ray only (explicit addToRolePolicy with base table ARN, no index/*)
     NagSuppressions.addResourceSuppressions(
       savesGetFunction,
-      nagSuppressions,
+      [
+        {
+          id: "AwsSolutions-IAM5",
+          reason: "X-Ray tracing requires Resource::*",
+          appliesTo: ["Resource::*"],
+        },
+      ],
       true
     );
-    NagSuppressions.addResourceSuppressions(
-      savesUpdateFunction,
-      nagSuppressions,
-      true
-    );
-    NagSuppressions.addResourceSuppressions(
-      savesDeleteFunction,
-      nagSuppressions,
-      true
-    );
-    NagSuppressions.addResourceSuppressions(
-      savesRestoreFunction,
-      nagSuppressions,
-      true
-    );
+
+    // savesEventsFunction: X-Ray + savesTable/index/* + eventsTable/index/*
     NagSuppressions.addResourceSuppressions(
       savesEventsFunction,
-      nagSuppressions,
+      [
+        {
+          id: "AwsSolutions-IAM5",
+          reason:
+            "X-Ray tracing requires Resource::*; grantReadData generates index/* wildcards for GSI access on savesTable and eventsTable",
+          appliesTo: [
+            "Resource::*",
+            { regex: "/^Resource::.*SavesTable.*\\/index\\/\\*$/" },
+            { regex: "/^Resource::.*EventsTable.*\\/index\\/\\*$/" },
+          ],
+        },
+      ],
       true
     );
   }

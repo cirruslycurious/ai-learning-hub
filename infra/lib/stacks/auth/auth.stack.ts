@@ -132,7 +132,11 @@ export class AuthStack extends cdk.Stack {
         {
           id: "AwsSolutions-IAM5",
           reason:
-            "Wildcard sub-resource permissions for DynamoDB GSI index/* and X-Ray tracing are scoped to specific table ARN",
+            "X-Ray tracing requires Resource::*; usersTable index/* wildcard scoped to GSI access",
+          appliesTo: [
+            "Resource::*",
+            { regex: "/^Resource::.*UsersTable.*\\/index\\/\\*$/" },
+          ],
         },
       ],
       true
@@ -241,7 +245,11 @@ export class AuthStack extends cdk.Stack {
         {
           id: "AwsSolutions-IAM5",
           reason:
-            "Wildcard sub-resource permissions for DynamoDB GSI index/* and X-Ray tracing are scoped to specific table ARN",
+            "X-Ray tracing requires Resource::*; usersTable index/* wildcard scoped to GSI access",
+          appliesTo: [
+            "Resource::*",
+            { regex: "/^Resource::.*UsersTable.*\\/index\\/\\*$/" },
+          ],
         },
       ],
       true
@@ -325,7 +333,8 @@ export class AuthStack extends cdk.Stack {
         {
           id: "AwsSolutions-IAM5",
           reason:
-            "Wildcard sub-resource permissions for X-Ray tracing are managed by CDK Lambda construct",
+            "Wildcard sub-resource permissions for X-Ray tracing managed by CDK Lambda construct",
+          appliesTo: ["Resource::*"],
         },
       ],
       true
@@ -438,7 +447,13 @@ export class AuthStack extends cdk.Stack {
         {
           id: "AwsSolutions-IAM5",
           reason:
-            "Index ARN wildcards are standard CDK behavior for GSI access; X-Ray tracing is managed by CDK Lambda construct",
+            "X-Ray tracing requires Resource::*; inviteCodesTable index/* wildcard scoped to GSI access",
+          appliesTo: [
+            "Resource::*",
+            {
+              regex: "/^Resource::.*InviteCodesTable.*\\/index\\/\\*$/",
+            },
+          ],
         },
       ],
       true
@@ -522,7 +537,8 @@ export class AuthStack extends cdk.Stack {
         {
           id: "AwsSolutions-IAM5",
           reason:
-            "Wildcard sub-resource permissions for X-Ray tracing are managed by CDK Lambda construct",
+            "Wildcard sub-resource permissions for X-Ray tracing managed by CDK Lambda construct",
+          appliesTo: ["Resource::*"],
         },
       ],
       true
@@ -617,7 +633,13 @@ export class AuthStack extends cdk.Stack {
         {
           id: "AwsSolutions-IAM5",
           reason:
-            "Index ARN wildcards are standard CDK behavior for GSI access; X-Ray tracing is managed by CDK Lambda construct",
+            "X-Ray tracing requires Resource::*; inviteCodesTable index/* wildcard scoped to GSI access",
+          appliesTo: [
+            "Resource::*",
+            {
+              regex: "/^Resource::.*InviteCodesTable.*\\/index\\/\\*$/",
+            },
+          ],
         },
       ],
       true
