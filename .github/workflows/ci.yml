@@ -384,3 +384,78 @@ jobs:
         run: |
           echo "🚀 Deploying to Production environment"
           npx cdk deploy --all --require-approval never
+
+  # Review Gate: Block story PRs without completed code review
+  review-gate:
+    name: Code Review Gate
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check review gate
+        env:
+          BRANCH: ${{ github.head_ref }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          # Skip for non-story branches
+          if [[ ! "$BRANCH" =~ ^story- ]]; then
+            echo "✅ Non-story branch — review gate not required"
+            exit 0
+          fi
+
+          # Skip if override label present
+          if [[ "$LABELS" == *"skip-review-gate"* ]]; then
+            echo "⚠️ Review gate skipped via label"
+            exit 0
+          fi
+
+          # Extract story ID from branch: story-3-5-1-description → 3-5-1
+          STORY_ID=$(echo "$BRANCH" | sed -E 's/^story-([0-9]+[-_.][0-9]+([-_.][0-9]+)?(-[A-Z][0-9]+)?).*/\1/')
+
+          # Normalize: dots → hyphens for file matching
+          STORY_ID_NORMALIZED=$(echo "$STORY_ID" | tr '.' '-')
+
+          # Also keep original for dot-format files
+          STORY_ID_DOTS=$(echo "$STORY_ID" | tr '-' '.')
+
+          # Search for findings files (both formats)
+          FINDINGS=$(ls docs/progress/story-${STORY_ID_NORMALIZED}-review-findings*.md \
+                        docs/progress/story-${STORY_ID_DOTS}-review-findings*.md 2>/dev/null | sort -u | tail -1)
+
+          if [ -z "$FINDINGS" ]; then
+            echo "❌ REVIEW GATE FAILED"
+            echo ""
+            echo "No review findings file found for Story ${STORY_ID}"
+            echo "Expected: docs/progress/story-${STORY_ID_NORMALIZED}-review-findings-round-N.md"
+            echo ""
+            echo "The adversarial code review must complete before this PR can merge."
+            echo "Run the review loop via /bmad-bmm-auto-epic or /bmad-bmm-code-review."
+            echo ""
+            echo "To override: add the 'skip-review-gate' label (requires justification)."
+            exit 1
+          fi
+
+          echo "📄 Found review findings: $FINDINGS"
+
+          # Parse latest findings for MUST-FIX count
+          CRITICAL=$(grep -oE '\*\*Critical:\*\*[[:space:]]*[0-9]+' "$FINDINGS" | grep -oE '[0-9]+$' | tail -1)
+          IMPORTANT=$(grep -oE '\*\*Important:\*\*[[:space:]]*[0-9]+' "$FINDINGS" | grep -oE '[0-9]+$' | tail -1)
+
+          CRITICAL=${CRITICAL:-0}
+          IMPORTANT=${IMPORTANT:-0}
+
+          MUST_FIX=$((CRITICAL + IMPORTANT))
+
+          if [ "$MUST_FIX" -gt 0 ]; then
+            echo ""
+            echo "❌ REVIEW GATE FAILED — ${MUST_FIX} unresolved MUST-FIX findings"
+            echo "   Critical: ${CRITICAL}"
+            echo "   Important: ${IMPORTANT}"
+            echo "   File: ${FINDINGS}"
+            echo ""
+            echo "Fix these findings and run another review round before merging."
+            exit 1
+          fi
+
+          echo "✅ Review gate passed — 0 MUST-FIX findings (Critical: ${CRITICAL}, Important: ${IMPORTANT})"
