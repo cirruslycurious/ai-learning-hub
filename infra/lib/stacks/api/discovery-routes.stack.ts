@@ -183,16 +183,12 @@ export class DiscoveryRoutesStack extends cdk.Stack {
       },
     ]);
 
-    const nagSuppressions = [
+    // Common suppressions (managed policy + runtime) for all functions
+    const commonSuppressions = [
       {
         id: "AwsSolutions-IAM4",
         reason:
           "Lambda basic execution role (CloudWatch Logs, X-Ray) is managed by CDK construct",
-      },
-      {
-        id: "AwsSolutions-IAM5",
-        reason:
-          "X-Ray tracing (Tracing.ACTIVE) generates wildcard Resource::* policy managed by CDK construct",
       },
       {
         id: "AwsSolutions-L1",
@@ -201,15 +197,23 @@ export class DiscoveryRoutesStack extends cdk.Stack {
       },
     ];
 
-    NagSuppressions.addResourceSuppressions(
-      this.actionsCatalogFunction,
-      nagSuppressions,
-      true
-    );
-    NagSuppressions.addResourceSuppressions(
-      this.stateGraphFunction,
-      nagSuppressions,
-      true
-    );
+    for (const fn of [this.actionsCatalogFunction, this.stateGraphFunction]) {
+      NagSuppressions.addResourceSuppressions(fn, commonSuppressions, true);
+    }
+
+    // IAM5 suppressions with appliesTo: X-Ray only (no DynamoDB grants)
+    for (const fn of [this.actionsCatalogFunction, this.stateGraphFunction]) {
+      NagSuppressions.addResourceSuppressions(
+        fn,
+        [
+          {
+            id: "AwsSolutions-IAM5",
+            reason: "X-Ray tracing requires Resource::*",
+            appliesTo: ["Resource::*"],
+          },
+        ],
+        true
+      );
+    }
   }
 }
