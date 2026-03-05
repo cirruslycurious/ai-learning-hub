@@ -18,9 +18,9 @@ import {
 import {
   wrapHandler,
   createSuccessResponse,
+  buildPaginationLinks,
   type HandlerContext,
 } from "@ai-learning-hub/middleware";
-import { AppError, ErrorCode } from "@ai-learning-hub/types";
 import { validateQueryParams, paginationQuerySchema } from "./schemas.js";
 
 /**
@@ -80,25 +80,22 @@ async function handleList(ctx: HandlerContext) {
   const nextCursor = result.cursor ?? null;
 
   const queryParams: Record<string, string> = { limit: String(limit) };
-  const selfQuery = new URLSearchParams(queryParams).toString();
-  const self = `/users/invite-codes?${selfQuery}`;
-
-  let next: string | null = null;
-  if (nextCursor) {
-    const nextParams = new URLSearchParams(queryParams);
-    nextParams.set("cursor", nextCursor);
-    next = `/users/invite-codes?${nextParams.toString()}`;
-  }
+  const links = buildPaginationLinks(
+    "/users/invite-codes",
+    queryParams,
+    nextCursor
+  );
 
   logger.info("Invite codes listed", { userId, count: publicItems.length });
   return createSuccessResponse(publicItems, requestId, {
     meta: { cursor: nextCursor },
-    links: { self, next },
+    links,
   });
 }
 
 /**
- * Handler for POST /users/invite-codes — generate with idempotency and rate limiting.
+ * POST /users/invite-codes — generate with idempotency and rate limiting.
+ * CDK wires this as generateInviteFunction (handler: "generateHandler").
  */
 export const generateHandler = wrapHandler(handleGenerate, {
   requireAuth: true,
@@ -108,39 +105,10 @@ export const generateHandler = wrapHandler(handleGenerate, {
 });
 
 /**
- * Handler for GET /users/invite-codes — list codes (read-only).
+ * GET /users/invite-codes — list codes (read-only).
+ * CDK wires this as listInviteCodesFunction (handler: "listHandler").
  */
 export const listHandler = wrapHandler(handleList, {
   requireAuth: true,
   requiredScope: "invites:read",
-});
-
-/**
- * Route POST and GET requests.
- * CDK wires each method separately for proper middleware options.
- */
-async function inviteCodesHandler(ctx: HandlerContext) {
-  const method = ctx.event.httpMethod.toUpperCase();
-
-  switch (method) {
-    case "POST":
-      return handleGenerate(ctx);
-    case "GET":
-      return handleList(ctx);
-    default:
-      throw new AppError(
-        ErrorCode.METHOD_NOT_ALLOWED,
-        `Method ${method} not allowed`,
-        { responseHeaders: { Allow: "POST, GET" } }
-      );
-  }
-}
-
-/**
- * Combined handler for backward compatibility.
- * In production, CDK wires specific handlers for proper middleware.
- */
-export const handler = wrapHandler(inviteCodesHandler, {
-  requireAuth: true,
-  requiredScope: "invites:manage",
 });

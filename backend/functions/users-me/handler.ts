@@ -19,8 +19,6 @@ import {
   wrapHandler,
   createSuccessResponse,
   buildResourceActions,
-  requireScope,
-  extractIfMatch,
   type HandlerContext,
 } from "@ai-learning-hub/middleware";
 import { AppError, ErrorCode } from "@ai-learning-hub/types";
@@ -137,65 +135,8 @@ async function handleUpdate(ctx: HandlerContext) {
 }
 
 /**
- * Route GET, PATCH, POST requests.
- * Story 3.2.8: Added POST support for /users/me/update command endpoint.
- *
- * The combined handler applies per-method middleware (scope enforcement,
- * If-Match extraction) that the separate readHandler/writeHandler exports
- * get from their wrapHandler options. This is necessary because CDK wires
- * a single Lambda function for all /users/me methods.
- */
-async function usersMeHandler(ctx: HandlerContext) {
-  const method = ctx.event.httpMethod.toUpperCase();
-  const path = ctx.event.path;
-
-  const isWrite =
-    method === "PATCH" || (method === "POST" && path.endsWith("/update"));
-
-  if (isWrite) {
-    // Scope enforcement: require users:write for mutations (AC14)
-    if (ctx.auth) {
-      requireScope(ctx.auth, "users:write");
-    }
-    // Extract If-Match version for optimistic concurrency (AC8)
-    // Optional: profiles without a version field (pre-3.2.8) can still be updated;
-    // the first write bootstraps versioning via if_not_exists in the update expression.
-    const ifMatch =
-      ctx.event.headers?.["if-match"] ??
-      ctx.event.headers?.["If-Match"] ??
-      ctx.event.headers?.["IF-MATCH"];
-    if (ifMatch != null) {
-      ctx.expectedVersion = extractIfMatch(ctx.event);
-    }
-    return handleUpdate(ctx);
-  }
-
-  switch (method) {
-    case "GET":
-      // Scope enforcement: require users:read for reads (AC14)
-      if (ctx.auth) {
-        requireScope(ctx.auth, "users:read");
-      }
-      return handleGet(ctx);
-    case "POST":
-      // POST without /update suffix is not allowed
-      throw new AppError(
-        ErrorCode.METHOD_NOT_ALLOWED,
-        `POST to ${path} not allowed`,
-        { responseHeaders: { Allow: "GET, PATCH" } }
-      );
-    default:
-      throw new AppError(
-        ErrorCode.METHOD_NOT_ALLOWED,
-        `Method ${method} not allowed`,
-        { responseHeaders: { Allow: "GET, PATCH, POST" } }
-      );
-  }
-}
-
-/**
- * Handler with full middleware stack for GET (read-only, no idempotency/version).
- * Uses requiredScope for scope enforcement (AC14).
+ * GET /users/me — read profile (read-only, no idempotency/version).
+ * CDK wires this as readUsersMeFunction (handler: "readHandler").
  */
 export const readHandler = wrapHandler(handleGet, {
   requireAuth: true,
@@ -203,8 +144,9 @@ export const readHandler = wrapHandler(handleGet, {
 });
 
 /**
- * Handler with full middleware stack for mutations (PATCH, POST /update).
- * Uses idempotency, version checking, and rate limiting (AC7, AC8, AC12).
+ * PATCH /users/me and POST /users/me/update — update profile.
+ * CDK wires this as writeUsersMeFunction (handler: "writeHandler").
+ * Uses idempotency, version checking (If-Match), and rate limiting.
  */
 export const writeHandler = wrapHandler(handleUpdate, {
   requireAuth: true,
@@ -212,13 +154,4 @@ export const writeHandler = wrapHandler(handleUpdate, {
   idempotent: true,
   requireVersion: true,
   rateLimit: profileUpdateRateLimit,
-});
-
-/**
- * Main handler that routes between read and write operations.
- * CDK wires GET to readHandler and PATCH/POST to writeHandler separately,
- * but this combined handler is kept for flexibility/testing.
- */
-export const handler = wrapHandler(usersMeHandler, {
-  requireAuth: true,
 });

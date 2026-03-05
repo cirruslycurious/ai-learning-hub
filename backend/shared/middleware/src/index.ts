@@ -111,6 +111,9 @@ export type {
   HttpMethod,
 } from "@ai-learning-hub/types";
 
+// Pagination link builder (Story 3.5.2)
+export { buildPaginationLinks } from "./pagination.js";
+
 // Authorizer constants (shared between handlers and CDK)
 export { AUTHORIZER_CACHE_TTL } from "./authorizerConstants.js";
 

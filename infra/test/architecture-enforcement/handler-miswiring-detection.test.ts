@@ -22,7 +22,7 @@ import {
 import { ROUTE_REGISTRY } from "../../config/route-registry";
 
 describe("Miswiring Detection", () => {
-  it("detects when usersMeFunction and apiKeysFunction are swapped", () => {
+  it("detects when readUsersMeFunction and createApiKeyFunction are swapped", () => {
     const app = new App();
     const awsEnv = getAwsEnv();
     const depsStack = new Stack(app, "MiswiringDeps", { env: awsEnv });
@@ -40,7 +40,7 @@ describe("Miswiring Detection", () => {
       apiKeyAuthorizerFunctionArn: makeArn("ApiKeyAuthFn"),
     });
 
-    // INTENTIONAL MISWIRING: swap usersMeFunction and apiKeysFunction
+    // INTENTIONAL MISWIRING: swap readUsersMeFunction and createApiKeyFunction
     const authRoutesStack = new AuthRoutesStack(app, "MiswiringRoutes", {
       env: awsEnv,
       restApiId: apiGatewayStack.restApi.restApiId,
@@ -48,9 +48,13 @@ describe("Miswiring Detection", () => {
       jwtAuthorizer: apiGatewayStack.jwtAuthorizer,
       apiKeyAuthorizer: apiGatewayStack.apiKeyAuthorizer,
       validateInviteFunction: importFn(depsStack, "ValidateInviteFn"),
-      usersMeFunction: importFn(depsStack, "ApiKeysFn"), // SWAPPED
-      apiKeysFunction: importFn(depsStack, "UsersMeFn"), // SWAPPED
+      createApiKeyFunction: importFn(depsStack, "ReadUsersMeFn"), // SWAPPED
+      listApiKeyFunction: importFn(depsStack, "ListApiKeyFn"),
+      revokeApiKeyFunction: importFn(depsStack, "RevokeApiKeyFn"),
       generateInviteFunction: importFn(depsStack, "GenerateInviteFn"),
+      listInviteCodesFunction: importFn(depsStack, "ListInviteCodesFn"),
+      readUsersMeFunction: importFn(depsStack, "CreateApiKeyFn"), // SWAPPED
+      writeUsersMeFunction: importFn(depsStack, "WriteUsersMeFn"),
     });
 
     const routesTemplate = Template.fromStack(authRoutesStack);
@@ -132,7 +136,7 @@ describe("Miswiring Detection", () => {
     // The miswiring MUST be detected
     expect(
       violations.length,
-      "Handler identity check should detect swapped usersMeFunction/apiKeysFunction"
+      "Handler identity check should detect swapped readUsersMeFunction/createApiKeyFunction"
     ).toBeGreaterThan(0);
 
     // Verify the violations specifically mention the swapped routes

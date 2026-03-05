@@ -1,6 +1,7 @@
 /**
  * smoke-test/scenarios/rate-limiting.ts
- * AC14: Rate limiting scenario — 11 rapid requests should trigger 429
+ * AC14: Rate limiting scenario — 11 rapid POST /users/api-keys requests should trigger 429.
+ * Target endpoint uses apiKeyCreateRateLimit (Lambda-level rate limiting via wrapHandler).
  */
 
 import { getClient } from "../client.js";
@@ -11,18 +12,23 @@ import type { ScenarioDefinition } from "../types.js";
 export const rateLimitingScenarios: ScenarioDefinition[] = [
   {
     id: "AC14",
-    name: "11 rapid requests → at least one 429 RATE_LIMITED + Retry-After",
+    name: "11 rapid POST /users/api-keys → at least one 429 RATE_LIMITED + Retry-After",
     async run() {
       const jwt = process.env.SMOKE_TEST_RATE_LIMIT_JWT;
       if (!jwt) {
         throw new ScenarioSkipped(
-          "SMOKE_TEST_RATE_LIMIT_JWT not set — use a dedicated rate-limit identity to enable"
+          "SMOKE_TEST_RATE_LIMIT_JWT not set — use a dedicated rate-limit identity with keys:manage scope to enable"
         );
       }
 
-      // Send 11 requests in rapid succession
+      // Send 11 rapid POST requests to a rate-limited mutation endpoint.
+      // apiKeyCreateRateLimit enforces a per-user limit; exceeding it triggers 429.
       const promises = Array.from({ length: 11 }, () =>
-        getClient().get("/users/me", { auth: { type: "jwt", token: jwt } })
+        getClient().post(
+          "/users/api-keys",
+          { name: "rate-limit-test", scopes: ["read"] },
+          { auth: { type: "jwt", token: jwt } }
+        )
       );
       const responses = await Promise.all(promises);
 

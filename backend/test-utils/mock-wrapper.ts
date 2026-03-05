@@ -11,6 +11,7 @@ import type { APIGatewayProxyEvent, Context } from "aws-lambda";
 // Import directly from scope-resolver source (not @ai-learning-hub/middleware barrel)
 // so vi.mock("@ai-learning-hub/middleware") in handler tests does not intercept it.
 import { checkScopeAccess } from "../shared/middleware/src/scope-resolver.js";
+import { buildPaginationLinks } from "../shared/middleware/src/pagination.js";
 
 /**
  * Parse raw scopes from authorizer context (array or JSON string).
@@ -478,6 +479,7 @@ export function mockMiddlewareModule(
       },
       body: "",
     }),
+    buildPaginationLinks,
     buildResourceActions: vi.fn().mockReturnValue([]),
     handleError: vi.fn(),
     // Direct-call helpers used by combined handlers that route per-method

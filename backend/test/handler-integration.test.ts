@@ -44,7 +44,11 @@ vi.mock("@ai-learning-hub/db", () => ({
 vi.mock("@ai-learning-hub/logging", () => mockCreateLoggerModule());
 vi.mock("@ai-learning-hub/middleware", () => mockMiddlewareModule());
 
-import { handler } from "../functions/api-keys/handler.js";
+import {
+  createHandler,
+  listHandler,
+  revokeHandler,
+} from "../functions/api-keys/handler.js";
 
 const mockContext = createMockContext();
 
@@ -71,7 +75,7 @@ describe("Handler Integration Tests (AC13-AC16)", () => {
         authMethod: "jwt",
       });
 
-      const result = await handler(event, mockContext);
+      const result = await createHandler(event, mockContext);
       const body = JSON.parse(result.body);
 
       expect(result.statusCode).toBe(201);
@@ -92,7 +96,7 @@ describe("Handler Integration Tests (AC13-AC16)", () => {
         authMethod: "jwt",
       });
 
-      const result = await handler(event, mockContext);
+      const result = await listHandler(event, mockContext);
       const body = JSON.parse(result.body);
 
       expect(result.statusCode).toBe(200);
@@ -108,7 +112,7 @@ describe("Handler Integration Tests (AC13-AC16)", () => {
         body: { name: "No Auth Key", scopes: ["*"] },
       });
 
-      const result = await handler(event, mockContext);
+      const result = await createHandler(event, mockContext);
 
       assertADR008Error(result, ErrorCode.UNAUTHORIZED);
     });
@@ -119,7 +123,7 @@ describe("Handler Integration Tests (AC13-AC16)", () => {
         path: "/users/api-keys",
       });
 
-      const result = await handler(event, mockContext);
+      const result = await listHandler(event, mockContext);
 
       assertADR008Error(result, ErrorCode.UNAUTHORIZED);
     });
@@ -131,7 +135,7 @@ describe("Handler Integration Tests (AC13-AC16)", () => {
         pathParameters: { id: "key_01" },
       });
 
-      const result = await handler(event, mockContext);
+      const result = await revokeHandler(event, mockContext);
 
       assertADR008Error(result, ErrorCode.UNAUTHORIZED);
     });
@@ -158,7 +162,7 @@ describe("Handler Integration Tests (AC13-AC16)", () => {
         createdAt: "2026-02-19T12:00:00Z",
       });
 
-      const result = await handler(event, mockContext);
+      const result = await createHandler(event, mockContext);
 
       // Wildcard scope allows access
       expect(result.statusCode).toBe(201);

@@ -65,23 +65,50 @@ describe("Route Registry (AC14-AC15)", () => {
     }
   });
 
-  it("has correct methods for /users/me", () => {
-    const route = ROUTE_REGISTRY.find((r) => r.path === "/users/me");
-    expect(route?.methods).toEqual(["GET", "PATCH"]);
+  it("has correct per-method entries for /users/me", () => {
+    const routes = ROUTE_REGISTRY.filter((r) => r.path === "/users/me");
+    const allMethods = routes.flatMap((r) => r.methods);
+    expect(allMethods).toContain("GET");
+    expect(allMethods).toContain("PATCH");
+    expect(routes.find((r) => r.methods.includes("GET"))?.handlerRef).toBe(
+      "readUsersMeFunction"
+    );
+    expect(routes.find((r) => r.methods.includes("PATCH"))?.handlerRef).toBe(
+      "writeUsersMeFunction"
+    );
   });
 
-  it("has correct methods for /users/api-keys", () => {
-    const route = ROUTE_REGISTRY.find((r) => r.path === "/users/api-keys");
-    expect(route?.methods).toEqual(["POST", "GET"]);
+  it("has correct per-method entries for /users/api-keys", () => {
+    const routes = ROUTE_REGISTRY.filter((r) => r.path === "/users/api-keys");
+    const allMethods = routes.flatMap((r) => r.methods);
+    expect(allMethods).toContain("POST");
+    expect(allMethods).toContain("GET");
+    expect(routes.find((r) => r.methods.includes("POST"))?.handlerRef).toBe(
+      "createApiKeyFunction"
+    );
+    expect(routes.find((r) => r.methods.includes("GET"))?.handlerRef).toBe(
+      "listApiKeyFunction"
+    );
   });
 
   it("has DELETE method for /users/api-keys/{id}", () => {
     const route = ROUTE_REGISTRY.find((r) => r.path === "/users/api-keys/{id}");
     expect(route?.methods).toEqual(["DELETE"]);
+    expect(route?.handlerRef).toBe("revokeApiKeyFunction");
   });
 
-  it("has correct methods for /users/invite-codes", () => {
-    const route = ROUTE_REGISTRY.find((r) => r.path === "/users/invite-codes");
-    expect(route?.methods).toEqual(["POST", "GET"]);
+  it("has correct per-method entries for /users/invite-codes", () => {
+    const routes = ROUTE_REGISTRY.filter(
+      (r) => r.path === "/users/invite-codes"
+    );
+    const allMethods = routes.flatMap((r) => r.methods);
+    expect(allMethods).toContain("POST");
+    expect(allMethods).toContain("GET");
+    expect(routes.find((r) => r.methods.includes("POST"))?.handlerRef).toBe(
+      "generateInviteFunction"
+    );
+    expect(routes.find((r) => r.methods.includes("GET"))?.handlerRef).toBe(
+      "listInviteCodesFunction"
+    );
   });
 });

@@ -313,6 +313,14 @@ export const updateSaveSchema = z
   );
 
 /**
+ * API key ID path parameter schema — validates :id as a non-empty string (max 128 chars).
+ * Used by DELETE /users/api-keys/:id and POST /users/api-keys/:id/revoke.
+ */
+export const apiKeyIdPathSchema = z.object({
+  id: z.string().min(1, "API key ID is required").max(128),
+});
+
+/**
  * CQRS command schema for POST /saves/:saveId/update-metadata (Story 3.2.7).
  * Identical to updateSaveSchema — named alias for semantic clarity in action registry.
  */

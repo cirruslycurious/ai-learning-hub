@@ -248,7 +248,7 @@ export function wrapHandler<T = unknown>(
             const rlClient = getDefaultClient();
             const tableName = requireEnv(
               "USERS_TABLE_NAME",
-              "ai-learning-hub-users"
+              "dev-ai-learning-hub-users"
             );
             const result = await incrementAndCheckRateLimit(
               rlClient,

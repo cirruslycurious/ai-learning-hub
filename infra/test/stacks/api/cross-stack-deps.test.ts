@@ -57,9 +57,13 @@ describe("T7: Cross-Stack Dependency Validation", () => {
           jwtAuthorizer: apiGatewayStack.jwtAuthorizer,
           apiKeyAuthorizer: apiGatewayStack.apiKeyAuthorizer,
           validateInviteFunction: importFn(depsStack, "ValidateInviteFn"),
-          usersMeFunction: importFn(depsStack, "UsersMeFn"),
-          apiKeysFunction: importFn(depsStack, "ApiKeysFn"),
+          createApiKeyFunction: importFn(depsStack, "CreateApiKeyFn"),
+          listApiKeyFunction: importFn(depsStack, "ListApiKeyFn"),
+          revokeApiKeyFunction: importFn(depsStack, "RevokeApiKeyFn"),
           generateInviteFunction: importFn(depsStack, "GenerateInviteFn"),
+          listInviteCodesFunction: importFn(depsStack, "ListInviteCodesFn"),
+          readUsersMeFunction: importFn(depsStack, "ReadUsersMeFn"),
+          writeUsersMeFunction: importFn(depsStack, "WriteUsersMeFn"),
         }
       );
 
@@ -104,9 +108,13 @@ describe("T7: Cross-Stack Dependency Validation", () => {
         jwtAuthorizer: apiGatewayStack.jwtAuthorizer,
         apiKeyAuthorizer: apiGatewayStack.apiKeyAuthorizer,
         validateInviteFunction: importFn(depsStack, "ValidateInviteFn"),
-        usersMeFunction: importFn(depsStack, "UsersMeFn"),
-        apiKeysFunction: importFn(depsStack, "ApiKeysFn"),
+        createApiKeyFunction: importFn(depsStack, "CreateApiKeyFn"),
+        listApiKeyFunction: importFn(depsStack, "ListApiKeyFn"),
+        revokeApiKeyFunction: importFn(depsStack, "RevokeApiKeyFn"),
         generateInviteFunction: importFn(depsStack, "GenerateInviteFn"),
+        listInviteCodesFunction: importFn(depsStack, "ListInviteCodesFn"),
+        readUsersMeFunction: importFn(depsStack, "ReadUsersMeFn"),
+        writeUsersMeFunction: importFn(depsStack, "WriteUsersMeFn"),
       });
 
       const template = Template.fromStack(apiGatewayStack);
@@ -260,10 +268,26 @@ describe("T7: Cross-Stack Dependency Validation", () => {
       expect(appSource).toContain(
         "validateInviteFunction: authStack.validateInviteFunction"
       );
-      expect(appSource).toContain("usersMeFunction: authStack.usersMeFunction");
-      expect(appSource).toContain("apiKeysFunction: authStack.apiKeysFunction");
+      expect(appSource).toContain(
+        "createApiKeyFunction: authStack.createApiKeyFunction"
+      );
+      expect(appSource).toContain(
+        "listApiKeyFunction: authStack.listApiKeyFunction"
+      );
+      expect(appSource).toContain(
+        "revokeApiKeyFunction: authStack.revokeApiKeyFunction"
+      );
       expect(appSource).toContain(
         "generateInviteFunction: authStack.generateInviteFunction"
+      );
+      expect(appSource).toContain(
+        "listInviteCodesFunction: authStack.listInviteCodesFunction"
+      );
+      expect(appSource).toContain(
+        "readUsersMeFunction: authStack.readUsersMeFunction"
+      );
+      expect(appSource).toContain(
+        "writeUsersMeFunction: authStack.writeUsersMeFunction"
       );
     });
   });

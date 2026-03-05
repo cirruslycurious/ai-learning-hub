@@ -103,9 +103,13 @@ const authRoutesStack = new AuthRoutesStack(app, "AiLearningHubAuthRoutes", {
   jwtAuthorizer: apiGatewayStack.jwtAuthorizer,
   apiKeyAuthorizer: apiGatewayStack.apiKeyAuthorizer,
   validateInviteFunction: authStack.validateInviteFunction,
-  usersMeFunction: authStack.usersMeFunction,
-  apiKeysFunction: authStack.apiKeysFunction,
+  createApiKeyFunction: authStack.createApiKeyFunction,
+  listApiKeyFunction: authStack.listApiKeyFunction,
+  revokeApiKeyFunction: authStack.revokeApiKeyFunction,
   generateInviteFunction: authStack.generateInviteFunction,
+  listInviteCodesFunction: authStack.listInviteCodesFunction,
+  readUsersMeFunction: authStack.readUsersMeFunction,
+  writeUsersMeFunction: authStack.writeUsersMeFunction,
 });
 authRoutesStack.addDependency(apiGatewayStack);
 authRoutesStack.addDependency(authStack);

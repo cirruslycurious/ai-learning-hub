@@ -208,7 +208,7 @@ describe("T6: Shared Library Import Enforcement", () => {
 
 describe("T6b: wrapHandler usage enforcement", () => {
   const HANDLER_EXPORT_PATTERN =
-    /export\s+(const|let)\s+handler\s*=\s*wrapHandler\s*\(/;
+    /export\s+(const|let)\s+\w+\s*=\s*wrapHandler\s*\(/;
   const AUTHORIZER_DIR_PATTERN = /-authorizer$/;
 
   it("every API handler uses wrapHandler", () => {

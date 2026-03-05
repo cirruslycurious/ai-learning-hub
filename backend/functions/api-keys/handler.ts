@@ -19,6 +19,7 @@ import {
   wrapHandler,
   createSuccessResponse,
   createNoContentResponse,
+  buildPaginationLinks,
   type HandlerContext,
 } from "@ai-learning-hub/middleware";
 import { AppError, ErrorCode } from "@ai-learning-hub/types";
@@ -27,18 +28,13 @@ import {
   validateQueryParams,
   validatePathParams,
   paginationQuerySchema,
-  z,
+  apiKeyIdPathSchema,
 } from "@ai-learning-hub/validation";
 import { createApiKeyBodySchema } from "./schemas.js";
 
-/** Path parameter schema for DELETE /users/api-keys/:id and POST /users/api-keys/:id/revoke. */
-const keyIdPathSchema = z.object({
-  id: z.string().min(1, "API key ID is required").max(128),
-});
-
 /**
- * POST /users/api-keys — Create a new API key (AC4).
- * Story 3.2.8: Rate limiting via wrapHandler, idempotency, event recording.
+ * POST /users/api-keys — Create a new API key.
+ * CDK wires this via createApiKeyFunction with idempotency and rate limiting.
  */
 async function handleCreate(ctx: HandlerContext) {
   const { event, auth, logger, requestId, actorType, agentId } = ctx;
@@ -81,8 +77,8 @@ async function handleCreate(ctx: HandlerContext) {
 }
 
 /**
- * GET /users/api-keys — List user's API keys (Story 3.2.5 AC10).
- * Returns envelope format: { data, meta: { cursor }, links: { self, next } }
+ * GET /users/api-keys — List user's API keys.
+ * CDK wires this via listApiKeyFunction (read-only, no idempotency).
  */
 async function handleList(ctx: HandlerContext) {
   const { event, auth, logger, requestId } = ctx;
@@ -98,37 +94,30 @@ async function handleList(ctx: HandlerContext) {
 
   const nextCursor = result.cursor ?? null;
   const queryParams: Record<string, string> = { limit: String(limit) };
-  const selfQuery = new URLSearchParams(queryParams).toString();
-  const self = `/users/api-keys?${selfQuery}`;
-
-  let next: string | null = null;
-  if (nextCursor) {
-    const nextParams = new URLSearchParams(queryParams);
-    nextParams.set("cursor", nextCursor);
-    next = `/users/api-keys?${nextParams.toString()}`;
-  }
+  const links = buildPaginationLinks(
+    "/users/api-keys",
+    queryParams,
+    nextCursor
+  );
 
   logger.info("API keys listed", { userId, count: result.items.length });
   return createSuccessResponse(result.items, requestId, {
     meta: { cursor: nextCursor },
-    links: { self, next },
+    links,
   });
 }
 
 /**
- * DELETE /users/api-keys/:id — Revoke an API key (legacy).
- * POST /users/api-keys/:id/revoke — Command endpoint for revocation (AC5).
- *
- * Story 3.2.8: Both endpoints use idempotency and event recording.
- * Returns 204 No Content on success. Re-revoking an already-revoked key
- * is idempotent and returns 204 (no error).
+ * DELETE /users/api-keys/:id and POST /users/api-keys/:id/revoke.
+ * CDK wires both routes to revokeApiKeyFunction with idempotency.
+ * Returns 204 No Content on success. Re-revoking is idempotent (204).
  */
 async function handleRevoke(ctx: HandlerContext) {
   const { event, auth, logger, requestId, actorType, agentId } = ctx;
   const userId = auth!.userId;
 
   const { id: keyId } = validatePathParams(
-    keyIdPathSchema,
+    apiKeyIdPathSchema,
     event.pathParameters
   );
 
@@ -174,7 +163,8 @@ async function handleRevoke(ctx: HandlerContext) {
 }
 
 /**
- * Handler for POST /users/api-keys — create with idempotency and rate limiting.
+ * POST /users/api-keys — create with idempotency and rate limiting.
+ * CDK wires this as createApiKeyFunction (handler: "createHandler").
  */
 export const createHandler = wrapHandler(handleCreate, {
   requireAuth: true,
@@ -184,7 +174,8 @@ export const createHandler = wrapHandler(handleCreate, {
 });
 
 /**
- * Handler for GET /users/api-keys — list keys (read-only).
+ * GET /users/api-keys — list keys (read-only).
+ * CDK wires this as listApiKeyFunction (handler: "listHandler").
  */
 export const listHandler = wrapHandler(handleList, {
   requireAuth: true,
@@ -193,48 +184,10 @@ export const listHandler = wrapHandler(handleList, {
 
 /**
  * Handler for DELETE /users/api-keys/:id and POST /users/api-keys/:id/revoke.
- * Uses idempotency for safe retries.
+ * CDK wires this via revokeApiKeyFunction. Uses idempotency for safe retries.
  */
 export const revokeHandler = wrapHandler(handleRevoke, {
   requireAuth: true,
   requiredScope: "keys:manage",
   idempotent: true,
-});
-
-/**
- * Route POST, GET, DELETE requests.
- * CDK wires each method separately for proper middleware options.
- */
-async function apiKeysHandler(ctx: HandlerContext) {
-  const method = ctx.event.httpMethod.toUpperCase();
-  const path = ctx.event.path;
-
-  // POST /users/api-keys/:id/revoke — command endpoint (AC5)
-  if (method === "POST" && path.includes("/revoke")) {
-    return handleRevoke(ctx);
-  }
-
-  switch (method) {
-    case "POST":
-      return handleCreate(ctx);
-    case "GET":
-      return handleList(ctx);
-    case "DELETE":
-      return handleRevoke(ctx);
-    default:
-      throw new AppError(
-        ErrorCode.METHOD_NOT_ALLOWED,
-        `Method ${method} not allowed`,
-        { responseHeaders: { Allow: "POST, GET, DELETE" } }
-      );
-  }
-}
-
-/**
- * Combined handler for backward compatibility.
- * In production, CDK wires specific handlers for proper middleware.
- */
-export const handler = wrapHandler(apiKeysHandler, {
-  requireAuth: true,
-  requiredScope: "keys:manage",
 });
