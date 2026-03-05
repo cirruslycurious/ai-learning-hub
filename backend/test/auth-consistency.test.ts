@@ -54,9 +54,13 @@ function parseRouteRegistry(): RegistryEntry[] {
  */
 const HANDLER_REF_TO_DIR: Record<string, string> = {
   validateInviteFunction: "validate-invite",
-  usersMeFunction: "users-me",
-  apiKeysFunction: "api-keys",
+  readUsersMeFunction: "users-me",
+  writeUsersMeFunction: "users-me",
+  createApiKeyFunction: "api-keys",
+  listApiKeyFunction: "api-keys",
+  revokeApiKeyFunction: "api-keys",
   generateInviteFunction: "invite-codes",
+  listInviteCodesFunction: "invite-codes",
   savesCreateFunction: "saves",
   savesListFunction: "saves-list",
   savesGetFunction: "saves-get",

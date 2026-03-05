@@ -118,6 +118,8 @@ describe("AuthStack", () => {
       });
     });
 
+    // Finding 5.1 workaround: all functions get all env vars due to @ai-learning-hub/db
+    // barrel import calling requireEnv() at module load. Update count when fixed.
     it("all Lambdas have INVITE_CODES_TABLE_NAME environment variable", () => {
       const lambdas = template.findResources("AWS::Lambda::Function");
       const inviteCodeLambdas = Object.values(lambdas).filter((resource) => {

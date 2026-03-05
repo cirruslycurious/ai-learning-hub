@@ -9,8 +9,9 @@
  * so the wrapHandler idempotency path is exercised end-to-end.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { APIGatewayProxyEvent, Context } from "aws-lambda";
+import type { APIGatewayProxyEvent } from "aws-lambda";
 import type { IdempotencyRecord } from "@ai-learning-hub/types";
+import { createMockContext } from "../../test-utils/mock-wrapper.js";
 
 // ── Mock @ai-learning-hub/db ────────────────────────────────────────────────
 // Must provide all runtime imports used by both the handler and the middleware.
@@ -141,7 +142,7 @@ function createEvent(
   };
 }
 
-const mockContext = {} as Context;
+const mockContext = createMockContext();
 
 describe("Validate Invite — Idempotency Replay (AC11)", () => {
   beforeEach(() => {
