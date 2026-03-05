@@ -88,6 +88,8 @@ export interface WrapperOptions {
   requireVersion?: boolean;
   /** Rate limit configuration — opt-in per handler (Story 3.2.4) */
   rateLimit?: RateLimitMiddlewareConfig;
+  /** Secondary rate limit (e.g., IP-based) — checked after primary passes (Story 3.5.3) */
+  secondaryRateLimit?: RateLimitMiddlewareConfig;
 }
 
 /**
@@ -175,6 +177,9 @@ export function wrapHandler<T = unknown>(
     // Track idempotency system availability across try/catch (AC9)
     const idempotencyStatus: IdempotencyStatus = { available: true };
 
+    // Track rate limit system availability across try/catch (Story 3.5.3, AC6)
+    const rateLimitStatus = { available: true };
+
     // Hoist agent identity and rate limit result for catch-block access (Story 3.2.4)
 
     let agentIdentity: { agentId: string | null; actorType: ActorType } = {
@@ -226,6 +231,7 @@ export function wrapHandler<T = unknown>(
             "Rate limit function threw (fail-open, skipping rate limit)",
             { error: err }
           );
+          rateLimitStatus.available = false;
           skipRateLimit = true;
           limit = 0; // unused — skip path below
         }
@@ -278,7 +284,79 @@ export function wrapHandler<T = unknown>(
             rateLimitResult = result;
           } catch (err) {
             // Fail-open: rate limiting is best-effort
+            rateLimitStatus.available = false;
             logger.warn("Rate limit check failed (fail-open)", { error: err });
+          }
+        }
+      }
+
+      // Secondary rate limit middleware (Story 3.5.3: e.g., IP-based throttling)
+      if (options.secondaryRateLimit) {
+        let secondaryLimit: number;
+        let skipSecondary = false;
+        try {
+          secondaryLimit =
+            typeof options.secondaryRateLimit.limit === "function"
+              ? options.secondaryRateLimit.limit(auth)
+              : options.secondaryRateLimit.limit;
+        } catch (err) {
+          logger.warn(
+            "Secondary rate limit function threw (fail-open, skipping)",
+            { error: err }
+          );
+          rateLimitStatus.available = false;
+          skipSecondary = true;
+          secondaryLimit = 0;
+        }
+
+        if (!skipSecondary) {
+          const secondaryIdentifier =
+            options.secondaryRateLimit.identifierSource === "sourceIp"
+              ? (event.requestContext?.identity?.sourceIp ?? "unknown-ip")
+              : (auth?.userId ?? "anonymous");
+
+          const secondaryConfig: RateLimitConfig = {
+            operation: options.secondaryRateLimit.operation,
+            identifier: secondaryIdentifier,
+            limit: secondaryLimit,
+            windowSeconds: options.secondaryRateLimit.windowSeconds,
+          };
+
+          try {
+            const rlClient = getDefaultClient();
+            const tableName = requireEnv(
+              "USERS_TABLE_NAME",
+              "dev-ai-learning-hub-users"
+            );
+            const result = await incrementAndCheckRateLimit(
+              rlClient,
+              tableName,
+              secondaryConfig,
+              logger
+            );
+
+            if (!result.allowed) {
+              const error = new AppError(
+                ErrorCode.RATE_LIMITED,
+                "Rate limit exceeded",
+                {
+                  limit: result.limit,
+                  current: result.current,
+                }
+              );
+              let errorResponse = handleError(error, requestId, logger);
+              errorResponse = addRateLimitHeaders(
+                errorResponse,
+                result,
+                options.secondaryRateLimit.windowSeconds
+              );
+              return echoAgentId(errorResponse, agentIdentity.agentId);
+            }
+          } catch (err) {
+            rateLimitStatus.available = false;
+            logger.warn("Secondary rate limit check failed (fail-open)", {
+              error: err,
+            });
           }
         }
       }
@@ -400,6 +478,20 @@ export function wrapHandler<T = unknown>(
         };
       }
 
+      // Story 3.5.3 AC7: Add X-RateLimit-Status header when rate limiting failed open
+      if (
+        (options.rateLimit || options.secondaryRateLimit) &&
+        !rateLimitStatus.available
+      ) {
+        finalResult = {
+          ...finalResult,
+          headers: {
+            ...(finalResult.headers ?? {}),
+            "X-RateLimit-Status": "unavailable",
+          },
+        };
+      }
+
       // Story 3.2.4: Add rate limit headers to response (success or error)
       if (rateLimitResult && options.rateLimit) {
         finalResult = addRateLimitHeaders(
@@ -419,6 +511,16 @@ export function wrapHandler<T = unknown>(
       if (options.idempotent && !idempotencyStatus.available) {
         (errorResponse.headers as Record<string, string>)[
           "X-Idempotency-Status"
+        ] = "unavailable";
+      }
+
+      // Story 3.5.3 AC7: Add X-RateLimit-Status header on error path when rate limiting failed open
+      if (
+        (options.rateLimit || options.secondaryRateLimit) &&
+        !rateLimitStatus.available
+      ) {
+        (errorResponse.headers as Record<string, string>)[
+          "X-RateLimit-Status"
         ] = "unavailable";
       }
 
