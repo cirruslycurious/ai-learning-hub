@@ -615,6 +615,36 @@ describe("wrapHandler integration: rate limit fail-open observability (Story 3.5
     expect(response.headers?.["X-RateLimit-Status"]).toBe("unavailable");
   });
 
+  it("X-RateLimit-Status: unavailable when secondary rate limit dynamic function throws", async () => {
+    // Primary succeeds
+    vi.mocked(incrementAndCheckRateLimit).mockResolvedValueOnce({
+      allowed: true,
+      current: 5,
+      limit: 200,
+    });
+
+    const handler = wrapHandler(async () => ({ message: "ok" }), {
+      requireAuth: true,
+      rateLimit: {
+        operation: "test-primary",
+        windowSeconds: 3600,
+        limit: 200,
+      },
+      secondaryRateLimit: {
+        operation: "test-secondary-throw",
+        windowSeconds: 3600,
+        limit: () => {
+          throw new Error("secondary scope lookup failed");
+        },
+        identifierSource: "sourceIp",
+      },
+    });
+    const response = await handler(makeEvent(), mockContext);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers?.["X-RateLimit-Status"]).toBe("unavailable");
+  });
+
   it("X-RateLimit-Status: unavailable when secondary rate limit fails open", async () => {
     // Primary succeeds
     vi.mocked(incrementAndCheckRateLimit)

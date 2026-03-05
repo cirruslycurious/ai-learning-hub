@@ -43,6 +43,13 @@ import {
 import { randomUUID } from "crypto";
 
 /**
+ * Tracks whether the rate limit subsystem is available (mirrors IdempotencyStatus pattern).
+ */
+export interface RateLimitStatus {
+  available: boolean;
+}
+
+/**
  * Extended event with parsed request context
  */
 export interface WrappedEvent extends APIGatewayProxyEvent {
@@ -178,7 +185,7 @@ export function wrapHandler<T = unknown>(
     const idempotencyStatus: IdempotencyStatus = { available: true };
 
     // Track rate limit system availability across try/catch (Story 3.5.3, AC6)
-    const rateLimitStatus = { available: true };
+    const rateLimitStatus: RateLimitStatus = { available: true };
 
     // Hoist agent identity and rate limit result for catch-block access (Story 3.2.4)
 
@@ -478,7 +485,17 @@ export function wrapHandler<T = unknown>(
         };
       }
 
-      // Story 3.5.3 AC7: Add X-RateLimit-Status header when rate limiting failed open
+      // Story 3.2.4: Add rate limit headers to response (success or error)
+      if (rateLimitResult && options.rateLimit) {
+        finalResult = addRateLimitHeaders(
+          finalResult,
+          rateLimitResult,
+          options.rateLimit.windowSeconds
+        );
+      }
+
+      // Story 3.5.3 AC7: Add X-RateLimit-Status header when rate limiting failed open.
+      // Placed AFTER addRateLimitHeaders so fail-open signal always has the last word.
       if (
         (options.rateLimit || options.secondaryRateLimit) &&
         !rateLimitStatus.available
@@ -490,15 +507,6 @@ export function wrapHandler<T = unknown>(
             "X-RateLimit-Status": "unavailable",
           },
         };
-      }
-
-      // Story 3.2.4: Add rate limit headers to response (success or error)
-      if (rateLimitResult && options.rateLimit) {
-        finalResult = addRateLimitHeaders(
-          finalResult,
-          rateLimitResult,
-          options.rateLimit.windowSeconds
-        );
       }
 
       // Story 3.2.4: Echo X-Agent-ID in response when present

@@ -99,6 +99,15 @@ describe("DiscoveryRoutesStack", () => {
       template.resourceCountIs("AWS::Lambda::Function", 2);
     });
 
+    it("all functions use the latest Node.js runtime", () => {
+      const functions = template.findResources("AWS::Lambda::Function");
+      for (const [, fn] of Object.entries(functions)) {
+        const props = (fn as { Properties: Record<string, unknown> })
+          .Properties;
+        expect(props.Runtime).toBe(lambda.Runtime.NODEJS_LATEST.name);
+      }
+    });
+
     it("all functions have X-Ray tracing enabled", () => {
       const functions = template.findResources("AWS::Lambda::Function");
       for (const [, fn] of Object.entries(functions)) {

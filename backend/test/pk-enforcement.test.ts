@@ -50,6 +50,7 @@ interface PKViolation {
  * These are IDOR-vulnerable because an attacker controls the value.
  */
 const UNSAFE_INTERPOLATION_PATTERNS = [
+  // Template literal interpolation patterns
   /USER#\$\{body\./,
   /USER#\$\{event\.body/,
   /USER#\$\{pathParameters\./,
@@ -60,6 +61,17 @@ const UNSAFE_INTERPOLATION_PATTERNS = [
   /USER#\$\{request\.body/,
   /USER#\$\{params\./,
   /USER#\$\{JSON\.parse/,
+  // String concatenation patterns (e.g., "USER#" + body.userId)
+  /USER#["']\s*\+\s*body\./,
+  /USER#["']\s*\+\s*event\.body/,
+  /USER#["']\s*\+\s*pathParameters\./,
+  /USER#["']\s*\+\s*event\.pathParameters/,
+  /USER#["']\s*\+\s*queryStringParameters\./,
+  /USER#["']\s*\+\s*event\.queryStringParameters/,
+  /USER#["']\s*\+\s*req\.body/,
+  /USER#["']\s*\+\s*request\.body/,
+  /USER#["']\s*\+\s*params\./,
+  /USER#["']\s*\+\s*JSON\.parse/,
 ];
 
 /**
@@ -106,7 +118,7 @@ function scanFileForPKViolations(filePath: string): PKViolation[] {
       if (!trimmed.includes("*/")) inBlockComment = true;
       continue;
     }
-    if (trimmed.startsWith("//") || trimmed.startsWith("*")) continue;
+    if (trimmed.startsWith("//")) continue;
 
     // Only check lines with USER# in a template literal or string construction
     if (!line.includes("USER#")) continue;
@@ -257,6 +269,24 @@ describe("PK Enforcement Scanner Detection (Negative Tests)", () => {
     const violations = scanFileForPKViolations(filePath);
     expect(violations.length).toBeGreaterThanOrEqual(1);
     expect(violations[0].reason).toContain("no auth-derived assignment");
+  });
+
+  it("detects USER# constructed via string concatenation with body", () => {
+    const filePath = path.join(tmpDir, "unsafe-concat-body.ts");
+    fs.writeFileSync(filePath, 'const pk = "USER#" + body.userId;\n');
+
+    const violations = scanFileForPKViolations(filePath);
+    expect(violations.length).toBeGreaterThanOrEqual(1);
+    expect(violations[0].reason).toContain("user-controlled input");
+  });
+
+  it("detects USER# constructed via string concatenation with pathParameters", () => {
+    const filePath = path.join(tmpDir, "unsafe-concat-params.ts");
+    fs.writeFileSync(filePath, "const pk = 'USER#' + pathParameters.userId;\n");
+
+    const violations = scanFileForPKViolations(filePath);
+    expect(violations.length).toBeGreaterThanOrEqual(1);
+    expect(violations[0].reason).toContain("user-controlled input");
   });
 
   it("allows USER# with auth-derived userId (safe pattern)", () => {
