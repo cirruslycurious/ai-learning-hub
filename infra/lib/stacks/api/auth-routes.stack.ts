@@ -1,5 +1,5 @@
 /**
- * Auth Routes Stack (AC7-AC10, AC11 extensibility pattern, AC16)
+ * Auth Routes Stack (Story 3.5.2: per-method Lambda wiring)
  *
  * Wires Epic 2 authentication and profile routes to the shared REST API.
  * This stack depends on both ApiGatewayStack (for restApi + authorizers)
@@ -9,9 +9,6 @@
  * Uses RestApi.fromRestApiAttributes() to import the REST API reference,
  * ensuring route resources are created in THIS stack's CloudFormation
  * template (CDK places API Gateway resources in the owning stack by default).
- *
- * Future epics create similar route stacks (e.g., SavesRoutesStack)
- * following this same pattern.
  *
  * ADR-006 deployment order: Tables -> Auth -> RateLimiting -> ApiGateway -> AuthRoutes -> Observability
  */
@@ -30,11 +27,18 @@ export interface AuthRoutesStackProps extends cdk.StackProps {
   jwtAuthorizer: apigateway.IAuthorizer;
   /** API Key authorizer for jwt-or-apikey routes (from ApiGatewayStack) */
   apiKeyAuthorizer: apigateway.IAuthorizer;
-  /** Handler Lambdas from AuthStack */
+  /** Validate invite handler (from AuthStack) */
   validateInviteFunction: lambda.IFunction;
-  usersMeFunction: lambda.IFunction;
-  apiKeysFunction: lambda.IFunction;
+  /** Per-method API key handlers (from AuthStack, Story 3.5.2) */
+  createApiKeyFunction: lambda.IFunction;
+  listApiKeyFunction: lambda.IFunction;
+  revokeApiKeyFunction: lambda.IFunction;
+  /** Per-method invite code handlers (from AuthStack, Story 3.5.2) */
   generateInviteFunction: lambda.IFunction;
+  listInviteCodesFunction: lambda.IFunction;
+  /** Per-method users/me handlers (from AuthStack, Story 3.5.2) */
+  readUsersMeFunction: lambda.IFunction;
+  writeUsersMeFunction: lambda.IFunction;
 }
 
 export class AuthRoutesStack extends cdk.Stack {
@@ -47,9 +51,13 @@ export class AuthRoutesStack extends cdk.Stack {
       jwtAuthorizer,
       apiKeyAuthorizer,
       validateInviteFunction,
-      usersMeFunction,
-      apiKeysFunction,
+      createApiKeyFunction,
+      listApiKeyFunction,
+      revokeApiKeyFunction,
       generateInviteFunction,
+      listInviteCodesFunction,
+      readUsersMeFunction,
+      writeUsersMeFunction,
     } = props;
 
     // Import the REST API by ID so route resources are created in THIS stack,
@@ -93,7 +101,7 @@ export class AuthRoutesStack extends cdk.Stack {
       maxAge: cdk.Duration.hours(1),
     };
 
-    // /auth/validate-invite (AC7) -- JWT only
+    // /auth/validate-invite — JWT only
     const authResource = restApi.root.addResource("auth");
     authResource.addCorsPreflight(corsOptions);
     const validateInviteResource = authResource.addResource("validate-invite");
@@ -111,83 +119,101 @@ export class AuthRoutesStack extends cdk.Stack {
     const usersResource = restApi.root.addResource("users");
     usersResource.addCorsPreflight(corsOptions);
 
-    // /users/me (AC8) -- JWT or API Key
+    // /users/me — per-method Lambdas (Story 3.5.2, AC3/AC4)
     const usersMeResource = usersResource.addResource("me");
     usersMeResource.addCorsPreflight(corsOptions);
-    for (const method of ["GET", "PATCH"]) {
-      usersMeResource.addMethod(
-        method,
-        new apigateway.LambdaIntegration(usersMeFunction),
-        {
-          authorizer: apiKeyAuthorizer,
-          authorizationType: apigateway.AuthorizationType.CUSTOM,
-        }
-      );
-    }
+    usersMeResource.addMethod(
+      "GET",
+      new apigateway.LambdaIntegration(readUsersMeFunction),
+      {
+        authorizer: apiKeyAuthorizer,
+        authorizationType: apigateway.AuthorizationType.CUSTOM,
+      }
+    );
+    usersMeResource.addMethod(
+      "PATCH",
+      new apigateway.LambdaIntegration(writeUsersMeFunction),
+      {
+        authorizer: apiKeyAuthorizer,
+        authorizationType: apigateway.AuthorizationType.CUSTOM,
+      }
+    );
 
-    // POST /users/me/update — Command endpoint for profile updates (Story 3.2.8, AC9)
+    // POST /users/me/update — Command endpoint for profile updates (Story 3.2.8)
     const usersMeUpdateResource = usersMeResource.addResource("update");
     usersMeUpdateResource.addCorsPreflight(corsOptions);
     usersMeUpdateResource.addMethod(
       "POST",
-      new apigateway.LambdaIntegration(usersMeFunction),
+      new apigateway.LambdaIntegration(writeUsersMeFunction),
       {
         authorizer: apiKeyAuthorizer,
         authorizationType: apigateway.AuthorizationType.CUSTOM,
       }
     );
 
-    // /users/api-keys (AC9) -- JWT or API Key
+    // /users/api-keys — per-method Lambdas (Story 3.5.2, AC1/AC4)
     const apiKeysResource = usersResource.addResource("api-keys");
     apiKeysResource.addCorsPreflight(corsOptions);
-    for (const method of ["POST", "GET"]) {
-      apiKeysResource.addMethod(
-        method,
-        new apigateway.LambdaIntegration(apiKeysFunction),
-        {
-          authorizer: apiKeyAuthorizer,
-          authorizationType: apigateway.AuthorizationType.CUSTOM,
-        }
-      );
-    }
+    apiKeysResource.addMethod(
+      "POST",
+      new apigateway.LambdaIntegration(createApiKeyFunction),
+      {
+        authorizer: apiKeyAuthorizer,
+        authorizationType: apigateway.AuthorizationType.CUSTOM,
+      }
+    );
+    apiKeysResource.addMethod(
+      "GET",
+      new apigateway.LambdaIntegration(listApiKeyFunction),
+      {
+        authorizer: apiKeyAuthorizer,
+        authorizationType: apigateway.AuthorizationType.CUSTOM,
+      }
+    );
 
-    // /users/api-keys/{id} (AC9) -- JWT or API Key
+    // /users/api-keys/{id} — DELETE and /revoke both use revokeApiKeyFunction
     const apiKeyByIdResource = apiKeysResource.addResource("{id}");
     apiKeyByIdResource.addCorsPreflight(corsOptions);
     apiKeyByIdResource.addMethod(
       "DELETE",
-      new apigateway.LambdaIntegration(apiKeysFunction),
+      new apigateway.LambdaIntegration(revokeApiKeyFunction),
       {
         authorizer: apiKeyAuthorizer,
         authorizationType: apigateway.AuthorizationType.CUSTOM,
       }
     );
 
-    // POST /users/api-keys/{id}/revoke — Command endpoint for key revocation (Story 3.2.8, AC5)
+    // POST /users/api-keys/{id}/revoke — Command endpoint for key revocation (Story 3.2.8)
     const apiKeyRevokeResource = apiKeyByIdResource.addResource("revoke");
     apiKeyRevokeResource.addCorsPreflight(corsOptions);
     apiKeyRevokeResource.addMethod(
       "POST",
-      new apigateway.LambdaIntegration(apiKeysFunction),
+      new apigateway.LambdaIntegration(revokeApiKeyFunction),
       {
         authorizer: apiKeyAuthorizer,
         authorizationType: apigateway.AuthorizationType.CUSTOM,
       }
     );
 
-    // /users/invite-codes (AC10) -- JWT or API Key
+    // /users/invite-codes — per-method Lambdas (Story 3.5.2, AC2/AC4)
     const inviteCodesResource = usersResource.addResource("invite-codes");
     inviteCodesResource.addCorsPreflight(corsOptions);
-    for (const method of ["POST", "GET"]) {
-      inviteCodesResource.addMethod(
-        method,
-        new apigateway.LambdaIntegration(generateInviteFunction),
-        {
-          authorizer: apiKeyAuthorizer,
-          authorizationType: apigateway.AuthorizationType.CUSTOM,
-        }
-      );
-    }
+    inviteCodesResource.addMethod(
+      "POST",
+      new apigateway.LambdaIntegration(generateInviteFunction),
+      {
+        authorizer: apiKeyAuthorizer,
+        authorizationType: apigateway.AuthorizationType.CUSTOM,
+      }
+    );
+    inviteCodesResource.addMethod(
+      "GET",
+      new apigateway.LambdaIntegration(listInviteCodesFunction),
+      {
+        authorizer: apiKeyAuthorizer,
+        authorizationType: apigateway.AuthorizationType.CUSTOM,
+      }
+    );
 
     // --- CDK Nag Suppressions ---
     // AwsSolutions-COG4: We use custom Lambda authorizers (JWT + API Key),

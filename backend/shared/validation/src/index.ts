@@ -29,6 +29,7 @@ export {
   updateMetadataCommandSchema,
   listSavesQuerySchema,
   saveIdPathSchema,
+  apiKeyIdPathSchema,
 } from "./schemas.js";
 
 // Event context metadata schema (Story 3.2.4)

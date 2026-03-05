@@ -45,9 +45,13 @@ describe("AuthRoutesStack", () => {
       jwtAuthorizer: apiGatewayStack.jwtAuthorizer,
       apiKeyAuthorizer: apiGatewayStack.apiKeyAuthorizer,
       validateInviteFunction: importFn(depsStack, "ValidateInviteFn"),
-      usersMeFunction: importFn(depsStack, "UsersMeFn"),
-      apiKeysFunction: importFn(depsStack, "ApiKeysFn"),
+      createApiKeyFunction: importFn(depsStack, "CreateApiKeyFn"),
+      listApiKeyFunction: importFn(depsStack, "ListApiKeyFn"),
+      revokeApiKeyFunction: importFn(depsStack, "RevokeApiKeyFn"),
       generateInviteFunction: importFn(depsStack, "GenerateInviteFn"),
+      listInviteCodesFunction: importFn(depsStack, "ListInviteCodesFn"),
+      readUsersMeFunction: importFn(depsStack, "ReadUsersMeFn"),
+      writeUsersMeFunction: importFn(depsStack, "WriteUsersMeFn"),
     });
 
     routesTemplate = Template.fromStack(authRoutesStack);

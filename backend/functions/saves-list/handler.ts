@@ -18,6 +18,7 @@ import {
 import {
   wrapHandler,
   createSuccessResponse,
+  buildPaginationLinks,
   type HandlerContext,
 } from "@ai-learning-hub/middleware";
 import {
@@ -243,15 +244,11 @@ async function savesListHandler(ctx: HandlerContext) {
   if (params.sort) queryParams.sort = params.sort;
   if (params.order) queryParams.order = params.order;
 
-  const selfQuery = new URLSearchParams(queryParams).toString();
-  const self = selfQuery ? `/saves?${selfQuery}` : "/saves";
-
-  let next: string | null = null;
-  if (nextCursor) {
-    const nextParams = new URLSearchParams(queryParams);
-    nextParams.set("cursor", nextCursor);
-    next = `/saves?${nextParams.toString()}`;
-  }
+  const { self, next } = buildPaginationLinks(
+    "/saves",
+    queryParams,
+    nextCursor
+  );
 
   const response = createSuccessResponse(page.map(toPublicSave), requestId, {
     meta,

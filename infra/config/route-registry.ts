@@ -27,9 +27,13 @@ export type AuthType =
  */
 export type HandlerRef =
   | "validateInviteFunction"
-  | "usersMeFunction"
-  | "apiKeysFunction"
+  | "readUsersMeFunction"
+  | "writeUsersMeFunction"
+  | "createApiKeyFunction"
+  | "listApiKeyFunction"
+  | "revokeApiKeyFunction"
   | "generateInviteFunction"
+  | "listInviteCodesFunction"
   | "savesCreateFunction"
   | "savesListFunction"
   | "savesGetFunction"
@@ -70,23 +74,37 @@ export const ROUTE_REGISTRY: RouteEntry[] = [
   },
   {
     path: "/users/me",
-    methods: ["GET", "PATCH"],
+    methods: ["GET"],
     authType: "jwt-or-apikey",
-    handlerRef: "usersMeFunction",
+    handlerRef: "readUsersMeFunction",
+    epic: "Epic-2",
+  },
+  {
+    path: "/users/me",
+    methods: ["PATCH"],
+    authType: "jwt-or-apikey",
+    handlerRef: "writeUsersMeFunction",
     epic: "Epic-2",
   },
   {
     path: "/users/api-keys",
-    methods: ["POST", "GET"],
+    methods: ["POST"],
     authType: "jwt-or-apikey",
-    handlerRef: "apiKeysFunction",
+    handlerRef: "createApiKeyFunction",
+    epic: "Epic-2",
+  },
+  {
+    path: "/users/api-keys",
+    methods: ["GET"],
+    authType: "jwt-or-apikey",
+    handlerRef: "listApiKeyFunction",
     epic: "Epic-2",
   },
   {
     path: "/users/api-keys/{id}",
     methods: ["DELETE"],
     authType: "jwt-or-apikey",
-    handlerRef: "apiKeysFunction",
+    handlerRef: "revokeApiKeyFunction",
     epic: "Epic-2",
   },
   // Epic 3.2.8 — Auth Domain Retrofit (command endpoints)
@@ -94,21 +112,28 @@ export const ROUTE_REGISTRY: RouteEntry[] = [
     path: "/users/me/update",
     methods: ["POST"],
     authType: "jwt-or-apikey",
-    handlerRef: "usersMeFunction",
+    handlerRef: "writeUsersMeFunction",
     epic: "Epic-3.2",
   },
   {
     path: "/users/api-keys/{id}/revoke",
     methods: ["POST"],
     authType: "jwt-or-apikey",
-    handlerRef: "apiKeysFunction",
+    handlerRef: "revokeApiKeyFunction",
     epic: "Epic-3.2",
   },
   {
     path: "/users/invite-codes",
-    methods: ["POST", "GET"],
+    methods: ["POST"],
     authType: "jwt-or-apikey",
     handlerRef: "generateInviteFunction",
+    epic: "Epic-2",
+  },
+  {
+    path: "/users/invite-codes",
+    methods: ["GET"],
+    authType: "jwt-or-apikey",
+    handlerRef: "listInviteCodesFunction",
     epic: "Epic-2",
   },
   // Epic 3 — Save URLs (Core CRUD)

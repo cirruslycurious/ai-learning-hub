@@ -1,6 +1,5 @@
 /**
- * Authentication middleware stubs
- * Full implementation will come in Epic 2 (Authentication)
+ * Authentication context extraction and scope enforcement middleware for API Gateway Lambda handlers.
  */
 import type { APIGatewayProxyEvent } from "aws-lambda";
 import {
@@ -13,8 +12,8 @@ import type { OperationScope } from "@ai-learning-hub/types";
 import { checkScopeAccess, VALID_SCOPES } from "./scope-resolver.js";
 
 /**
- * Extract auth context from API Gateway event
- * This is a stub that will be fully implemented with Clerk in Epic 2
+ * Extract auth context from API Gateway event.
+ * Reads userId, roles, and scopes from the Lambda authorizer context (JWT or API Key).
  */
 export function extractAuthContext(
   event: APIGatewayProxyEvent

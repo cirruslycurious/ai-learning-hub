@@ -34,9 +34,13 @@ import { getAwsEnv } from "../../config/aws-env";
  */
 export const HANDLER_REF_TO_FUNCTION_NAME: Record<string, string> = {
   validateInviteFunction: "ValidateInviteFn",
-  usersMeFunction: "UsersMeFn",
-  apiKeysFunction: "ApiKeysFn",
+  createApiKeyFunction: "CreateApiKeyFn",
+  listApiKeyFunction: "ListApiKeyFn",
+  revokeApiKeyFunction: "RevokeApiKeyFn",
   generateInviteFunction: "GenerateInviteFn",
+  listInviteCodesFunction: "ListInviteCodesFn",
+  readUsersMeFunction: "ReadUsersMeFn",
+  writeUsersMeFunction: "WriteUsersMeFn",
   savesCreateFunction: "ai-learning-hub-saves-create",
   savesListFunction: "ai-learning-hub-saves-list",
   savesGetFunction: "ai-learning-hub-saves-get",
@@ -167,9 +171,13 @@ export function createTestApiStacks(): TestApiStacks {
     jwtAuthorizer: apiGatewayStack.jwtAuthorizer,
     apiKeyAuthorizer: apiGatewayStack.apiKeyAuthorizer,
     validateInviteFunction: importFn(depsStack, "ValidateInviteFn"),
-    usersMeFunction: importFn(depsStack, "UsersMeFn"),
-    apiKeysFunction: importFn(depsStack, "ApiKeysFn"),
+    createApiKeyFunction: importFn(depsStack, "CreateApiKeyFn"),
+    listApiKeyFunction: importFn(depsStack, "ListApiKeyFn"),
+    revokeApiKeyFunction: importFn(depsStack, "RevokeApiKeyFn"),
     generateInviteFunction: importFn(depsStack, "GenerateInviteFn"),
+    listInviteCodesFunction: importFn(depsStack, "ListInviteCodesFn"),
+    readUsersMeFunction: importFn(depsStack, "ReadUsersMeFn"),
+    writeUsersMeFunction: importFn(depsStack, "WriteUsersMeFn"),
   });
 
   // DynamoDB tables and EventBridge bus for SavesRoutesStack
