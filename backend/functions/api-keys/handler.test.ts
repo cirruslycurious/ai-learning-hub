@@ -36,7 +36,7 @@ vi.mock("@ai-learning-hub/middleware", () => mockMiddlewareModule());
 
 // Note: @ai-learning-hub/validation is NOT mocked — uses real implementation
 
-import { handler } from "./handler.js";
+import { createHandler, listHandler, revokeHandler } from "./handler.js";
 
 function createEvent(
   method: "POST" | "GET" | "DELETE",
@@ -76,7 +76,7 @@ describe("API Keys Handler", () => {
         { name: "My App Key", scopes: ["*"] },
         "user_123"
       );
-      const result = await handler(event, mockContext);
+      const result = await createHandler(event, mockContext);
       const body = JSON.parse(result.body);
 
       expect(result.statusCode).toBe(201);
@@ -101,7 +101,7 @@ describe("API Keys Handler", () => {
         { name: "Test", scopes: ["*"] },
         "user_abc"
       );
-      await handler(event, mockContext);
+      await createHandler(event, mockContext);
 
       expect(mockCreateApiKey).toHaveBeenCalledWith(
         expect.anything(),
@@ -136,7 +136,7 @@ describe("API Keys Handler", () => {
       mockListApiKeys.mockResolvedValueOnce(mockResult);
 
       const event = createEvent("GET", undefined, "user_123");
-      const result = await handler(event, mockContext);
+      const result = await listHandler(event, mockContext);
       const body = JSON.parse(result.body);
 
       expect(result.statusCode).toBe(200);
@@ -155,7 +155,7 @@ describe("API Keys Handler", () => {
       mockListApiKeys.mockResolvedValueOnce({ items: [] });
 
       const event = createEvent("GET", undefined, "user_xyz");
-      await handler(event, mockContext);
+      await listHandler(event, mockContext);
 
       expect(mockListApiKeys).toHaveBeenCalledWith(
         expect.anything(),
@@ -174,7 +174,7 @@ describe("API Keys Handler", () => {
       const event = createEvent("DELETE", undefined, "user_123", {
         id: "key_01",
       });
-      const result = await handler(event, mockContext);
+      const result = await revokeHandler(event, mockContext);
 
       expect(result.statusCode).toBe(204);
       expect(result.body).toBe("");
@@ -194,7 +194,7 @@ describe("API Keys Handler", () => {
       const event = createEvent("DELETE", undefined, "user_123", {
         id: "nonexistent_key",
       });
-      const result = await handler(event, mockContext);
+      const result = await revokeHandler(event, mockContext);
 
       // Story 3.2.8: Revoke is idempotent — returns 204 even if key not found
       expect(result.statusCode).toBe(204);
@@ -204,7 +204,7 @@ describe("API Keys Handler", () => {
     it("returns 400 when no key ID provided", async () => {
       const event = createEvent("DELETE", undefined, "user_123");
       // No pathParameters
-      const result = await handler(event, mockContext);
+      const result = await revokeHandler(event, mockContext);
 
       expect(result.statusCode).toBe(400);
     });
@@ -226,7 +226,7 @@ describe("API Keys Handler", () => {
         { name: "Capture Key", scopes: ["saves:write"] },
         "user_123"
       );
-      const result = await handler(event, mockContext);
+      const result = await createHandler(event, mockContext);
       const body = JSON.parse(result.body);
 
       expect(result.statusCode).toBe(201);
@@ -241,7 +241,7 @@ describe("API Keys Handler", () => {
         { name: "Bad Key", scopes: ["admin:superpower"] },
         "user_123"
       );
-      const result = await handler(event, mockContext);
+      const result = await createHandler(event, mockContext);
 
       expect(result.statusCode).toBe(400);
       const body = JSON.parse(result.body);
@@ -254,28 +254,28 @@ describe("API Keys Handler", () => {
         { name: "Bad Key", scopes: [] },
         "user_123"
       );
-      const result = await handler(event, mockContext);
+      const result = await createHandler(event, mockContext);
 
       expect(result.statusCode).toBe(400);
     });
 
     it("returns 400 for missing scopes", async () => {
       const event = createEvent("POST", { name: "Bad Key" }, "user_123");
-      const result = await handler(event, mockContext);
+      const result = await createHandler(event, mockContext);
 
       expect(result.statusCode).toBe(400);
     });
 
     it("returns 400 for missing name", async () => {
       const event = createEvent("POST", { scopes: ["*"] }, "user_123");
-      const result = await handler(event, mockContext);
+      const result = await createHandler(event, mockContext);
 
       expect(result.statusCode).toBe(400);
     });
 
     it("returns 400 for missing request body", async () => {
       const event = createEvent("POST", undefined, "user_123");
-      const result = await handler(event, mockContext);
+      const result = await createHandler(event, mockContext);
 
       expect(result.statusCode).toBe(400);
     });
@@ -287,14 +287,14 @@ describe("API Keys Handler", () => {
         name: "Key",
         scopes: ["*"],
       });
-      const result = await handler(event, mockContext);
+      const result = await createHandler(event, mockContext);
 
       expect(result.statusCode).toBe(401);
     });
 
     it("returns 401 when no auth context (GET)", async () => {
       const event = createEvent("GET");
-      const result = await handler(event, mockContext);
+      const result = await listHandler(event, mockContext);
 
       expect(result.statusCode).toBe(401);
     });
@@ -303,20 +303,9 @@ describe("API Keys Handler", () => {
       const event = createEvent("DELETE", undefined, undefined, {
         id: "key_01",
       });
-      const result = await handler(event, mockContext);
+      const result = await revokeHandler(event, mockContext);
 
       expect(result.statusCode).toBe(401);
-    });
-  });
-
-  describe("Method routing", () => {
-    it("returns 405 for unsupported HTTP method (ADR-008 compliant with Allow header)", async () => {
-      const event = createEvent("GET", undefined, "user_123");
-      event.httpMethod = "PUT";
-      const result = await handler(event, mockContext);
-
-      assertADR008Error(result, ErrorCode.METHOD_NOT_ALLOWED);
-      expect(result.headers?.Allow).toBe("POST, GET, DELETE");
     });
   });
 
@@ -331,7 +320,7 @@ describe("API Keys Handler", () => {
         scopes: ["saves:read"],
       });
 
-      const result = await handler(event, createMockContext());
+      const result = await createHandler(event, createMockContext());
       assertADR008Error(result, ErrorCode.SCOPE_INSUFFICIENT);
       expect(result.statusCode).toBe(403);
     });
@@ -345,7 +334,7 @@ describe("API Keys Handler", () => {
         body: { name: "test", scopes: ["saves:write"] },
       });
 
-      const result = await handler(event, createMockContext());
+      const result = await createHandler(event, createMockContext());
       assertADR008Error(result, ErrorCode.UNAUTHORIZED);
     });
 
@@ -361,7 +350,7 @@ describe("API Keys Handler", () => {
         pathParameters: { id: "nonexistent" },
       });
 
-      const result = await handler(event, createMockContext());
+      const result = await revokeHandler(event, createMockContext());
       // Story 3.2.8: Revoke is idempotent — returns 204 even if key not found
       expect(result.statusCode).toBe(204);
       expect(result.body).toBe("");

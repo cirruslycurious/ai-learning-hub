@@ -37,7 +37,7 @@ vi.mock("@ai-learning-hub/middleware", () => mockMiddlewareModule());
 
 // Note: @ai-learning-hub/validation is NOT mocked — uses real implementation
 
-import { handler } from "./handler.js";
+import { generateHandler, listHandler } from "./handler.js";
 
 function createEvent(
   method: "POST" | "GET",
@@ -69,7 +69,7 @@ describe("Invite Codes Handler", () => {
       mockCreateInviteCode.mockResolvedValueOnce(mockResult);
 
       const event = createEvent("POST", "user_123");
-      const result = await handler(event, mockContext);
+      const result = await generateHandler(event, mockContext);
       const body = JSON.parse(result.body);
 
       expect(result.statusCode).toBe(201);
@@ -87,7 +87,7 @@ describe("Invite Codes Handler", () => {
       });
 
       const event = createEvent("POST", "user_abc");
-      await handler(event, mockContext);
+      await generateHandler(event, mockContext);
 
       expect(mockCreateInviteCode).toHaveBeenCalledWith(
         expect.anything(),
@@ -108,7 +108,7 @@ describe("Invite Codes Handler", () => {
         scopes: ["saves:read"],
       });
 
-      const result = await handler(event, createMockContext());
+      const result = await generateHandler(event, createMockContext());
       assertADR008Error(result, ErrorCode.SCOPE_INSUFFICIENT);
       expect(result.statusCode).toBe(403);
     });
@@ -155,7 +155,7 @@ describe("Invite Codes Handler", () => {
         });
 
       const event = createEvent("GET", "user_123");
-      const result = await handler(event, mockContext);
+      const result = await listHandler(event, mockContext);
       const body = JSON.parse(result.body);
 
       expect(result.statusCode).toBe(200);
@@ -175,7 +175,7 @@ describe("Invite Codes Handler", () => {
         limit: "5",
         cursor: "some-cursor",
       });
-      await handler(event, mockContext);
+      await listHandler(event, mockContext);
 
       expect(mockListInviteCodesByUser).toHaveBeenCalledWith(
         expect.anything(),
@@ -190,27 +190,16 @@ describe("Invite Codes Handler", () => {
   describe("AC6: Auth enforcement via middleware", () => {
     it("returns 401 when no auth context (POST)", async () => {
       const event = createEvent("POST");
-      const result = await handler(event, mockContext);
+      const result = await generateHandler(event, mockContext);
 
       expect(result.statusCode).toBe(401);
     });
 
     it("returns 401 when no auth context (GET)", async () => {
       const event = createEvent("GET");
-      const result = await handler(event, mockContext);
+      const result = await listHandler(event, mockContext);
 
       expect(result.statusCode).toBe(401);
-    });
-  });
-
-  describe("Method routing", () => {
-    it("returns 405 for unsupported HTTP method (PUT) (ADR-008 compliant with Allow header)", async () => {
-      const event = createEvent("GET", "user_123");
-      event.httpMethod = "PUT";
-      const result = await handler(event, mockContext);
-
-      assertADR008Error(result, ErrorCode.METHOD_NOT_ALLOWED);
-      expect(result.headers?.Allow).toBe("POST, GET");
     });
   });
 
@@ -221,7 +210,7 @@ describe("Invite Codes Handler", () => {
         path: "/users/invite-codes",
       });
 
-      const result = await handler(event, createMockContext());
+      const result = await generateHandler(event, createMockContext());
       assertADR008Error(result, ErrorCode.UNAUTHORIZED);
     });
   });

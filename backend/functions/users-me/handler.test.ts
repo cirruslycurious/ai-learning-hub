@@ -36,7 +36,7 @@ vi.mock("@ai-learning-hub/middleware", () => mockMiddlewareModule());
 // Note: @ai-learning-hub/validation is NOT mocked — uses real implementation
 // (validates request bodies with Zod schemas and throws AppError on failure)
 
-import { handler } from "./handler.js";
+import { readHandler, writeHandler } from "./handler.js";
 
 function createEvent(
   method: "GET" | "PATCH",
@@ -77,7 +77,7 @@ describe("Users Me Handler", () => {
       mockGetProfile.mockResolvedValueOnce(sampleProfile);
 
       const event = createEvent("GET", undefined, "user_123");
-      const result = await handler(event, mockContext);
+      const result = await readHandler(event, mockContext);
       const body = JSON.parse(result.body);
 
       expect(result.statusCode).toBe(200);
@@ -94,7 +94,7 @@ describe("Users Me Handler", () => {
       mockGetProfile.mockResolvedValueOnce(sampleProfile);
 
       const event = createEvent("GET", undefined, "user_123");
-      const result = await handler(event, mockContext);
+      const result = await readHandler(event, mockContext);
       const body = JSON.parse(result.body);
 
       expect(body.data.PK).toBeUndefined();
@@ -108,7 +108,7 @@ describe("Users Me Handler", () => {
       });
 
       const event = createEvent("GET", undefined, "user_123");
-      const result = await handler(event, mockContext);
+      const result = await readHandler(event, mockContext);
       const body = JSON.parse(result.body);
 
       expect(result.statusCode).toBe(200);
@@ -119,7 +119,7 @@ describe("Users Me Handler", () => {
       mockGetProfile.mockResolvedValueOnce(null);
 
       const event = createEvent("GET", undefined, "user_123");
-      const result = await handler(event, mockContext);
+      const result = await readHandler(event, mockContext);
       const body = JSON.parse(result.body);
 
       expect(result.statusCode).toBe(404);
@@ -130,7 +130,7 @@ describe("Users Me Handler", () => {
       mockGetProfile.mockResolvedValueOnce(sampleProfile);
 
       const event = createEvent("GET", undefined, "user_abc");
-      await handler(event, mockContext);
+      await readHandler(event, mockContext);
 
       expect(mockGetProfile).toHaveBeenCalledWith(
         expect.anything(),
@@ -160,7 +160,7 @@ describe("Users Me Handler", () => {
         "user_123",
         { "If-Match": "1" }
       );
-      const result = await handler(event, mockContext);
+      const result = await writeHandler(event, mockContext);
       const body = JSON.parse(result.body);
 
       expect(result.statusCode).toBe(200);
@@ -193,7 +193,7 @@ describe("Users Me Handler", () => {
         "user_123",
         { "If-Match": "1" }
       );
-      const result = await handler(event, mockContext);
+      const result = await writeHandler(event, mockContext);
       const body = JSON.parse(result.body);
 
       expect(result.statusCode).toBe(200);
@@ -229,7 +229,7 @@ describe("Users Me Handler", () => {
         "user_123",
         { "If-Match": "1" }
       );
-      const result = await handler(event, mockContext);
+      const result = await writeHandler(event, mockContext);
       const body = JSON.parse(result.body);
 
       expect(result.statusCode).toBe(200);
@@ -238,16 +238,18 @@ describe("Users Me Handler", () => {
     });
 
     it("returns 400 for missing request body", async () => {
-      const event = createEvent("PATCH", undefined, "user_123");
+      const event = createEvent("PATCH", undefined, "user_123", {
+        "If-Match": "1",
+      });
       event.body = null;
-      const result = await handler(event, mockContext);
+      const result = await writeHandler(event, mockContext);
 
       expect(result.statusCode).toBe(400);
     });
 
     it("returns 400 for empty object (no fields)", async () => {
-      const event = createEvent("PATCH", {}, "user_123");
-      const result = await handler(event, mockContext);
+      const event = createEvent("PATCH", {}, "user_123", { "If-Match": "1" });
+      const result = await writeHandler(event, mockContext);
       const body = JSON.parse(result.body);
 
       expect(result.statusCode).toBe(400);
@@ -255,8 +257,10 @@ describe("Users Me Handler", () => {
     });
 
     it("returns 400 for empty displayName", async () => {
-      const event = createEvent("PATCH", { displayName: "" }, "user_123");
-      const result = await handler(event, mockContext);
+      const event = createEvent("PATCH", { displayName: "" }, "user_123", {
+        "If-Match": "1",
+      });
+      const result = await writeHandler(event, mockContext);
 
       expect(result.statusCode).toBe(400);
     });
@@ -265,9 +269,10 @@ describe("Users Me Handler", () => {
       const event = createEvent(
         "PATCH",
         { displayName: "x".repeat(256) },
-        "user_123"
+        "user_123",
+        { "If-Match": "1" }
       );
-      const result = await handler(event, mockContext);
+      const result = await writeHandler(event, mockContext);
 
       expect(result.statusCode).toBe(400);
     });
@@ -282,7 +287,7 @@ describe("Users Me Handler", () => {
         "nonexistent_user",
         { "If-Match": "1" }
       );
-      const result = await handler(event, mockContext);
+      const result = await writeHandler(event, mockContext);
 
       expect(result.statusCode).toBe(404);
       const body = JSON.parse(result.body);
@@ -293,28 +298,16 @@ describe("Users Me Handler", () => {
   describe("AC3: Auth enforcement via middleware", () => {
     it("returns 401 when no auth context (GET)", async () => {
       const event = createEvent("GET");
-      const result = await handler(event, mockContext);
+      const result = await readHandler(event, mockContext);
 
       expect(result.statusCode).toBe(401);
     });
 
     it("returns 401 when no auth context (PATCH)", async () => {
       const event = createEvent("PATCH", { displayName: "test" });
-      const result = await handler(event, mockContext);
+      const result = await writeHandler(event, mockContext);
 
       expect(result.statusCode).toBe(401);
-    });
-  });
-
-  describe("Method routing", () => {
-    it("returns 405 for unsupported HTTP method (ADR-008 compliant with Allow header)", async () => {
-      const event = createEvent("GET", undefined, "user_123");
-      event.httpMethod = "DELETE";
-      const result = await handler(event, mockContext);
-
-      assertADR008Error(result, ErrorCode.METHOD_NOT_ALLOWED);
-      // Story 3.2.8: POST is now allowed for /users/me/update command endpoint
-      expect(result.headers?.Allow).toBe("GET, PATCH, POST");
     });
   });
 
@@ -325,7 +318,7 @@ describe("Users Me Handler", () => {
         path: "/users/me",
       });
 
-      const result = await handler(event, createMockContext());
+      const result = await readHandler(event, createMockContext());
       assertADR008Error(result, ErrorCode.UNAUTHORIZED);
     });
   });
