@@ -9,6 +9,8 @@ import type { ScenarioDefinition } from "../types.js";
 import { getClient } from "../client.js";
 import {
   assertStatus,
+  assertADR008,
+  assertResponseEnvelope,
   jwtAuth,
   idempotencyKey,
   createSave,
@@ -48,6 +50,19 @@ export const commandEndpointScenarios: ScenarioDefinition[] = [
           200,
           "CM1: POST /saves/:saveId/update-metadata"
         );
+
+        // Command endpoints return { data } without links.self
+        const updated = (res.body as { data: Record<string, unknown> }).data;
+        if (!updated) {
+          throw new Error(
+            `CM1: missing "data" in response: ${JSON.stringify(res.body)}`
+          );
+        }
+        if (updated.title !== "Updated via command") {
+          throw new Error(
+            `CM1: expected title "Updated via command", got "${String(updated.title)}"`
+          );
+        }
 
         return res.status;
       } catch (err) {
@@ -123,6 +138,14 @@ export const commandEndpointScenarios: ScenarioDefinition[] = [
           }
         );
         assertStatus(res.status, 200, "CM3: POST /users/me/update");
+        assertResponseEnvelope(res.body);
+
+        const updated = (res.body as { data: Record<string, unknown> }).data;
+        if (updated.displayName !== "Smoke Test User") {
+          throw new Error(
+            `CM3: expected displayName "Smoke Test User", got "${String(updated.displayName)}"`
+          );
+        }
 
         return res.status;
       } finally {
@@ -192,11 +215,12 @@ export const commandEndpointScenarios: ScenarioDefinition[] = [
         "CM4: POST /users/api-keys/:id/revoke"
       );
 
-      // Verify revoked key returns 401
+      // Verify revoked key returns 401 with proper error body
       const verifyRes = await client.get("/users/me", {
         auth: { type: "apikey", key: keyValue },
       });
       assertStatus(verifyRes.status, 401, "CM4: revoked key → 401");
+      assertADR008(verifyRes.body, "UNAUTHORIZED");
 
       return revokeRes.status;
     },
