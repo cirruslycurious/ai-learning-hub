@@ -171,6 +171,12 @@ export const createHandler = wrapHandler(handleCreate, {
   requiredScope: "keys:manage",
   idempotent: true,
   rateLimit: apiKeyCreateRateLimit,
+  secondaryRateLimit: {
+    operation: "api-key-create-ip",
+    windowSeconds: 3600,
+    limit: 10,
+    identifierSource: "sourceIp",
+  },
 });
 
 /**

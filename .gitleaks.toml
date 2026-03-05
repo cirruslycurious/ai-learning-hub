@@ -218,6 +218,9 @@ paths = [
   '''infra/test/stacks/api/cross-stack-deps.test.ts''',
   '''infra/test/stacks/api/saves-routes.stack.test.ts''',
   '''infra/test/stacks/api/ops-routes.stack.test.ts''',
+  '''infra/test/stacks/api/discovery-routes.stack.test.ts''',
+  # Review findings docs reference code patterns (e.g., regex patterns, code snippets)
+  '''docs/progress/story-3-5-3-review-findings''',
   '''docs/progress/aws-setup-complete.md''',
   # Docs that mention connection-string patterns as examples (mongodb://, postgres://, redis://)
   '''docs/writing-pipeline/projects/''',

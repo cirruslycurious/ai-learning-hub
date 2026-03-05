@@ -166,4 +166,10 @@ export const handler = wrapHandler(validateInviteHandler, {
   requireAuth: true,
   idempotent: true,
   rateLimit: inviteValidateRateLimit,
+  secondaryRateLimit: {
+    operation: "invite-validate-ip",
+    windowSeconds: 3600,
+    limit: 20,
+    identifierSource: "sourceIp",
+  },
 });
