@@ -9,6 +9,7 @@ import type { ScenarioDefinition } from "../types.js";
 import { getClient } from "../client.js";
 import {
   assertStatus,
+  assertADR008,
   jwtAuth,
   idempotencyKey,
   deleteSave,
@@ -188,6 +189,7 @@ export const batchOperationScenarios: ScenarioDefinition[] = [
           `BA3: expected 401 or 403, got ${res.status}: ${JSON.stringify(res.body)}`
         );
       }
+      assertADR008(res.body, "UNAUTHORIZED");
 
       return res.status;
     },

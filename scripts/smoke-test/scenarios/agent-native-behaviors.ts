@@ -325,6 +325,14 @@ export const agentNativeBehaviorScenarios: ScenarioDefinition[] = [
         headers: { "X-Agent-ID": "smoke-test-agent" },
       });
       assertStatus(res.status, 200, "AN8: GET /users/me with X-Agent-ID");
+      assertResponseEnvelope(res.body);
+
+      const data = (res.body as { data: Record<string, unknown> }).data;
+      if (!data?.userId) {
+        throw new Error(
+          `AN8: expected data.userId in response, got: ${JSON.stringify(data)}`
+        );
+      }
 
       return res.status;
     },
