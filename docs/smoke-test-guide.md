@@ -15,7 +15,7 @@ Run a single command and see results in 15-30 seconds:
 source scripts/smoke-test/.env.smoke && npm run smoke-test -- --auto-auth
 ```
 
-What happens: The runner fetches a fresh JWT from Clerk, executes all 30 scenarios across 4 phases against the deployed API, cleans up any resources it created, and prints a results table with pass/fail/skip status for every scenario.
+What happens: The runner fetches a fresh JWT from Clerk, executes all 48 scenarios across 5 phases against the deployed API, cleans up any resources it created, and prints a results table with pass/fail/skip status for every scenario.
 
 ---
 
@@ -159,7 +159,7 @@ After all scenarios complete, you see a summary table:
 
 ## Scenario Reference
 
-### Phase 1: Infrastructure & Auth (15 scenarios)
+### Phase 1: Infrastructure & Auth (22 scenarios)
 
 | ID   | Scenario                                           | Validates                         |
 | ---- | -------------------------------------------------- | --------------------------------- |
@@ -169,7 +169,7 @@ After all scenarios complete, you see a summary table:
 | AC4  | Expired JWT → 401 EXPIRED_TOKEN                    | Token expiry detection (optional) |
 | AC13 | API key lifecycle: create → list → delete → verify | Full CRUD for API keys            |
 | AC5  | Valid API key → 200 + profile                      | API key authentication works      |
-| AC6  | Capture-scope key → 200                            | Scoped keys accepted              |
+| AC6  | Scoped API key → 403 SCOPE_INSUFFICIENT            | Scope enforcement                 |
 | AC7  | Revoked key → 401                                  | Revoked keys rejected             |
 | AC8  | Invalid key → 401                                  | Unknown keys rejected             |
 | AC9  | All routes reachable                               | API Gateway wiring validated      |
@@ -177,19 +177,43 @@ After all scenarios complete, you see a summary table:
 | AC11 | PATCH displayName → 200 + updated                  | User profile update works         |
 | AC12 | Invalid PATCH body → 400                           | Validation rejects bad input      |
 | AC14 | 11 rapid requests → 429                            | Rate limiting active (optional)   |
+| OP1  | GET /health → 200 + healthy status                 | Health probe works                |
+| OP2  | GET /ready → 200 + DynamoDB ok                     | Readiness probe works             |
+| DS1  | GET /actions → 200 + non-empty catalog             | Action discoverability works      |
+| DS2  | GET /states/saves → 404 (no state graph)           | State graph endpoint wired        |
+| AN1  | GET /users/me → response envelope (data, links)    | ADR-008 response envelope         |
+| AN5  | saves:read key → POST /saves → 403                 | Scope enforcement on mutations    |
+| AN6  | POST /saves → X-RateLimit-\* headers               | Rate limit transparency           |
+| AN8  | GET /users/me with X-Agent-ID → 200                | Agent identity accepted           |
 
-### Phase 2: Saves CRUD Lifecycle (8 scenarios)
+### Phase 2: Saves CRUD Lifecycle (16 scenarios)
 
-| ID  | Scenario                             | Validates                        |
-| --- | ------------------------------------ | -------------------------------- |
-| SC1 | POST /saves → 201 + ULID             | Save creation, DynamoDB write    |
-| SC2 | GET /saves/:saveId → 200             | Save read, lastAccessedAt update |
-| SC3 | GET /saves → list contains save      | List endpoint, GSI query         |
-| SC4 | PATCH /saves/:saveId → title updated | Save update, updatedAt           |
-| SC5 | DELETE /saves/:saveId → 204          | Soft-delete                      |
-| SC6 | GET deleted save → 404               | Deleted saves hidden             |
-| SC7 | POST /saves/:saveId/restore → 200    | Restore from soft-delete         |
-| SC8 | GET restored save → title persisted  | Data survives delete/restore     |
+| ID  | Scenario                                           | Validates                        |
+| --- | -------------------------------------------------- | -------------------------------- |
+| SC1 | POST /saves → 201 + ULID                           | Save creation, DynamoDB write    |
+| SC2 | GET /saves/:saveId → 200                           | Save read, lastAccessedAt update |
+| SC3 | GET /saves → list contains save                    | List endpoint, GSI query         |
+| SC4 | PATCH /saves/:saveId → title updated               | Save update, updatedAt           |
+| SC5 | DELETE /saves/:saveId → 204                        | Soft-delete                      |
+| SC6 | GET deleted save → 404                             | Deleted saves hidden             |
+| SC7 | POST /saves/:saveId/restore → 200                  | Restore from soft-delete         |
+| SC8 | GET restored save → title persisted                | Data survives delete/restore     |
+| CM1 | POST /saves/:saveId/update-metadata → 200          | Command mutation endpoint        |
+| CM2 | GET /saves/:saveId/events → 200 + events           | Event history retrieval          |
+| CM3 | POST /users/me/update → 200                        | Profile command endpoint         |
+| CM4 | POST /users/api-keys/:id/revoke → 204              | API key revocation command       |
+| AN2 | POST /saves twice with same Idempotency-Key → same | Idempotency                      |
+| AN3 | PATCH with stale If-Match → 409                    | Optimistic concurrency           |
+| AN4 | PATCH without If-Match → 428                       | Precondition required            |
+| AN7 | GET /saves?limit=1 → cursor pagination             | Cursor pagination + links.next   |
+
+### Phase 3: Batch Operations (3 scenarios)
+
+| ID  | Scenario                                        | Validates                |
+| --- | ----------------------------------------------- | ------------------------ |
+| BA1 | POST /batch with 2 POST /saves → 200 + 2 ok     | Batch success            |
+| BA2 | POST /batch with 1 ok + 1 bad → partial success | Partial failure handling |
+| BA3 | POST /batch unauthenticated → 401/403           | Batch auth enforcement   |
 
 ### Phase 4: Saves Validation Errors (4 scenarios)
 
@@ -218,7 +242,7 @@ Not sure which phase to run? Use this guide:
 flowchart TD
     Q["What changed?"]
     Q --> A["Infrastructure<br/>(CDK, IAM, routes)"]
-    Q --> B["Lambda handlers<br/>(saves, auth)"]
+    Q --> B["Lambda handlers<br/>(saves, auth, batch)"]
     Q --> C["EventBridge rules<br/>or targets"]
     Q --> D["Everything / first run"]
 
@@ -334,12 +358,13 @@ The API key lifecycle scenario (AC13) cannot find a newly created key in the lis
 
 ### Phase Summary
 
-| Phase | Name                     | Scenarios     | Duration |
-| ----- | ------------------------ | ------------- | -------- |
-| 1     | Infrastructure & Auth    | AC1-AC14 (15) | 3-8s     |
-| 2     | Saves CRUD Lifecycle     | SC1-SC8 (8)   | 3-5s     |
-| 4     | Saves Validation Errors  | SV1-SV4 (4)   | 1-2s     |
-| 7     | EventBridge Verification | EB1-EB3 (3)   | 10-30s   |
+| Phase | Name                     | Scenarios                                  | Duration |
+| ----- | ------------------------ | ------------------------------------------ | -------- |
+| 1     | Infrastructure & Auth    | AC1-AC14, OP1-OP2, DS1-DS2, AN1/5/6/8 (22) | 5-12s    |
+| 2     | Saves CRUD Lifecycle     | SC1-SC8, CM1-CM4, AN2/3/4/7 (16)           | 5-10s    |
+| 3     | Batch Operations         | BA1-BA3 (3)                                | 2-4s     |
+| 4     | Saves Validation Errors  | SV1-SV4 (4)                                | 1-2s     |
+| 7     | EventBridge Verification | EB1-EB3 (3)                                | 10-30s   |
 
 ### Key Files
 
@@ -374,7 +399,7 @@ SMOKE_TEST_SKIP=AC14,SV3 npm run smoke-test -- --auto-auth
 
 - **Skip flaky scenarios in shared environments.** Rate limiting (AC14) can be flaky when multiple developers share a dev environment. Add it to `SMOKE_TEST_SKIP` if needed.
 
-- **Run after every deploy.** The smoke test takes 15-30 seconds and catches an entire class of deploy-time failures that unit tests cannot detect.
+- **Run after every deploy.** The smoke test takes 30-60 seconds and catches an entire class of deploy-time failures that unit tests cannot detect.
 
 - **Use phase selection for faster iteration.** If you only changed EventBridge rules, run `--phase=7` instead of the full suite.
 

@@ -22,43 +22,50 @@ The smoke test validates the real deployed environment end-to-end. It calls the 
 
 ---
 
-## 2. The Four Phases
+## 2. The Five Phases
 
-The smoke test organizes 30 scenarios into 4 active phases. Each phase tests a distinct layer of the deployed system, and phases execute sequentially so that foundational checks (auth works, routes exist) complete before business logic checks (saves CRUD, event delivery).
+The smoke test organizes 48 scenarios into 5 active phases. Each phase tests a distinct layer of the deployed system, and phases execute sequentially so that foundational checks (auth works, routes exist) complete before business logic checks (saves CRUD, batch operations, event delivery).
 
 ```mermaid
 flowchart LR
-    P1["Phase 1<br/><b>Auth & Infra</b><br/>JWT, API keys<br/>Routes, CORS<br/>Rate limiting"] --> P2
+    P1["Phase 1<br/><b>Auth & Infra</b><br/>JWT, API keys, Routes<br/>CORS, Health, Discovery<br/>Agent-native (22)"] --> P2
 
-    P2["Phase 2<br/><b>Saves CRUD</b><br/>Create, Read<br/>Update, Delete<br/>Restore"] --> P4
+    P2["Phase 2<br/><b>Saves CRUD</b><br/>Create, Read, Update<br/>Delete, Restore, Commands<br/>Idempotency, OCC (16)"] --> P3
 
-    P4["Phase 4<br/><b>Validation</b><br/>Invalid inputs<br/>404s, immutable<br/>fields"] --> P7
+    P3["Phase 3<br/><b>Batch Ops</b><br/>Multi-request batch<br/>Partial failure<br/>Auth enforcement (3)"] --> P4
 
-    P7["Phase 7<br/><b>EventBridge</b><br/>SaveCreated<br/>SaveUpdated<br/>SaveDeleted"]
+    P4["Phase 4<br/><b>Validation</b><br/>Invalid inputs<br/>404s, immutable<br/>fields (4)"] --> P7
+
+    P7["Phase 7<br/><b>EventBridge</b><br/>SaveCreated<br/>SaveUpdated<br/>SaveDeleted (3)"]
 
     style P1 fill:#e1e5ff
     style P2 fill:#fff4e1
+    style P3 fill:#e8f0ff
     style P4 fill:#ffe8f0
     style P7 fill:#e1f5e1
 ```
 
-### 2.1 Phase 1: Infrastructure and Authentication
+### 2.1 Phase 1: Infrastructure and Authentication (22 scenarios)
 
-Phase 1 answers the most fundamental question: can the API be reached, and does authentication work? It validates JWT tokens (valid, malformed, missing, expired), API key lifecycle (create, use, revoke, invalid), route connectivity for every entry in the route registry, CORS preflight headers on all routes, user profile CRUD, and rate limiting behavior.
+Phase 1 answers the most fundamental question: can the API be reached, and does authentication work? It validates JWT tokens (valid, malformed, missing, expired), API key lifecycle (create, use, revoke, invalid), route connectivity for every entry in the route registry, CORS preflight headers on all routes, user profile CRUD, rate limiting behavior, health/readiness probes, action discoverability, agent-native response envelopes, scope enforcement, rate limit header transparency, and agent identity headers.
 
 If Phase 1 fails, there is no point running later phases -- the infrastructure itself is broken.
 
-### 2.2 Phase 2: Saves CRUD Lifecycle
+### 2.2 Phase 2: Saves CRUD Lifecycle (16 scenarios)
 
-Phase 2 exercises the primary business operation: saving and managing content. It creates a save with a unique URL, reads it back, verifies it appears in the list, updates its title, soft-deletes it, confirms deletion returns 404, restores it, and verifies the title persisted through the delete/restore cycle.
+Phase 2 exercises the primary business operation: saving and managing content. It creates a save with a unique URL, reads it back, verifies it appears in the list, updates its title, soft-deletes it, confirms deletion returns 404, restores it, and verifies the title persisted through the delete/restore cycle. It also validates command endpoints (update-metadata, event history, profile update, API key revocation) and agent-native behaviors (idempotency, optimistic concurrency, precondition enforcement, cursor pagination).
 
 This phase tests the full DynamoDB read/write path including TransactWriteItems for soft-delete and restore operations.
 
-### 2.3 Phase 4: Saves Validation Errors
+### 2.3 Phase 3: Batch Operations (3 scenarios)
+
+Phase 3 validates the batch endpoint that allows multiple API operations in a single request. It tests successful batch execution, partial failure handling (one operation succeeds while another fails), and authentication enforcement on the batch endpoint.
+
+### 2.4 Phase 4: Saves Validation Errors (4 scenarios)
 
 Phase 4 verifies that the API rejects invalid input correctly. It sends malformed URLs, invalid ULID path parameters, requests for nonexistent resources, and attempts to mutate immutable fields. Each scenario validates that the error response follows the ADR-008 standard error shape.
 
-### 2.4 Phase 7: EventBridge Verification
+### 2.5 Phase 7: EventBridge Verification (3 scenarios)
 
 Phase 7 is the most technically complex. After creating, updating, and deleting saves, it queries CloudWatch Logs to verify that the corresponding EventBridge events (SaveCreated, SaveUpdated, SaveDeleted) were actually delivered. This catches a class of silent failures -- events that never arrive due to missing IAM permissions, wrong bus names, or broken rule targets -- that no other test can detect.
 
@@ -133,7 +140,7 @@ A typical results table looks like this:
  ...
 ────────┼───────────────────────────────────────────────────┼────────┼──────┼─────────
 
-  28/30 scenarios passed  (0 failed, 2 skipped)  12450ms total
+  46/48 scenarios passed  (0 failed, 2 skipped)  60725ms total
 ```
 
 ---
@@ -152,7 +159,7 @@ Three design decisions shape how the smoke test works and why.
 
 **Sequential execution, not parallel.** Scenarios within a phase run sequentially because later scenarios depend on state created by earlier ones. SC2 (read save) depends on SC1 (create save). EB2 (verify update event) depends on EB1 (create save). Running them in parallel would require independent setup for each scenario, increasing test duration and API load.
 
-**Phase gaps are intentional.** Phases 3, 5, and 6 are reserved for future test categories (e.g., Phase 3 for search scenarios, Phase 5 for admin endpoints). The numbering leaves room to insert phases without renumbering existing ones, which would break `--phase=N` commands in CI scripts and developer muscle memory.
+**Phase gaps are intentional.** Phases 5 and 6 are reserved for future test categories (e.g., Phase 5 for admin endpoints, Phase 6 for multi-user scenarios). The numbering leaves room to insert phases without renumbering existing ones, which would break `--phase=N` commands in CI scripts and developer muscle memory.
 
 **Graceful skipping over hard failure.** When an optional environment variable is missing (expired JWT, rate limit JWT, EventBridge log group), the scenario throws `ScenarioSkipped` instead of failing. This means a developer can run the full suite without configuring every optional variable and still see a clean pass for the scenarios that ran.
 
@@ -160,15 +167,16 @@ Three design decisions shape how the smoke test works and why.
 
 ## 8. What a Typical Run Looks Like
 
-A complete smoke test run against the dev environment typically executes 30 scenarios across 4 phases in 15-30 seconds. Most of the time is spent on Phase 7 (EventBridge verification), where CloudWatch Logs polling waits up to 30 seconds for events to appear.
+A complete smoke test run against the dev environment typically executes 48 scenarios across 5 phases in 30-60 seconds. Most of the time is spent on Phase 7 (EventBridge verification), where CloudWatch Logs polling waits up to 30 seconds for events to appear.
 
 | Metric                            | Typical Value                            |
 | --------------------------------- | ---------------------------------------- |
-| Total scenarios                   | 30                                       |
-| Scenarios run (with all env vars) | 28-30                                    |
+| Total scenarios                   | 48                                       |
+| Scenarios run (with all env vars) | 46-48                                    |
 | Common skips                      | AC4 (expired JWT), AC14 (rate limit JWT) |
-| Total duration                    | 15-30 seconds                            |
-| Phase 1 duration                  | 3-8 seconds                              |
+| Total duration                    | 30-60 seconds                            |
+| Phase 1 duration                  | 5-12 seconds                             |
+| Phase 2 duration                  | 5-10 seconds                             |
 | Phase 7 duration                  | 10-30 seconds (CloudWatch polling)       |
 
 ---

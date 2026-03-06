@@ -11,13 +11,13 @@
 
 The smoke test system was designed around a single principle: validate the real deployed environment the same way a user would interact with it -- via HTTP requests to the API Gateway. Five considerations shaped the implementation.
 
-**No build step required.** The smoke test runs via `tsx` (TypeScript Execute), which compiles TypeScript on-the-fly. There is no separate build step, no `dist/` directory, and no compilation dependency chain. A developer can edit a scenario file and re-run the test immediately. This is deliberate: smoke tests are operational tools that need to run fast with minimal ceremony. The trade-off is that `tsx` is slower than compiled JavaScript for large codebases, but the smoke test is ~2,100 lines -- the compilation overhead is negligible.
+**No build step required.** The smoke test runs via `tsx` (TypeScript Execute), which compiles TypeScript on-the-fly. There is no separate build step, no `dist/` directory, and no compilation dependency chain. A developer can edit a scenario file and re-run the test immediately. This is deliberate: smoke tests are operational tools that need to run fast with minimal ceremony. The trade-off is that `tsx` is slower than compiled JavaScript for large codebases, but the smoke test is ~3,500 lines -- the compilation overhead is negligible.
 
 **Standalone from the test suite.** The smoke test is NOT part of the vitest test suite (`npm test`). It lives in `scripts/smoke-test/`, not in `__tests__/`. It has its own entry point (`run.ts`), its own HTTP client, and its own assertion helpers. This separation is deliberate: unit tests mock AWS services and run without credentials; the smoke test requires a deployed environment and real AWS credentials. Mixing them would create confusion about what needs to be running for tests to pass.
 
 **Phase-based grouping.** Scenarios are organized into numbered phases that execute sequentially. This provides three properties: dependency ordering (Phase 2 depends on Phase 1 confirming auth works), targeted execution (run only the phase relevant to your change), and extensibility (reserved phase numbers allow inserting new test categories without renumbering existing ones).
 
-**Graceful degradation.** When an optional environment variable is missing, the affected scenario throws `ScenarioSkipped` instead of failing. This means the smoke test produces useful results even with minimal configuration. A developer who only sets `SMOKE_TEST_API_URL` and `SMOKE_TEST_CLERK_USER_ID` gets 26 of 30 scenarios executed -- the 4 skips (AC4, AC14, EB1-EB3) are clearly marked with reasons.
+**Graceful degradation.** When an optional environment variable is missing, the affected scenario throws `ScenarioSkipped` instead of failing. This means the smoke test produces useful results even with minimal configuration. A developer who only sets `SMOKE_TEST_API_URL` and `SMOKE_TEST_CLERK_USER_ID` gets 46 of 48 scenarios executed -- the 2 common skips (AC4, AC14) are clearly marked with reasons.
 
 **Self-cleaning.** Every phase that creates resources registers cleanup callbacks. Cleanups execute in reverse order in a `finally` block. The deployed environment is left in the same state it was found in, regardless of whether scenarios pass, fail, or crash.
 
@@ -31,7 +31,7 @@ The system decomposes into four layers, each with a distinct responsibility.
 
 **Layer 2: Phase Registry.** The file `scripts/smoke-test/phases.ts` (143 lines) defines the phase structure, registers scenarios into phases, and handles CLI filtering (`--phase=N`, `--up-to=N`). It is the canonical mapping from phase numbers to scenario arrays.
 
-**Layer 3: Scenarios.** The directory `scripts/smoke-test/scenarios/` contains 8 scenario files (7 scenario definitions + 1 re-export index). Each file exports a `ScenarioDefinition[]` array. Scenarios are self-contained: each one makes HTTP calls, asserts results, and returns the HTTP status code.
+**Layer 3: Scenarios.** The directory `scripts/smoke-test/scenarios/` contains 14 scenario files (13 scenario definitions + 1 re-export index). Each file exports a `ScenarioDefinition[]` array. Scenarios are self-contained: each one makes HTTP calls, asserts results, and returns the HTTP status code.
 
 **Layer 4: Shared Infrastructure.** Four support files provide the foundation: `client.ts` (HTTP client), `helpers.ts` (assertion helpers), `auto-auth.ts` (Clerk JWT generation), and `cloudwatch-helpers.ts` (CloudWatch Logs polling). These are used by scenarios but contain no test logic themselves.
 
@@ -51,7 +51,12 @@ graph TD
         ROUTE["route-connectivity.ts<br/>AC9–AC10"]
         PROFILE["user-profile.ts<br/>AC11–AC12"]
         RATE["rate-limiting.ts<br/>AC14"]
+        OPS["ops-endpoints.ts<br/>OP1–OP2"]
+        DISC["discovery-endpoints.ts<br/>DS1–DS2"]
+        AGENT["agent-native-behaviors.ts<br/>AN1–AN8"]
         CRUD["saves-crud.ts<br/>SC1–SC8"]
+        CMD["command-endpoints.ts<br/>CM1–CM4"]
+        BATCH["batch-operations.ts<br/>BA1–BA3"]
         VALID["saves-validation.ts<br/>SV1–SV4"]
         EB["eventbridge-verify.ts<br/>EB1–EB3"]
     end
@@ -77,7 +82,12 @@ graph TD
     PHASES --> ROUTE
     PHASES --> PROFILE
     PHASES --> RATE
+    PHASES --> OPS
+    PHASES --> DISC
+    PHASES --> AGENT
     PHASES --> CRUD
+    PHASES --> CMD
+    PHASES --> BATCH
     PHASES --> VALID
     PHASES --> EB
 
@@ -87,7 +97,12 @@ graph TD
     ROUTE --> BRIDGE
     PROFILE --> CLIENT
     RATE --> CLIENT
+    OPS --> CLIENT
+    DISC --> CLIENT
+    AGENT --> CLIENT
     CRUD --> CLIENT
+    CMD --> CLIENT
+    BATCH --> CLIENT
     VALID --> CLIENT
     EB --> CLIENT
     EB --> CW
@@ -97,6 +112,7 @@ graph TD
     PROFILE --> HELPERS
     CRUD --> HELPERS
     VALID --> HELPERS
+    AGENT --> HELPERS
 
     RUN -->|"--auto-auth"| AUTH
 
@@ -343,17 +359,17 @@ The `init` function is optional. When present, it is called before the phase's s
 
 ### 7.2 Phase Numbering
 
-| Phase | Name                     | Scenarios     | Init                     | Reserved For         |
-| ----- | ------------------------ | ------------- | ------------------------ | -------------------- |
-| 1     | Infrastructure & Auth    | AC1-AC14 (15) | `initApiKeyCleanup`      | --                   |
-| 2     | Saves CRUD Lifecycle     | SC1-SC8 (8)   | `initSavesCrudCleanup`   | --                   |
-| 3     | (reserved)               | --            | --                       | Search scenarios     |
-| 4     | Saves Validation Errors  | SV1-SV4 (4)   | --                       | --                   |
-| 5     | (reserved)               | --            | --                       | Admin endpoints      |
-| 6     | (reserved)               | --            | --                       | Multi-user scenarios |
-| 7     | EventBridge Verification | EB1-EB3 (3)   | `initEventBridgeCleanup` | --                   |
+| Phase | Name                     | Scenarios                                  | Init                     | Reserved For         |
+| ----- | ------------------------ | ------------------------------------------ | ------------------------ | -------------------- |
+| 1     | Infrastructure & Auth    | AC1-AC14, OP1-OP2, DS1-DS2, AN1/5/6/8 (22) | `initApiKeyCleanup`      | --                   |
+| 2     | Saves CRUD Lifecycle     | SC1-SC8, CM1-CM4, AN2/3/4/7 (16)           | `initSavesCrudCleanup`   | --                   |
+| 3     | Batch Operations         | BA1-BA3 (3)                                | --                       | --                   |
+| 4     | Saves Validation Errors  | SV1-SV4 (4)                                | --                       | --                   |
+| 5     | (reserved)               | --                                         | --                       | Admin endpoints      |
+| 6     | (reserved)               | --                                         | --                       | Multi-user scenarios |
+| 7     | EventBridge Verification | EB1-EB3 (3)                                | `initEventBridgeCleanup` | --                   |
 
-Phase gaps (3, 5, 6) are reserved for future test categories. The numbering is designed so that `--up-to=2` always means "auth + basic CRUD" regardless of what phases are added later. This stability matters for CI scripts and developer workflows.
+Phase gaps (5, 6) are reserved for future test categories. The numbering is designed so that `--up-to=2` always means "auth + basic CRUD" regardless of what phases are added later. This stability matters for CI scripts and developer workflows.
 
 ### 7.3 CLI Filtering
 
@@ -561,7 +577,12 @@ Scenario IDs follow a consistent naming scheme that encodes the category and seq
 | Prefix | Category                                  | Origin            |
 | ------ | ----------------------------------------- | ----------------- |
 | AC     | Acceptance Criteria (infrastructure/auth) | Story 3.1.2-3.1.5 |
+| OP     | Ops endpoints (health/readiness)          | Story 3.2.9       |
+| DS     | Discovery endpoints (actions/states)      | Story 3.2.10      |
+| AN     | Agent-native behaviors                    | Story 3.2.11      |
 | SC     | Saves CRUD                                | Story 3.1.6       |
+| CM     | Command mutation endpoints                | Story 3.2.11      |
+| BA     | Batch operations                          | Story 3.2.11      |
 | SV     | Saves Validation                          | Story 3.1.6       |
 | EB     | EventBridge                               | Story 3.1.9       |
 
@@ -571,26 +592,31 @@ The numbering within each prefix is sequential but not contiguous -- AC13 was ad
 
 ## 12. File Inventory
 
-| File                              | Lines      | Purpose                                                       |
-| --------------------------------- | ---------- | ------------------------------------------------------------- |
-| `run.ts`                          | 210        | Runner: orchestration, cleanup, results table                 |
-| `types.ts`                        | 30         | ScenarioDefinition, Result, CleanupFn, ScenarioSkipped        |
-| `client.ts`                       | 139        | SmokeClient: HTTP wrapper with auth, timing, 204 handling     |
-| `helpers.ts`                      | 121        | ADR-008, profile shape, save shape, status, header assertions |
-| `phases.ts`                       | 143        | Phase registry, CLI filtering (--phase, --up-to)              |
-| `auto-auth.ts`                    | 118        | Clerk JWT generation via SSM + Backend API                    |
-| `cloudwatch-helpers.ts`           | 117        | CloudWatch Logs polling with retry                            |
-| `route-registry-bridge.ts`        | 32         | CJS/ESM interop for ROUTE_REGISTRY                            |
-| `scenarios/index.ts`              | 41         | Re-exports all scenario arrays                                |
-| `scenarios/jwt-auth.ts`           | 77         | AC1-AC4: JWT auth scenarios                                   |
-| `scenarios/api-key-auth.ts`       | 255        | AC5-AC8, AC13: API key scenarios                              |
-| `scenarios/route-connectivity.ts` | 106        | AC9-AC10: Route and CORS validation                           |
-| `scenarios/user-profile.ts`       | 84         | AC11-AC12: User profile CRUD                                  |
-| `scenarios/rate-limiting.ts`      | 50         | AC14: Rate limiting                                           |
-| `scenarios/saves-crud.ts`         | 271        | SC1-SC8: Saves lifecycle                                      |
-| `scenarios/saves-validation.ts`   | 105        | SV1-SV4: Validation errors                                    |
-| `scenarios/eventbridge-verify.ts` | 219        | EB1-EB3: EventBridge verification                             |
-| **Total**                         | **~2,118** | **17 files, 30 scenarios**                                    |
+| File                                  | Purpose                                                       |
+| ------------------------------------- | ------------------------------------------------------------- |
+| `run.ts`                              | Runner: orchestration, cleanup, results table                 |
+| `types.ts`                            | ScenarioDefinition, Result, CleanupFn, ScenarioSkipped        |
+| `client.ts`                           | SmokeClient: HTTP wrapper with auth, timing, 204 handling     |
+| `helpers.ts`                          | ADR-008, profile shape, save shape, status, header assertions |
+| `phases.ts`                           | Phase registry, CLI filtering (--phase, --up-to)              |
+| `auto-auth.ts`                        | Clerk JWT generation via SSM + Backend API                    |
+| `cloudwatch-helpers.ts`               | CloudWatch Logs polling with retry                            |
+| `route-registry-bridge.ts`            | CJS/ESM interop for ROUTE_REGISTRY                            |
+| `scenarios/index.ts`                  | Re-exports all scenario arrays                                |
+| `scenarios/jwt-auth.ts`               | AC1-AC4: JWT auth scenarios                                   |
+| `scenarios/api-key-auth.ts`           | AC5-AC8, AC13: API key scenarios                              |
+| `scenarios/route-connectivity.ts`     | AC9-AC10: Route and CORS validation                           |
+| `scenarios/user-profile.ts`           | AC11-AC12: User profile CRUD                                  |
+| `scenarios/rate-limiting.ts`          | AC14: Rate limiting                                           |
+| `scenarios/ops-endpoints.ts`          | OP1-OP2: Health and readiness probes                          |
+| `scenarios/discovery-endpoints.ts`    | DS1-DS2: Action catalog and state graph                       |
+| `scenarios/agent-native-behaviors.ts` | AN1-AN8: Agent-native API behaviors                           |
+| `scenarios/saves-crud.ts`             | SC1-SC8: Saves lifecycle                                      |
+| `scenarios/command-endpoints.ts`      | CM1-CM4: Command mutation endpoints                           |
+| `scenarios/batch-operations.ts`       | BA1-BA3: Batch operations                                     |
+| `scenarios/saves-validation.ts`       | SV1-SV4: Validation errors                                    |
+| `scenarios/eventbridge-verify.ts`     | EB1-EB3: EventBridge verification                             |
+| **Total**                             | **22 files, 48 scenarios**                                    |
 
 ---
 
@@ -610,7 +636,7 @@ The smoke test validates infrastructure deployed by CDK stacks. Three integratio
 
 These lessons were accumulated during the development of Stories 3.1.2 through 3.1.9 and are encoded in the smoke test's design.
 
-**1. Clerk JWTs expire in ~60 seconds.** Early smoke test runs used manually copied JWTs that expired mid-run. The auto-auth system was built to eliminate this friction. The JWT is fetched at startup and lasts long enough for the full 15-30 second run.
+**1. Clerk JWTs expire in ~60 seconds.** Early smoke test runs used manually copied JWTs that expired mid-run. The auto-auth system was built to eliminate this friction. The JWT is fetched at startup and lasts long enough for the full 30-60 second run.
 
 **2. DynamoDB GSIs are eventually consistent.** The API key lifecycle scenario (AC13) initially failed intermittently because a newly created key did not appear in the GSI list query. The fix: retry the list query up to 3 times with 1-second delays. This is not a bug -- it is expected DynamoDB behavior.
 
