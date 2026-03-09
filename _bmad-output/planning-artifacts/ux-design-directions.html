@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Learning Hub — Design Directions</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: hsl(0,0%,100%);
+    --bg-alt: hsl(220,14%,96%);
+    --fg: hsl(224,71%,4%);
+    --muted: hsl(220,9%,46%);
+    --muted-lighter: hsl(220,13%,91%);
+    --accent: hsl(239,84%,57%);
+    --accent-soft: hsla(239,84%,57%,0.08);
+    --brand: hsl(162,83%,34%);
+    --brand-soft: hsla(162,83%,34%,0.08);
+    --destructive: hsl(0,84%,60%);
+    --radius: 6px;
+  }
+  .dark {
+    --bg: hsl(224,71%,4%);
+    --bg-alt: hsl(220,13%,10%);
+    --fg: hsl(210,20%,98%);
+    --muted: hsl(220,9%,55%);
+    --muted-lighter: hsl(220,13%,20%);
+    --accent: hsl(239,84%,70%);
+    --accent-soft: hsla(239,84%,70%,0.12);
+    --brand: hsl(162,83%,48%);
+    --brand-soft: hsla(162,83%,48%,0.12);
+    --destructive: hsl(0,84%,65%);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var(--fg); line-height:1.5; }
+  
+  /* Nav for switching directions */
+  .dir-nav { position:fixed; top:0; left:0; right:0; z-index:100; background:var(--fg); color:var(--bg); padding:12px 24px; display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  .dir-nav h1 { font-size:14px; font-weight:600; margin-right:auto; white-space:nowrap; }
+  .dir-nav button { background:transparent; color:var(--bg); border:1px solid hsla(0,0%,100%,0.2); padding:6px 14px; border-radius:var(--radius); cursor:pointer; font-family:inherit; font-size:13px; transition:all 0.15s; }
+  .dir-nav button:hover, .dir-nav button.active { background:var(--accent); border-color:var(--accent); }
+  .dir-nav .theme-toggle { margin-left:8px; }
+  
+  .direction { display:none; padding-top:60px; min-height:100vh; }
+  .direction.active { display:block; }
+  
+  .dir-label { padding:32px 48px 16px; }
+  .dir-label h2 { font-size:20px; font-weight:600; margin-bottom:4px; }
+  .dir-label p { font-size:14px; color:var(--muted); max-width:640px; }
+  
+  /* === SHARED COMPONENT STYLES === */
+  .mock-topbar { display:flex; align-items:center; padding:12px 24px; border-bottom:1px solid var(--muted-lighter); background:var(--bg); }
+  .mock-logo { display:flex; align-items:center; gap:8px; font-weight:600; font-size:15px; }
+  .mock-logo .q { color:var(--brand); font-size:20px; }
+  .mock-search { flex:1; max-width:400px; margin:0 24px; padding:8px 14px; border:1px solid var(--muted-lighter); border-radius:var(--radius); background:var(--bg-alt); font-size:14px; color:var(--fg); font-family:inherit; }
+  .mock-search::placeholder { color:var(--muted); }
+  .mock-avatar { width:32px; height:32px; border-radius:50%; background:var(--accent-soft); display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:500; color:var(--accent); margin-left:auto; }
+  
+  .mock-rail { width:56px; background:var(--bg); border-right:1px solid var(--muted-lighter); display:flex; flex-direction:column; align-items:center; padding:16px 0; gap:4px; flex-shrink:0; }
+  .mock-rail-item { width:40px; height:40px; border-radius:var(--radius); display:flex; align-items:center; justify-content:center; font-size:18px; cursor:pointer; transition:all 0.15s; color:var(--muted); }
+  .mock-rail-item:hover { background:var(--accent-soft); color:var(--accent); }
+  .mock-rail-item.active { background:var(--accent-soft); color:var(--accent); }
+  
+  .mock-rail-wide { width:200px; background:var(--bg); border-right:1px solid var(--muted-lighter); padding:16px; flex-shrink:0; }
+  .mock-rail-wide-item { display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:var(--radius); font-size:14px; color:var(--muted); cursor:pointer; transition:all 0.15s; margin-bottom:2px; }
+  .mock-rail-wide-item:hover { background:var(--accent-soft); color:var(--fg); }
+  .mock-rail-wide-item.active { background:var(--accent-soft); color:var(--accent); font-weight:500; }
+  .mock-rail-wide-item .icon { font-size:16px; }
+  
+  .mock-main { flex:1; padding:24px 32px; overflow-y:auto; background:var(--bg); }
+  .mock-main h3 { font-size:18px; font-weight:600; margin-bottom:16px; }
+  
+  .mock-card { background:var(--bg); border:1px solid var(--muted-lighter); border-radius:var(--radius); padding:16px; margin-bottom:12px; transition:all 0.15s; cursor:pointer; }
+  .mock-card:hover { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+  .mock-card-title { font-size:15px; font-weight:500; margin-bottom:4px; display:flex; align-items:center; gap:8px; }
+  .mock-card-title .favicon { width:16px; height:16px; border-radius:3px; background:var(--muted-lighter); flex-shrink:0; }
+  .mock-card-meta { font-size:13px; color:var(--muted); display:flex; gap:12px; align-items:center; }
+  .mock-card-note { font-size:13px; color:var(--muted); margin-top:6px; font-style:italic; padding-left:24px; }
+  
+  .mock-card-compact { background:var(--bg); border-bottom:1px solid var(--muted-lighter); padding:12px 16px; transition:all 0.15s; cursor:pointer; display:flex; align-items:center; gap:12px; }
+  .mock-card-compact:hover { background:var(--accent-soft); }
+  .mock-card-compact .favicon { width:16px; height:16px; border-radius:3px; background:var(--muted-lighter); flex-shrink:0; }
+  .mock-card-compact .title { font-size:14px; font-weight:500; flex:1; }
+  .mock-card-compact .meta { font-size:12px; color:var(--muted); }
+  
+  .badge { display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:500; }
+  .badge-type { background:var(--accent-soft); color:var(--accent); }
+  .badge-linked { background:var(--brand-soft); color:var(--brand); }
+  .badge-status { background:var(--accent-soft); color:var(--accent); }
+  .badge-status.building { background:var(--brand-soft); color:var(--brand); }
+  
+  .filter-bar { display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap; align-items:center; }
+  .filter-chip { padding:6px 14px; border-radius:999px; font-size:13px; border:1px solid var(--muted-lighter); cursor:pointer; transition:all 0.15s; background:var(--bg); color:var(--muted); }
+  .filter-chip:hover { border-color:var(--accent); color:var(--accent); }
+  .filter-chip.active { background:var(--accent-soft); border-color:var(--accent); color:var(--accent); font-weight:500; }
+  
+  .save-input { display:flex; gap:8px; margin-bottom:24px; }
+  .save-input input { flex:1; padding:10px 14px; border:1px solid var(--muted-lighter); border-radius:var(--radius); font-size:14px; font-family:inherit; background:var(--bg); color:var(--fg); }
+  .save-input input::placeholder { color:var(--muted); }
+  .save-input button { padding:10px 20px; background:var(--accent); color:white; border:none; border-radius:var(--radius); font-size:14px; font-weight:500; cursor:pointer; font-family:inherit; transition:opacity 0.15s; }
+  .save-input button:hover { opacity:0.9; }
+  
+  .toast-demo { position:fixed; bottom:24px; right:24px; background:var(--fg); color:var(--bg); padding:12px 20px; border-radius:var(--radius); font-size:14px; display:flex; align-items:center; gap:10px; box-shadow:0 4px 12px rgba(0,0,0,0.15); z-index:50; animation:slideUp 0.3s ease; }
+  .toast-demo .check { color:var(--brand); font-size:18px; }
+  .toast-demo .add-note { color:var(--muted); font-size:13px; cursor:pointer; margin-left:8px; opacity:0.7; }
+  @keyframes slideUp { from { transform:translateY(16px); opacity:0; } to { transform:translateY(0); opacity:1; } }
+  
+  .mock-layout { display:flex; height:calc(100vh - 60px); }
+  
+  /* Project workspace */
+  .workspace-split { display:flex; flex:1; }
+  .workspace-resources { flex:1; border-right:1px solid var(--muted-lighter); padding:24px; overflow-y:auto; }
+  .workspace-notes { flex:1; padding:24px; overflow-y:auto; }
+  .workspace-notes textarea { width:100%; min-height:200px; border:none; font-family:inherit; font-size:14px; line-height:1.6; resize:none; background:transparent; color:var(--fg); }
+  .workspace-notes textarea::placeholder { color:var(--muted); }
+  .project-header { margin-bottom:20px; }
+  .project-header h3 { font-size:20px; font-weight:600; margin-bottom:4px; }
+  .project-header .status { display:inline-flex; align-items:center; gap:6px; }
+  
+  /* Empty state */
+  .empty-state { text-align:center; padding:64px 24px; color:var(--muted); }
+  .empty-state .icon { font-size:48px; margin-bottom:16px; opacity:0.3; }
+  .empty-state h4 { font-size:16px; font-weight:500; color:var(--fg); margin-bottom:8px; }
+  .empty-state p { font-size:14px; max-width:320px; margin:0 auto; }
+  
+  /* Skeleton */
+  .skeleton { background:linear-gradient(90deg, var(--muted-lighter) 25%, var(--bg-alt) 50%, var(--muted-lighter) 75%); background-size:200% 100%; animation:shimmer 1.5s infinite; border-radius:4px; }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+  .skeleton-line { height:14px; margin-bottom:8px; }
+  .skeleton-line.short { width:60%; }
+  .skeleton-line.med { width:80%; }
+  
+  /* Mobile mockup frame */
+  .mobile-frame { width:375px; height:700px; border:2px solid var(--muted-lighter); border-radius:24px; overflow:hidden; margin:24px auto; background:var(--bg); position:relative; }
+  .mobile-frame .mobile-status { height:44px; display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--muted); }
+  .mobile-frame .mobile-content { height:calc(100% - 44px - 56px); overflow-y:auto; }
+  .mobile-frame .mobile-bottom-nav { position:absolute; bottom:0; left:0; right:0; height:56px; border-top:1px solid var(--muted-lighter); display:flex; align-items:center; justify-content:space-around; background:var(--bg); }
+  .mobile-bottom-item { display:flex; flex-direction:column; align-items:center; gap:2px; font-size:10px; color:var(--muted); cursor:pointer; }
+  .mobile-bottom-item.active { color:var(--accent); }
+  .mobile-bottom-item .icon { font-size:20px; }
+</style>
+</head>
+<body>
+
+<div class="dir-nav">
+  <h1>AI Learning Hub — Design Directions</h1>
+  <button class="active" onclick="showDir(0)">A: Rail + Cards</button>
+  <button onclick="showDir(1)">B: Sidebar + List</button>
+  <button onclick="showDir(2)">C: Clean Compact</button>
+  <button onclick="showDir(3)">D: Project Workspace</button>
+  <button onclick="showDir(4)">E: Mobile</button>
+  <button onclick="showDir(5)">F: Empty States</button>
+  <button onclick="showDir(6)">G: Skeleton Loading</button>
+  <button class="theme-toggle" onclick="toggleTheme()">◐ Toggle Dark</button>
+</div>
+
+<!-- DIRECTION A: Rail + Card Layout -->
+<div class="direction active" id="dir-0">
+  <div class="dir-label">
+    <h2>Direction A — Slim Rail + Card Grid</h2>
+    <p>Minimal nav rail (icons only), spacious card layout. Maximum content area. The confident minimal approach — everything earns its space.</p>
+  </div>
+  <div class="mock-layout">
+    <div class="mock-topbar" style="position:absolute;top:100px;left:0;right:0;">
+      <div class="mock-logo"><span class="q">◆</span> AI Learning Hub</div>
+      <input class="mock-search" placeholder="Search saves, projects..." />
+      <div class="mock-avatar">S</div>
+    </div>
+    <div style="display:flex;margin-top:48px;flex:1;">
+      <div class="mock-rail">
+        <div class="mock-rail-item active" title="Saves">📑</div>
+        <div class="mock-rail-item" title="Projects">📁</div>
+        <div class="mock-rail-item" title="Search">🔍</div>
+        <div style="flex:1"></div>
+        <div class="mock-rail-item" title="Settings">⚙️</div>
+      </div>
+      <div class="mock-main">
+        <div class="save-input">
+          <input placeholder="Paste a URL to save..." />
+          <button>Save</button>
+        </div>
+        <div class="filter-bar">
+          <span class="filter-chip active">All</span>
+          <span class="filter-chip">Podcast</span>
+          <span class="filter-chip">Blog</span>
+          <span class="filter-chip">Video</span>
+          <span class="filter-chip">Tutorial</span>
+          <span class="filter-chip badge-linked" style="background:var(--brand-soft);color:var(--brand);border-color:var(--brand);">Unlinked</span>
+        </div>
+        <div class="mock-card">
+          <div class="mock-card-title"><span class="favicon"></span>Building RAG Pipelines with LangChain — Advanced Patterns</div>
+          <div class="mock-card-meta">
+            <span>blog · medium.com</span>
+            <span>Saved 2h ago</span>
+            <span class="badge badge-linked">RAG Research</span>
+          </div>
+        </div>
+        <div class="mock-card">
+          <div class="mock-card-title"><span class="favicon"></span>Multi-Model Router Architecture Deep Dive</div>
+          <div class="mock-card-meta">
+            <span>video · youtube.com</span>
+            <span>Saved yesterday</span>
+          </div>
+          <div class="mock-card-note">"colleague mentioned this in arch review"</div>
+        </div>
+        <div class="mock-card">
+          <div class="mock-card-title"><span class="favicon"></span>Agent Framework Comparison 2026</div>
+          <div class="mock-card-meta">
+            <span>blog · github.com</span>
+            <span>Saved 3 days ago</span>
+            <span class="badge badge-type">Tutorial</span>
+          </div>
+        </div>
+        <div class="mock-card">
+          <div class="mock-card-title"><span class="favicon"></span>The Future of AI Orchestration — Podcast Ep. 142</div>
+          <div class="mock-card-meta">
+            <span>podcast · spotify.com</span>
+            <span>Saved 5 days ago</span>
+            <span class="badge badge-linked">Agent Framework</span>
+          </div>
+        </div>
+        <div class="mock-card">
+          <div class="mock-card-title"><span class="favicon"></span>GraphRAG: Knowledge Graphs Meet Retrieval</div>
+          <div class="mock-card-meta">
+            <span>blog · arxiv.org</span>
+            <span>Saved 1 week ago</span>
+            <span class="badge badge-linked">RAG Research</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="toast-demo">
+    <span class="check">✓</span> Saved. <span class="add-note">+ Add a note</span>
+  </div>
+</div>
+
+<!-- DIRECTION B: Wider Sidebar + List -->
+<div class="direction" id="dir-1">
+  <div class="dir-label">
+    <h2>Direction B — Labeled Sidebar + Card List</h2>
+    <p>Wider nav sidebar with labels. More traditional navigation pattern. Better for discoverability at the cost of content width. Good for users who prefer explicit navigation.</p>
+  </div>
+  <div class="mock-layout">
+    <div class="mock-topbar" style="position:absolute;top:100px;left:0;right:0;">
+      <div class="mock-logo"><span class="q">◆</span> AI Learning Hub</div>
+      <input class="mock-search" placeholder="Search saves, projects..." />
+      <div class="mock-avatar">S</div>
+    </div>
+    <div style="display:flex;margin-top:48px;flex:1;">
+      <div class="mock-rail-wide">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);padding:8px 12px 4px;font-weight:500;">Library</div>
+        <div class="mock-rail-wide-item active"><span class="icon">📑</span> All Saves</div>
+        <div class="mock-rail-wide-item"><span class="icon">🎧</span> Podcasts</div>
+        <div class="mock-rail-wide-item"><span class="icon">📝</span> Blogs</div>
+        <div class="mock-rail-wide-item"><span class="icon">🎬</span> Videos</div>
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);padding:16px 12px 4px;font-weight:500;">Projects</div>
+        <div class="mock-rail-wide-item"><span class="icon">🔬</span> RAG Research</div>
+        <div class="mock-rail-wide-item"><span class="icon">🤖</span> Agent Framework</div>
+        <div class="mock-rail-wide-item" style="color:var(--accent);"><span class="icon">+</span> New Project</div>
+      </div>
+      <div class="mock-main">
+        <h3>All Saves</h3>
+        <div class="filter-bar">
+          <span class="filter-chip active">Recent</span>
+          <span class="filter-chip">A-Z</span>
+          <span class="filter-chip">Unlinked</span>
+        </div>
+        <div class="mock-card">
+          <div class="mock-card-title"><span class="favicon"></span>Building RAG Pipelines with LangChain — Advanced Patterns</div>
+          <div class="mock-card-meta">
+            <span>blog · medium.com</span>
+            <span>2h ago</span>
+            <span class="badge badge-linked">RAG Research</span>
+          </div>
+        </div>
+        <div class="mock-card">
+          <div class="mock-card-title"><span class="favicon"></span>Multi-Model Router Architecture Deep Dive</div>
+          <div class="mock-card-meta">
+            <span>video · youtube.com</span>
+            <span>yesterday</span>
+          </div>
+          <div class="mock-card-note">"colleague mentioned this in arch review"</div>
+        </div>
+        <div class="mock-card">
+          <div class="mock-card-title"><span class="favicon"></span>Agent Framework Comparison 2026</div>
+          <div class="mock-card-meta">
+            <span>blog · github.com</span>
+            <span>3 days ago</span>
+            <span class="badge badge-type">Tutorial · In Progress</span>
+          </div>
+        </div>
+        <div class="mock-card">
+          <div class="mock-card-title"><span class="favicon"></span>The Future of AI Orchestration — Podcast Ep. 142</div>
+          <div class="mock-card-meta">
+            <span>podcast · spotify.com</span>
+            <span>5 days ago</span>
+            <span class="badge badge-linked">Agent Framework</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DIRECTION C: Clean Compact List -->
+<div class="direction" id="dir-2">
+  <div class="dir-label">
+    <h2>Direction C — Ultra-Compact List</h2>
+    <p>Dense list layout without card borders. Maximum information density. Scans fast. Best for Marcus-type power users with many saves. Feels like a professional tool.</p>
+  </div>
+  <div class="mock-layout">
+    <div class="mock-topbar" style="position:absolute;top:100px;left:0;right:0;">
+      <div class="mock-logo"><span class="q">◆</span> AI Learning Hub</div>
+      <input class="mock-search" placeholder="Search saves, projects..." />
+      <div class="mock-avatar">S</div>
+    </div>
+    <div style="display:flex;margin-top:48px;flex:1;">
+      <div class="mock-rail">
+        <div class="mock-rail-item active">📑</div>
+        <div class="mock-rail-item">📁</div>
+        <div class="mock-rail-item">🔍</div>
+        <div style="flex:1"></div>
+        <div class="mock-rail-item">⚙️</div>
+      </div>
+      <div class="mock-main" style="padding:16px 24px;">
+        <div class="save-input" style="margin-bottom:16px;">
+          <input placeholder="Paste a URL to save..." />
+          <button>Save</button>
+        </div>
+        <div class="filter-bar" style="margin-bottom:12px;">
+          <span class="filter-chip active" style="padding:4px 10px;font-size:12px;">All</span>
+          <span class="filter-chip" style="padding:4px 10px;font-size:12px;">Podcast</span>
+          <span class="filter-chip" style="padding:4px 10px;font-size:12px;">Blog</span>
+          <span class="filter-chip" style="padding:4px 10px;font-size:12px;">Video</span>
+        </div>
+        <div class="mock-card-compact">
+          <span class="favicon"></span>
+          <span class="title">Building RAG Pipelines with LangChain — Advanced Patterns</span>
+          <span class="badge badge-linked" style="font-size:10px;">RAG Research</span>
+          <span class="meta">medium.com · 2h</span>
+        </div>
+        <div class="mock-card-compact">
+          <span class="favicon"></span>
+          <span class="title">Multi-Model Router Architecture Deep Dive</span>
+          <span class="meta">youtube.com · 1d</span>
+        </div>
+        <div class="mock-card-compact">
+          <span class="favicon"></span>
+          <span class="title">Agent Framework Comparison 2026</span>
+          <span class="badge badge-type" style="font-size:10px;">Tutorial</span>
+          <span class="meta">github.com · 3d</span>
+        </div>
+        <div class="mock-card-compact">
+          <span class="favicon"></span>
+          <span class="title">The Future of AI Orchestration — Ep. 142</span>
+          <span class="badge badge-linked" style="font-size:10px;">Agent Framework</span>
+          <span class="meta">spotify.com · 5d</span>
+        </div>
+        <div class="mock-card-compact">
+          <span class="favicon"></span>
+          <span class="title">GraphRAG: Knowledge Graphs Meet Retrieval</span>
+          <span class="badge badge-linked" style="font-size:10px;">RAG Research</span>
+          <span class="meta">arxiv.org · 1w</span>
+        </div>
+        <div class="mock-card-compact">
+          <span class="favicon"></span>
+          <span class="title">Fine-tuning vs RAG: When to Use What</span>
+          <span class="meta">huggingface.co · 1w</span>
+        </div>
+        <div class="mock-card-compact">
+          <span class="favicon"></span>
+          <span class="title">Building Production AI Agents — O'Reilly</span>
+          <span class="badge badge-type" style="font-size:10px;">Tutorial</span>
+          <span class="meta">oreilly.com · 2w</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DIRECTION D: Project Workspace -->
+<div class="direction" id="dir-3">
+  <div class="dir-label">
+    <h2>Direction D — Project Workspace (Split Pane)</h2>
+    <p>Marcus's "living notebook" — linked resources on the left, Markdown notes on the right. Information-dense but organized. The screenshot-worthy view.</p>
+  </div>
+  <div class="mock-layout">
+    <div class="mock-topbar" style="position:absolute;top:100px;left:0;right:0;">
+      <div class="mock-logo"><span class="q">◆</span> AI Learning Hub</div>
+      <input class="mock-search" placeholder="Search saves, projects..." />
+      <div class="mock-avatar">S</div>
+    </div>
+    <div style="display:flex;margin-top:48px;flex:1;">
+      <div class="mock-rail">
+        <div class="mock-rail-item">📑</div>
+        <div class="mock-rail-item active">📁</div>
+        <div class="mock-rail-item">🔍</div>
+        <div style="flex:1"></div>
+        <div class="mock-rail-item">⚙️</div>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;">
+        <div class="project-header" style="padding:20px 32px;border-bottom:1px solid var(--muted-lighter);">
+          <h3 style="font-size:20px;margin-bottom:8px;">Knowledge Graph RAG Experiment</h3>
+          <div style="display:flex;gap:12px;align-items:center;">
+            <span class="badge badge-status building">● Building</span>
+            <span style="font-size:13px;color:var(--muted);">RAG Research</span>
+            <span style="font-size:13px;color:var(--muted);">4 resources · 2 notes</span>
+            <span style="font-size:13px;color:var(--muted);">Updated 2h ago</span>
+          </div>
+        </div>
+        <div class="workspace-split">
+          <div class="workspace-resources">
+            <div style="font-size:13px;font-weight:500;color:var(--muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.03em;">Linked Resources</div>
+            <div class="mock-card" style="padding:12px;">
+              <div class="mock-card-title" style="font-size:14px;"><span class="favicon"></span>Building RAG Pipelines — Advanced Patterns</div>
+              <div class="mock-card-meta"><span>blog · medium.com</span></div>
+            </div>
+            <div class="mock-card" style="padding:12px;">
+              <div class="mock-card-title" style="font-size:14px;"><span class="favicon"></span>GraphRAG: Knowledge Graphs Meet Retrieval</div>
+              <div class="mock-card-meta"><span>blog · arxiv.org</span></div>
+            </div>
+            <div class="mock-card" style="padding:12px;">
+              <div class="mock-card-title" style="font-size:14px;"><span class="favicon"></span>Hybrid Retrieval Strategies Tutorial</div>
+              <div class="mock-card-meta"><span class="badge badge-type">Tutorial · In Progress</span></div>
+            </div>
+            <div class="mock-card" style="padding:12px;">
+              <div class="mock-card-title" style="font-size:14px;"><span class="favicon"></span>Multi-Model Router Architecture Deep Dive</div>
+              <div class="mock-card-meta"><span>video · youtube.com</span></div>
+            </div>
+            <div style="text-align:center;padding:16px;">
+              <span style="font-size:13px;color:var(--accent);cursor:pointer;">+ Link a save</span>
+            </div>
+          </div>
+          <div class="workspace-notes">
+            <div style="font-size:13px;font-weight:500;color:var(--muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.03em;">Notes</div>
+            <div style="font-size:14px;line-height:1.7;color:var(--fg);">
+              <p style="margin-bottom:12px;"><strong>Decision: GraphRAG vs Standard RAG</strong></p>
+              <p style="margin-bottom:12px;">After working through this with Claude, I'm leaning toward a hybrid approach. Standard RAG for simple factual lookups, GraphRAG for questions that require understanding relationships between entities.</p>
+              <p style="margin-bottom:12px;"><strong>Key tradeoffs:</strong></p>
+              <ul style="padding-left:20px;margin-bottom:12px;">
+                <li style="margin-bottom:4px;">GraphRAG: Better for "how does X relate to Y?" queries</li>
+                <li style="margin-bottom:4px;">Standard RAG: Faster, simpler, cheaper for factual retrieval</li>
+                <li style="margin-bottom:4px;">Hybrid: Use graph for complex queries, vector for simple ones</li>
+              </ul>
+              <p style="color:var(--muted);font-size:13px;font-style:italic;">— From Claude conversation, March 5</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DIRECTION E: Mobile -->
+<div class="direction" id="dir-4">
+  <div class="dir-label">
+    <h2>Direction E — Mobile Experience</h2>
+    <p>Maya's phone view. Bottom nav, full-width cards, touch-friendly. Capture-focused. The earned interface in action — Projects appears in nav because this user has projects.</p>
+  </div>
+  <div style="display:flex;gap:32px;justify-content:center;flex-wrap:wrap;padding:0 48px 48px;">
+    <!-- Phone 1: Saves list -->
+    <div>
+      <p style="text-align:center;font-size:13px;color:var(--muted);margin-bottom:8px;">Saves List (has projects)</p>
+      <div class="mobile-frame">
+        <div class="mobile-status">9:41 AM</div>
+        <div class="mobile-content" style="padding:12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+            <span style="font-size:18px;font-weight:600;">Saves</span>
+            <span style="font-size:13px;color:var(--accent);cursor:pointer;">+ Save URL</span>
+          </div>
+          <div class="filter-bar" style="margin-bottom:16px;">
+            <span class="filter-chip active" style="font-size:12px;padding:4px 10px;">All</span>
+            <span class="filter-chip" style="font-size:12px;padding:4px 10px;">Blog</span>
+            <span class="filter-chip" style="font-size:12px;padding:4px 10px;">Podcast</span>
+            <span class="filter-chip" style="font-size:12px;padding:4px 10px;">Video</span>
+          </div>
+          <div class="mock-card" style="padding:12px;">
+            <div class="mock-card-title" style="font-size:14px;"><span class="favicon"></span>Building RAG Pipelines — Advanced</div>
+            <div class="mock-card-meta" style="font-size:12px;"><span>medium.com · 2h ago</span></div>
+          </div>
+          <div class="mock-card" style="padding:12px;">
+            <div class="mock-card-title" style="font-size:14px;"><span class="favicon"></span>Multi-Model Router Architecture</div>
+            <div class="mock-card-meta" style="font-size:12px;"><span>youtube.com · 1d ago</span></div>
+            <div class="mock-card-note" style="font-size:12px;padding-left:24px;">"from standup re: routing"</div>
+          </div>
+          <div class="mock-card" style="padding:12px;">
+            <div class="mock-card-title" style="font-size:14px;"><span class="favicon"></span>Agent Framework Comparison</div>
+            <div class="mock-card-meta" style="font-size:12px;"><span>github.com · 3d</span> <span class="badge badge-type" style="font-size:10px;">Tutorial</span></div>
+          </div>
+        </div>
+        <div class="mobile-bottom-nav">
+          <div class="mobile-bottom-item active"><span class="icon">📑</span>Saves</div>
+          <div class="mobile-bottom-item"><span class="icon">📁</span>Projects</div>
+          <div class="mobile-bottom-item"><span class="icon">🔍</span>Search</div>
+          <div class="mobile-bottom-item"><span class="icon">👤</span>Profile</div>
+        </div>
+      </div>
+    </div>
+    <!-- Phone 2: New user -->
+    <div>
+      <p style="text-align:center;font-size:13px;color:var(--muted);margin-bottom:8px;">New User (no projects yet)</p>
+      <div class="mobile-frame">
+        <div class="mobile-status">9:41 AM</div>
+        <div class="mobile-content" style="padding:12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+            <span style="font-size:18px;font-weight:600;">Saves</span>
+            <span style="font-size:13px;color:var(--accent);cursor:pointer;">+ Save URL</span>
+          </div>
+          <div class="mock-card" style="padding:12px;">
+            <div class="mock-card-title" style="font-size:14px;"><span class="favicon"></span>AI Automation for Your Day Job</div>
+            <div class="mock-card-meta" style="font-size:12px;"><span>Starter project · 3 resources</span></div>
+          </div>
+          <div class="mock-card" style="padding:12px;">
+            <div class="mock-card-title" style="font-size:14px;"><span class="favicon"></span>Build a Custom GPT</div>
+            <div class="mock-card-meta" style="font-size:12px;"><span>Starter project · 4 resources</span></div>
+          </div>
+          <div style="border-top:1px solid var(--muted-lighter);margin:16px 0;"></div>
+          <div style="font-size:13px;color:var(--muted);margin-bottom:12px;">Your saves will appear here</div>
+        </div>
+        <div class="mobile-bottom-nav">
+          <div class="mobile-bottom-item active"><span class="icon">📑</span>Saves</div>
+          <div class="mobile-bottom-item"><span class="icon">🔍</span>Search</div>
+          <div class="mobile-bottom-item"><span class="icon">👤</span>Profile</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DIRECTION F: Empty States -->
+<div class="direction" id="dir-5">
+  <div class="dir-label">
+    <h2>Direction F — Empty States</h2>
+    <p>How the app feels before content exists. Inspirational, not accusatory. Shows what's possible, invites action.</p>
+  </div>
+  <div class="mock-layout">
+    <div class="mock-topbar" style="position:absolute;top:100px;left:0;right:0;">
+      <div class="mock-logo"><span class="q">◆</span> AI Learning Hub</div>
+      <input class="mock-search" placeholder="Search saves, projects..." />
+      <div class="mock-avatar">S</div>
+    </div>
+    <div style="display:flex;margin-top:48px;flex:1;">
+      <div class="mock-rail">
+        <div class="mock-rail-item active">📑</div>
+        <div class="mock-rail-item">🔍</div>
+        <div style="flex:1"></div>
+        <div class="mock-rail-item">⚙️</div>
+      </div>
+      <div class="mock-main">
+        <div class="save-input">
+          <input placeholder="Paste a URL to save..." />
+          <button>Save</button>
+        </div>
+        <div class="empty-state">
+          <div class="icon">📑</div>
+          <h4>Save your first resource</h4>
+          <p>Paste a URL above, or share a link from any app on your phone. We'll take it from here.</p>
+        </div>
+        <div style="max-width:480px;margin:32px auto 0;">
+          <div style="font-size:13px;font-weight:500;color:var(--muted);margin-bottom:12px;">Explore starter projects</div>
+          <div class="mock-card" style="border-color:var(--brand-soft);">
+            <div class="mock-card-title"><span style="color:var(--brand);">◆</span> Build a Custom GPT</div>
+            <div class="mock-card-meta"><span>4 curated resources · Step-by-step guide</span></div>
+          </div>
+          <div class="mock-card" style="border-color:var(--brand-soft);">
+            <div class="mock-card-title"><span style="color:var(--brand);">◆</span> AI Automation for Your Day Job</div>
+            <div class="mock-card-meta"><span>3 curated resources · Real-world examples</span></div>
+          </div>
+          <div class="mock-card" style="border-color:var(--brand-soft);">
+            <div class="mock-card-title"><span style="color:var(--brand);">◆</span> Build a RAG Pipeline</div>
+            <div class="mock-card-meta"><span>5 curated resources · From zero to production</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DIRECTION G: Skeleton Loading -->
+<div class="direction" id="dir-6">
+  <div class="dir-label">
+    <h2>Direction G — Skeleton Loading States</h2>
+    <p>What the app looks like while content loads. Layout appears instantly, content fills in. Feels fast even when it isn't.</p>
+  </div>
+  <div class="mock-layout">
+    <div class="mock-topbar" style="position:absolute;top:100px;left:0;right:0;">
+      <div class="mock-logo"><span class="q">◆</span> AI Learning Hub</div>
+      <input class="mock-search" placeholder="Search saves, projects..." />
+      <div class="mock-avatar">S</div>
+    </div>
+    <div style="display:flex;margin-top:48px;flex:1;">
+      <div class="mock-rail">
+        <div class="mock-rail-item active">📑</div>
+        <div class="mock-rail-item">📁</div>
+        <div class="mock-rail-item">🔍</div>
+        <div style="flex:1"></div>
+        <div class="mock-rail-item">⚙️</div>
+      </div>
+      <div class="mock-main">
+        <div class="save-input">
+          <input placeholder="Paste a URL to save..." />
+          <button>Save</button>
+        </div>
+        <div class="filter-bar">
+          <span class="filter-chip active">All</span>
+          <span class="filter-chip">Podcast</span>
+          <span class="filter-chip">Blog</span>
+        </div>
+        <div class="mock-card">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <div class="skeleton" style="width:16px;height:16px;border-radius:3px;"></div>
+            <div class="skeleton skeleton-line" style="width:70%;margin:0;"></div>
+          </div>
+          <div class="skeleton skeleton-line short" style="height:12px;"></div>
+        </div>
+        <div class="mock-card">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <div class="skeleton" style="width:16px;height:16px;border-radius:3px;"></div>
+            <div class="skeleton skeleton-line med" style="margin:0;"></div>
+          </div>
+          <div class="skeleton skeleton-line short" style="height:12px;"></div>
+        </div>
+        <div class="mock-card">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <div class="skeleton" style="width:16px;height:16px;border-radius:3px;"></div>
+            <div class="skeleton skeleton-line" style="width:55%;margin:0;"></div>
+          </div>
+          <div class="skeleton skeleton-line short" style="height:12px;"></div>
+        </div>
+        <div class="mock-card">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <div class="skeleton" style="width:16px;height:16px;border-radius:3px;"></div>
+            <div class="skeleton skeleton-line" style="width:65%;margin:0;"></div>
+          </div>
+          <div class="skeleton skeleton-line short" style="height:12px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showDir(n) {
+  document.querySelectorAll('.direction').forEach((d,i) => {
+    d.classList.toggle('active', i===n);
+  });
+  document.querySelectorAll('.dir-nav button:not(.theme-toggle)').forEach((b,i) => {
+    b.classList.toggle('active', i===n);
+  });
+}
+function toggleTheme() {
+  document.body.classList.toggle('dark');
+}
+</script>
+</body>
+</html>
