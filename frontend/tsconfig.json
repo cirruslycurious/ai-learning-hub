@@ -17,8 +17,10 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".",
     "paths": {
-      "@ai-learning-hub/types": ["../backend/shared/types/src"]
+      "@ai-learning-hub/types": ["../backend/shared/types/src"],
+      "@/*": ["./src/*"]
     }
   },
   "include": ["src"],

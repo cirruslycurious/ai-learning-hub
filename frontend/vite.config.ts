@@ -17,6 +17,7 @@ export default defineConfig({
         __dirname,
         "../backend/shared/types/src"
       ),
+      "@": path.resolve(__dirname, "src"),
     },
   },
 });
