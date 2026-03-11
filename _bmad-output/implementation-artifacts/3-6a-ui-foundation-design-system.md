@@ -1,7 +1,7 @@
 ---
 id: "3.6a"
 title: "UI Foundation & Design System Setup"
-status: review
+status: done
 depends_on: []
 touches:
   - frontend/src/lib/content-type-icons.ts
