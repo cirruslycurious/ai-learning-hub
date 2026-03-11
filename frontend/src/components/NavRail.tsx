@@ -147,6 +147,7 @@ export function NavRail() {
             </span>
           </button>
         ))}
+        <ThemeToggle />
       </nav>
     </>
   );

@@ -15,13 +15,14 @@ beforeEach(() => {
 });
 
 describe("showToast", () => {
-  it("success calls toast with Quetzal Green class and 4s duration", () => {
+  it("success calls toast with Quetzal Green class, Check icon, and 4s duration", () => {
     showToast.success("Saved!");
     expect(toast).toHaveBeenCalledWith(
       "Saved!",
       expect.objectContaining({
         duration: 4000,
         className: "quetzal-glow",
+        icon: expect.anything(),
       })
     );
   });

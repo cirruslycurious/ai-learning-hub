@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { Check } from "lucide-react";
 
 export const showToast = {
   /** Success toast with Quetzal Green glow, auto-dismisses at 4s */
@@ -6,6 +7,7 @@ export const showToast = {
     toast(message, {
       duration: 4000,
       className: "quetzal-glow",
+      icon: <Check className="w-4 h-4 text-primary" />,
     });
   },
 
