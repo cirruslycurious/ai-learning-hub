@@ -36,21 +36,9 @@ describe("App", () => {
     expect(screen.getByText(/Build something real/)).toBeInTheDocument();
   });
 
-  it("renders error boundary fallback when a child throws", () => {
-    // Suppress console.error for the expected error
-    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-
-    function Bomb(): React.ReactElement {
-      throw new Error("Test explosion");
-    }
-
-    // Render App with a route that will trigger the error boundary
-    // We test ErrorBoundary directly since it wraps everything
+  it("renders error boundary without crashing on normal render", () => {
     const { container } = render(<App />);
-
-    // ErrorBoundary is tested indirectly - verify it doesn't crash on normal render
     expect(container).toBeTruthy();
-    spy.mockRestore();
   });
 
   it("renders protected routes with sign-in redirect for signed-out users", () => {
