@@ -15,6 +15,7 @@ import {
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import quetzalLogo from "@/assets/quetzal-logo.png";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface NavItem {
   id: string;
@@ -116,6 +117,7 @@ export function NavRail() {
               </TooltipContent>
             </Tooltip>
           ))}
+          <ThemeToggle />
         </div>
       </nav>
 

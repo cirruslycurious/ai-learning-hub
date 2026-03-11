@@ -10,8 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useApp } from "@/lib/store";
 import { useCreateSave } from "@/api/saves";
-import { toast } from "sonner";
-import { Check } from "lucide-react";
+import { showToast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
 export function SaveModal() {
@@ -54,11 +53,7 @@ export function SaveModal() {
       {
         onSuccess: () => {
           setSaveModalOpen(false);
-          toast("Saved.", {
-            icon: <Check className="w-4 h-4 text-primary" />,
-            className: "quetzal-glow",
-            duration: 4000,
-          });
+          showToast.success("Saved.");
         },
         onError: (err) => {
           setError(err.message || "Failed to save");

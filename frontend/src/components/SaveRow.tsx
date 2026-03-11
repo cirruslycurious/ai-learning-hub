@@ -1,31 +1,11 @@
 import { formatDistanceToNowStrict } from "date-fns";
-import {
-  FileText,
-  Video,
-  Github,
-  GraduationCap,
-  Podcast,
-  BookOpen,
-  Link2,
-  ExternalLink,
-  FolderPlus,
-} from "lucide-react";
+import { ExternalLink, FolderPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { Resource } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-
-const TYPE_ICONS: Record<string, React.ElementType> = {
-  article: FileText,
-  video: Video,
-  github_repo: Github,
-  repository: Github,
-  course: GraduationCap,
-  podcast: Podcast,
-  documentation: BookOpen,
-  other: Link2,
-};
+import { getContentTypeIcon } from "@/lib/content-type-icons";
 
 const TUTORIAL_INDICATOR: Record<string, { label: string; className: string }> =
   {
@@ -65,7 +45,7 @@ export function SaveRow({
     );
   }
 
-  const Icon = TYPE_ICONS[resource.contentType] || Link2;
+  const Icon = getContentTypeIcon(resource.contentType);
   const timeAgo = formatDistanceToNowStrict(new Date(resource.createdAt), {
     addSuffix: false,
   });
