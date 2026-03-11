@@ -121,6 +121,33 @@ function getTraceId(): string | undefined {
 }
 
 /**
+ * CORS headers for all Lambda responses.
+ * API Gateway CORS config only handles OPTIONS preflight; actual responses
+ * from Lambda integrations must include these headers for the browser to
+ * read the response cross-origin.
+ */
+const CORS_HEADERS: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "Content-Type,Authorization,x-api-key,X-Amz-Date,X-Api-Key,X-Amz-Security-Token,Idempotency-Key,If-Match,X-Agent-ID",
+  "Access-Control-Allow-Methods": "OPTIONS,GET,PUT,POST,DELETE,PATCH,HEAD",
+  "Access-Control-Expose-Headers":
+    "X-Request-Id,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset,X-Agent-ID,X-Idempotent-Replayed,X-Idempotency-Status,Retry-After",
+};
+
+function addCorsHeaders(
+  response: APIGatewayProxyResult
+): APIGatewayProxyResult {
+  return {
+    ...response,
+    headers: {
+      ...CORS_HEADERS,
+      ...(response.headers ?? {}),
+    },
+  };
+}
+
+/**
  * Add X-Agent-ID echo header to a response (Story 3.2.4).
  * Returns new response object without mutating the original.
  */
@@ -285,7 +312,9 @@ export function wrapHandler<T = unknown>(
                 result,
                 options.rateLimit.windowSeconds
               );
-              return echoAgentId(errorResponse, agentIdentity.agentId);
+              return addCorsHeaders(
+                echoAgentId(errorResponse, agentIdentity.agentId)
+              );
             }
 
             rateLimitResult = result;
@@ -357,7 +386,9 @@ export function wrapHandler<T = unknown>(
                 result,
                 options.secondaryRateLimit.windowSeconds
               );
-              return echoAgentId(errorResponse, agentIdentity.agentId);
+              return addCorsHeaders(
+                echoAgentId(errorResponse, agentIdentity.agentId)
+              );
             }
           } catch (err) {
             rateLimitStatus.available = false;
@@ -383,7 +414,7 @@ export function wrapHandler<T = unknown>(
           );
           if (cachedResponse) {
             logger.timed("Request completed (idempotent replay)", startTime);
-            return cachedResponse;
+            return addCorsHeaders(cachedResponse);
           }
         }
       }
@@ -510,7 +541,7 @@ export function wrapHandler<T = unknown>(
       }
 
       // Story 3.2.4: Echo X-Agent-ID in response when present
-      return echoAgentId(finalResult, agentIdentity.agentId);
+      return addCorsHeaders(echoAgentId(finalResult, agentIdentity.agentId));
     } catch (error) {
       const errorResponse = handleError(error, requestId, logger);
 
@@ -543,7 +574,7 @@ export function wrapHandler<T = unknown>(
       }
 
       // Story 3.2.4: Echo X-Agent-ID in error response when present
-      return echoAgentId(errorResponse, agentIdentity.agentId);
+      return addCorsHeaders(echoAgentId(errorResponse, agentIdentity.agentId));
     }
   };
 }

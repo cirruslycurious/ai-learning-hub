@@ -1,15 +1,16 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-
-const mockGetToken = vi.fn();
 
 vi.mock("@clerk/clerk-react", () => ({
+  ClerkProvider: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
   SignedIn: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   SignedOut: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  RedirectToSignIn: () => <div data-testid="redirect-to-sign-in" />,
   SignInButton: () => <button>Sign in</button>,
   UserButton: () => <div data-testid="user-button" />,
-  useAuth: () => ({ getToken: mockGetToken }),
+  useAuth: () => ({ getToken: vi.fn().mockResolvedValue("test-token") }),
 }));
 
 import App from "../src/App";
@@ -17,43 +18,20 @@ import App from "../src/App";
 afterEach(cleanup);
 
 describe("App", () => {
-  it("renders title", () => {
+  it("renders the homepage with the product tagline", () => {
     render(<App />);
-    expect(screen.getByText(/AI Learning Hub/)).toBeInTheDocument();
+    expect(screen.getByText(/Save what you find/)).toBeInTheDocument();
   });
 
-  it("copies JWT to clipboard when Copy JWT is clicked", async () => {
-    const user = userEvent.setup();
-    mockGetToken.mockResolvedValue("test-jwt-token");
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, "clipboard", {
-      value: { writeText },
-      writable: true,
-      configurable: true,
-    });
-
+  it("renders the hero CTA", () => {
     render(<App />);
-    await user.click(screen.getByText("Copy JWT"));
-
-    expect(mockGetToken).toHaveBeenCalled();
-    expect(writeText).toHaveBeenCalledWith("test-jwt-token");
-    expect(screen.getByText("Copied!")).toBeInTheDocument();
+    expect(screen.getByText(/Get Started — Free/)).toBeInTheDocument();
   });
 
-  it("does not copy when getToken returns null", async () => {
-    const user = userEvent.setup();
-    mockGetToken.mockResolvedValue(null);
-    const writeText = vi.fn();
-    Object.defineProperty(navigator, "clipboard", {
-      value: { writeText },
-      writable: true,
-      configurable: true,
-    });
-
+  it("renders the how-it-works section", () => {
     render(<App />);
-    await user.click(screen.getByText("Copy JWT"));
-
-    expect(writeText).not.toHaveBeenCalled();
-    expect(screen.getByText("Copy JWT")).toBeInTheDocument();
+    expect(screen.getByText(/Save from anywhere/)).toBeInTheDocument();
+    expect(screen.getByText(/Organize when you/)).toBeInTheDocument();
+    expect(screen.getByText(/Build something real/)).toBeInTheDocument();
   });
 });

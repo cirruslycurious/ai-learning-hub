@@ -9,12 +9,12 @@ import { useMemo } from "react";
 import { useAuth } from "@clerk/clerk-react";
 import { ApiClient } from "./client";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL as string;
+const API_BASE_URL =
+  (import.meta.env.VITE_API_URL as string | undefined) ??
+  "http://localhost:3000/dev";
 
-if (!API_BASE_URL) {
-  throw new Error(
-    "VITE_API_URL environment variable is required. See .env.example."
-  );
+function getBaseUrl(): string {
+  return API_BASE_URL;
 }
 
 /**
@@ -22,9 +22,6 @@ if (!API_BASE_URL) {
  */
 export function useApiClient(): ApiClient {
   const { getToken } = useAuth();
-
-  return useMemo(
-    () => new ApiClient(API_BASE_URL, () => getToken()),
-    [getToken]
-  );
+  const baseUrl = getBaseUrl();
+  return useMemo(() => new ApiClient(baseUrl, getToken), [getToken, baseUrl]);
 }

@@ -42,25 +42,37 @@ export class ApiClient {
     return this.request<T>("GET", path);
   }
 
-  async post<T>(path: string, body?: unknown): Promise<T> {
-    return this.request<T>("POST", path, body);
+  async post<T>(
+    path: string,
+    body?: unknown,
+    extraHeaders?: Record<string, string>
+  ): Promise<T> {
+    return this.request<T>("POST", path, body, extraHeaders);
   }
 
-  async patch<T>(path: string, body?: unknown): Promise<T> {
-    return this.request<T>("PATCH", path, body);
+  async patch<T>(
+    path: string,
+    body?: unknown,
+    extraHeaders?: Record<string, string>
+  ): Promise<T> {
+    return this.request<T>("PATCH", path, body, extraHeaders);
   }
 
-  async delete(path: string): Promise<void> {
-    await this.request<void>("DELETE", path);
+  async delete(
+    path: string,
+    extraHeaders?: Record<string, string>
+  ): Promise<void> {
+    await this.request<void>("DELETE", path, undefined, extraHeaders);
   }
 
   private async request<T>(
     method: string,
     path: string,
-    body?: unknown
+    body?: unknown,
+    extraHeaders?: Record<string, string>
   ): Promise<T> {
     const token = await this.getToken();
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = { ...extraHeaders };
     if (body !== undefined) {
       headers["Content-Type"] = "application/json";
     }

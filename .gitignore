@@ -64,3 +64,6 @@ secrets-*.json
 gitleaks-*.json
 test-output*.txt
 test-results*.txt
+build-results.txt
+lint-results.txt
+test_output.txt

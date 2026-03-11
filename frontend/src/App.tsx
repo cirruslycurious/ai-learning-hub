@@ -1,73 +1,91 @@
-import { useState } from "react";
-import {
-  SignedIn,
-  SignedOut,
-  SignInButton,
-  UserButton,
-  useAuth,
-} from "@clerk/clerk-react";
+import React from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/clerk-react";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { AppProvider } from "@/lib/store";
+import { AppLayout } from "@/components/AppLayout";
+import Homepage from "@/pages/Homepage";
+import Library from "@/pages/Library";
+import Projects from "@/pages/Projects";
+import ProjectWorkspace from "@/pages/ProjectWorkspace";
+import NotFound from "@/pages/NotFound";
 
-function JwtCopier() {
-  const { getToken } = useAuth();
-  const [copied, setCopied] = useState(false);
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      retry: 1,
+    },
+  },
+});
 
-  const copyJwt = async () => {
-    const token = await getToken();
-    if (token) {
-      await navigator.clipboard.writeText(token);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ color: "red", padding: 20, fontFamily: "monospace" }}>
+          <h2>Something went wrong</h2>
+          <pre style={{ whiteSpace: "pre-wrap" }}>
+            {this.state.error.message}
+          </pre>
+        </div>
+      );
     }
-  };
-
-  return (
-    <button
-      onClick={copyJwt}
-      style={{
-        padding: "8px 16px",
-        background: copied ? "#22c55e" : "#3b82f6",
-        color: "white",
-        border: "none",
-        borderRadius: "6px",
-        cursor: "pointer",
-        fontSize: "14px",
-      }}
-    >
-      {copied ? "Copied!" : "Copy JWT"}
-    </button>
-  );
+    return this.props.children;
+  }
 }
 
-function App() {
+/** Wraps children so only signed-in users see them; others get redirected to Clerk sign-in. */
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ padding: "32px", fontFamily: "system-ui, sans-serif" }}>
-      <h1 style={{ fontSize: "24px", fontWeight: 600 }}>AI Learning Hub</h1>
+    <>
+      <SignedIn>{children}</SignedIn>
       <SignedOut>
-        <p style={{ marginTop: "16px", color: "#666" }}>
-          Sign in to get a JWT for smoke testing.
-        </p>
-        <div style={{ marginTop: "12px" }}>
-          <SignInButton />
-        </div>
+        <RedirectToSignIn />
       </SignedOut>
-      <SignedIn>
-        <div
-          style={{
-            marginTop: "16px",
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-          }}
-        >
-          <UserButton />
-          <JwtCopier />
-        </div>
-        <p style={{ marginTop: "12px", color: "#666", fontSize: "14px" }}>
-          Click "Copy JWT" then use it with the smoke test.
-        </p>
-      </SignedIn>
-    </div>
+    </>
   );
 }
+
+const App = () => (
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <AppProvider>
+          <Sonner position="bottom-center" />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Homepage />} />
+              <Route
+                element={
+                  <ProtectedRoute>
+                    <AppLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route path="/app" element={<Library />} />
+                <Route path="/projects" element={<Projects />} />
+                <Route path="/projects/:id" element={<ProjectWorkspace />} />
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </AppProvider>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
+);
 
 export default App;
