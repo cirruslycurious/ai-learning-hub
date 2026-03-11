@@ -93,7 +93,7 @@ development_status:
   3-4-save-filtering-sorting: done # PR #190 created 2026-02-23
   3-5-ios-shortcut-capture: ready-for-dev
   3-6-pwa-share-target: ready-for-dev
-  3-6a-ui-foundation-design-system: ready-for-dev
+  3-6a-ui-foundation-design-system: done # PR #276 — dual-accent palette, toast/icon/card/error-boundary/theme-toggle, 79 tests
   3-7-saves-list-page: backlog
   3-8-save-filtering-sorting-ui: backlog
   3-9-save-actions-feedback: backlog

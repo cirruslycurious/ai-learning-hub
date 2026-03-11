@@ -1,7 +1,7 @@
 ---
 id: "3.6a"
 title: "UI Foundation & Design System Setup"
-status: ready-for-dev
+status: done
 depends_on: []
 touches:
   - frontend/src/lib/content-type-icons.ts
@@ -41,25 +41,25 @@ The Quetzal frontend redesign (PR #273, merged to main) delivered the majority o
 
 ### What Already Exists (DO NOT RECREATE)
 
-| Component / Feature | Location | Status |
-|---|---|---|
-| Tailwind CSS + design tokens | `frontend/src/index.css`, `tailwind.config.js` | Done |
-| Light + dark mode themes | `frontend/src/index.css` (CSS variables) | Done |
-| 13 shadcn/Radix UI primitives | `frontend/src/components/ui/` (button, badge, dialog, input, label, scroll-area, select, separator, sheet, skeleton, sonner, tabs, tooltip) | Done |
-| AppLayout (responsive wrapper) | `frontend/src/components/AppLayout.tsx` | Done |
-| NavRail (desktop rail + mobile bottom nav) | `frontend/src/components/NavRail.tsx` | Done |
-| SaveModal (paste-and-go URL capture) | `frontend/src/components/SaveModal.tsx` | Done |
-| DetailPanel (slide-in sheet) | `frontend/src/components/DetailPanel.tsx` | Done |
-| SaveRow (list item with type icon) | `frontend/src/components/SaveRow.tsx` | Done |
-| EmptyState (library/projects/search) | `frontend/src/components/EmptyState.tsx` | Done |
-| Sonner toast (mounted, styled) | `frontend/src/components/ui/sonner.tsx` | Done |
-| `cn()` utility | `frontend/src/lib/utils.ts` | Done |
-| `useIsMobile()` hook | `frontend/src/hooks/use-mobile.tsx` | Done |
-| Inter font + typography scale | `frontend/src/index.css` | Done |
-| Lucide icons (28+ used) | Various components | Done |
-| Clerk auth integration | `frontend/src/main.tsx`, `api/` | Done |
-| React Query setup | `frontend/src/App.tsx` | Done |
-| Routing (5 pages) | `frontend/src/App.tsx` | Done |
+| Component / Feature                        | Location                                                                                                                                    | Status |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| Tailwind CSS + design tokens               | `frontend/src/index.css`, `tailwind.config.js`                                                                                              | Done   |
+| Light + dark mode themes                   | `frontend/src/index.css` (CSS variables)                                                                                                    | Done   |
+| 13 shadcn/Radix UI primitives              | `frontend/src/components/ui/` (button, badge, dialog, input, label, scroll-area, select, separator, sheet, skeleton, sonner, tabs, tooltip) | Done   |
+| AppLayout (responsive wrapper)             | `frontend/src/components/AppLayout.tsx`                                                                                                     | Done   |
+| NavRail (desktop rail + mobile bottom nav) | `frontend/src/components/NavRail.tsx`                                                                                                       | Done   |
+| SaveModal (paste-and-go URL capture)       | `frontend/src/components/SaveModal.tsx`                                                                                                     | Done   |
+| DetailPanel (slide-in sheet)               | `frontend/src/components/DetailPanel.tsx`                                                                                                   | Done   |
+| SaveRow (list item with type icon)         | `frontend/src/components/SaveRow.tsx`                                                                                                       | Done   |
+| EmptyState (library/projects/search)       | `frontend/src/components/EmptyState.tsx`                                                                                                    | Done   |
+| Sonner toast (mounted, styled)             | `frontend/src/components/ui/sonner.tsx`                                                                                                     | Done   |
+| `cn()` utility                             | `frontend/src/lib/utils.ts`                                                                                                                 | Done   |
+| `useIsMobile()` hook                       | `frontend/src/hooks/use-mobile.tsx`                                                                                                         | Done   |
+| Inter font + typography scale              | `frontend/src/index.css`                                                                                                                    | Done   |
+| Lucide icons (28+ used)                    | Various components                                                                                                                          | Done   |
+| Clerk auth integration                     | `frontend/src/main.tsx`, `api/`                                                                                                             | Done   |
+| React Query setup                          | `frontend/src/App.tsx`                                                                                                                      | Done   |
+| Routing (5 pages)                          | `frontend/src/App.tsx`                                                                                                                      | Done   |
 
 ### What Remains (THIS STORY'S SCOPE)
 
@@ -89,56 +89,56 @@ The Quetzal frontend redesign (PR #273, merged to main) delivered the majority o
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Align color tokens with UX spec dual-accent palette (AC: 1)
-  - [ ] 1.1 Update `--accent` in `index.css` to Indigo Ink hsl values for both light/dark
-  - [ ] 1.2 Ensure `--brand` maps to Quetzal Green (already close, verify exact values)
-  - [ ] 1.3 Add `--accent-soft` for indigo hover/selected states
-  - [ ] 1.4 Verify button variants use accent (indigo) not brand (quetzal) for primary
-  - [ ] 1.5 Verify destructive stays red, success uses brand/quetzal
+- [x] Task 1: Align color tokens with UX spec dual-accent palette (AC: 1)
+  - [x] 1.1 Update `--accent` in `index.css` to Indigo Ink hsl values for both light/dark
+  - [x] 1.2 Ensure `--brand` maps to Quetzal Green (already close, verify exact values)
+  - [x] 1.3 Add `--accent-soft` for indigo hover/selected states
+  - [x] 1.4 Verify button variants use accent (indigo) not brand (quetzal) for primary
+  - [x] 1.5 Verify destructive stays red, success uses brand/quetzal
 
-- [ ] Task 2: Extract content-type icon mapping (AC: 3)
-  - [ ] 2.1 Create `frontend/src/lib/content-type-icons.ts` with `CONTENT_TYPE_ICONS` map
-  - [ ] 2.2 Include all types: video, podcast, article, github_repo, repository, newsletter, tool, reddit, linkedin, course, documentation, other
-  - [ ] 2.3 Export `type ContentType = keyof typeof CONTENT_TYPE_ICONS` for type-safe usage
-  - [ ] 2.4 Add `getContentTypeIcon(type: string)` function returning icon component + fallback
-  - [ ] 2.5 Refactor `SaveRow.tsx` to import from shared module (delete inline `TYPE_ICONS`)
-  - [ ] 2.6 Write test: all known types resolve, unknown type returns fallback (Link2)
+- [x] Task 2: Extract content-type icon mapping (AC: 3)
+  - [x] 2.1 Create `frontend/src/lib/content-type-icons.ts` with `CONTENT_TYPE_ICONS` map
+  - [x] 2.2 Include all types: video, podcast, article, github_repo, repository, newsletter, tool, reddit, linkedin, course, documentation, other
+  - [x] 2.3 Export `type ContentType = keyof typeof CONTENT_TYPE_ICONS` for type-safe usage
+  - [x] 2.4 Add `getContentTypeIcon(type: string)` function returning icon component + fallback
+  - [x] 2.5 Refactor `SaveRow.tsx` to import from shared module (delete inline `TYPE_ICONS`)
+  - [x] 2.6 Write test: all known types resolve, unknown type returns fallback (Link2)
 
-- [ ] Task 3: Create Card component (AC: 4)
-  - [ ] 3.1 Add `frontend/src/components/ui/card.tsx` with shadcn Card pattern
-  - [ ] 3.2 Exports: Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter
-  - [ ] 3.3 Write test: renders with children, header/content/footer compose correctly
+- [x] Task 3: Create Card component (AC: 4)
+  - [x] 3.1 Add `frontend/src/components/ui/card.tsx` with shadcn Card pattern
+  - [x] 3.2 Exports: Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter
+  - [x] 3.3 Write test: renders with children, header/content/footer compose correctly
 
-- [ ] Task 4: Improve ErrorBoundary (AC: 5)
-  - [ ] 4.1 Create `frontend/src/components/ui/error-boundary.tsx` as styled reusable component
-  - [ ] 4.2 Style with design tokens: destructive color, centered layout, "Try again" button
-  - [ ] 4.3 Add `onError` callback prop for error reporting
-  - [ ] 4.4 Replace inline ErrorBoundary in `App.tsx` with new component
-  - [ ] 4.5 Write test: catches thrown error, shows message, retry resets state
+- [x] Task 4: Improve ErrorBoundary (AC: 5)
+  - [x] 4.1 Create `frontend/src/components/ui/error-boundary.tsx` as styled reusable component
+  - [x] 4.2 Style with design tokens: destructive color, centered layout, "Try again" button
+  - [x] 4.3 Add `onError` callback prop for error reporting
+  - [x] 4.4 Replace inline ErrorBoundary in `App.tsx` with new component
+  - [x] 4.5 Write test: catches thrown error, shows message, retry resets state
 
-- [ ] Task 5: Create toast helper (AC: 2)
-  - [ ] 5.1 Create `frontend/src/lib/toast.ts` wrapping Sonner
-  - [ ] 5.2 Implement `showToast.success()` with Quetzal Green styling
-  - [ ] 5.3 Implement `showToast.error()` that persists until dismissed
-  - [ ] 5.4 Implement `showToast.info()` with 5s auto-dismiss
-  - [ ] 5.5 Implement `showToast.undo(message, onUndo)` with action button
-  - [ ] 5.6 Refactor `SaveModal.tsx` to use `showToast.success()` instead of raw `toast()`
-  - [ ] 5.7 Write test: each variant calls sonner with correct options
+- [x] Task 5: Create toast helper (AC: 2)
+  - [x] 5.1 Create `frontend/src/lib/toast.ts` wrapping Sonner
+  - [x] 5.2 Implement `showToast.success()` with Quetzal Green styling
+  - [x] 5.3 Implement `showToast.error()` that persists until dismissed
+  - [x] 5.4 Implement `showToast.info()` with 5s auto-dismiss
+  - [x] 5.5 Implement `showToast.undo(message, onUndo)` with action button
+  - [x] 5.6 Refactor `SaveModal.tsx` to use `showToast.success()` instead of raw `toast()`
+  - [x] 5.7 Write test: each variant calls sonner with correct options
 
-- [ ] Task 6: Wire up dark mode toggle (AC: 6)
-  - [ ] 6.1 Add `<ThemeProvider attribute="class" defaultTheme="system" storageKey="alh-theme">` in `App.tsx`
-  - [ ] 6.2 Create `frontend/src/components/ThemeToggle.tsx` — Sun/Moon icon button using `useTheme()` from next-themes
-  - [ ] 6.3 Add ThemeToggle to NavRail (bottom of rail on desktop, end of bottom nav on mobile)
-  - [ ] 6.4 Write test: toggles between light/dark/system, icon changes accordingly
+- [x] Task 6: Wire up dark mode toggle (AC: 6)
+  - [x] 6.1 Add `<ThemeProvider attribute="class" defaultTheme="system" storageKey="alh-theme">` in `App.tsx`
+  - [x] 6.2 Create `frontend/src/components/ThemeToggle.tsx` — Sun/Moon icon button using `useTheme()` from next-themes
+  - [x] 6.3 Add ThemeToggle to NavRail (bottom of rail on desktop, end of bottom nav on mobile)
+  - [x] 6.4 Write test: toggles between light/dark/system, icon changes accordingly
 
-- [ ] Task 7: Tests for existing components (AC: 7)
-  - [ ] 7.1 `frontend/test/components/ui/button.test.tsx` — renders all variants, click handler fires, disabled state, keyboard activation
-  - [ ] 7.2 `frontend/test/components/ui/dialog.test.tsx` — opens/closes, ESC dismisses, focus management
-  - [ ] 7.3 `frontend/test/components/ui/badge.test.tsx` — renders all variants including project status badges
-  - [ ] 7.4 `frontend/test/components/ui/skeleton.test.tsx` — renders with pulse animation class
-  - [ ] 7.5 `frontend/test/components/AppLayout.test.tsx` — renders NavRail + main content area
-  - [ ] 7.6 `frontend/test/components/NavRail.test.tsx` — renders nav items, active state, responsive behavior
-  - [ ] 7.7 `frontend/test/components/EmptyState.test.tsx` — renders each variant (library, projects, search)
+- [x] Task 7: Tests for existing components (AC: 7)
+  - [x] 7.1 `frontend/test/components/ui/button.test.tsx` — renders all variants, click handler fires, disabled state, keyboard activation
+  - [x] 7.2 `frontend/test/components/ui/dialog.test.tsx` — opens/closes, ESC dismisses, focus management
+  - [x] 7.3 `frontend/test/components/ui/badge.test.tsx` — renders all variants including project status badges
+  - [x] 7.4 `frontend/test/components/ui/skeleton.test.tsx` — renders with pulse animation class
+  - [x] 7.5 `frontend/test/components/AppLayout.test.tsx` — renders NavRail + main content area
+  - [x] 7.6 `frontend/test/components/NavRail.test.tsx` — renders nav items, active state, responsive behavior
+  - [x] 7.7 `frontend/test/components/EmptyState.test.tsx` — renders each variant (library, projects, search)
 
 ## Dev Notes
 
@@ -153,6 +153,7 @@ The Quetzal frontend redesign (PR #273, merged to main) delivered the majority o
 ### UX Spec Alignment — Dual-Accent Color System
 
 The UX spec (`_bmad-output/planning-artifacts/ux-design-specification.md` Section 8) defines a dual-accent system:
+
 - **Indigo Ink** (`hsl(239, 84%, 57%)`) — UI accent for buttons, links, selected states, interactive elements
 - **Quetzal Green** (`hsl(162, 83%, 34%)`) — Brand accent used surgically: save confirmation toast, success states, logo mark only
 
@@ -161,6 +162,7 @@ Current implementation uses Quetzal Green as the primary/accent color for everyt
 **Important:** The `--accent` variable cascades through every component using `bg-accent`, `text-accent`, `ring-accent`, etc. After changing tokens, run the app and verify both light and dark mode visually — button colors, nav active states, focus rings, hover states all shift from green to indigo.
 
 **Quetzal Green usage rules (from UX spec):**
+
 - Save confirmation toast (primary brand moment)
 - Success states (project created, tutorial completed)
 - Logo mark
@@ -170,19 +172,19 @@ Current implementation uses Quetzal Green as the primary/accent color for everyt
 
 From epic plan + UX spec, the complete mapping:
 
-| Content Type | Lucide Icon | Notes |
-|---|---|---|
-| `video` | `Video` | YouTube, Vimeo, etc. |
-| `podcast` | `Podcast` | Audio content |
-| `article` | `FileText` | Blog posts, articles |
-| `github_repo` / `repository` | `Github` | GitHub repos |
-| `newsletter` | `Mail` | Email newsletters |
-| `tool` | `Wrench` | Developer tools |
-| `reddit` | `MessageSquare` | Reddit posts/threads |
-| `linkedin` | `Linkedin` | LinkedIn posts |
-| `course` | `GraduationCap` | Online courses |
-| `documentation` | `BookOpen` | API docs, guides |
-| `other` | `Link2` | Fallback for unknown types |
+| Content Type                 | Lucide Icon     | Notes                      |
+| ---------------------------- | --------------- | -------------------------- |
+| `video`                      | `Video`         | YouTube, Vimeo, etc.       |
+| `podcast`                    | `Podcast`       | Audio content              |
+| `article`                    | `FileText`      | Blog posts, articles       |
+| `github_repo` / `repository` | `Github`        | GitHub repos               |
+| `newsletter`                 | `Mail`          | Email newsletters          |
+| `tool`                       | `Wrench`        | Developer tools            |
+| `reddit`                     | `MessageSquare` | Reddit posts/threads       |
+| `linkedin`                   | `Linkedin`      | LinkedIn posts             |
+| `course`                     | `GraduationCap` | Online courses             |
+| `documentation`              | `BookOpen`      | API docs, guides           |
+| `other`                      | `Link2`         | Fallback for unknown types |
 
 ### Testing Approach
 
@@ -289,12 +291,50 @@ The UX spec (Section D) defines agent-friendly features: `llms.txt`, `llms-full.
 
 ### Agent Model Used
 
+Claude Opus 4.6
+
 ### Debug Log References
+
+N/A
 
 ### Completion Notes List
 
+- All 7 tasks completed with TDD approach
+- Color tokens: --primary/--accent → Indigo Ink, --brand → Quetzal Green, light + dark modes
+- Content-type icons: shared module with 12 types, SaveRow refactored
+- Card component: 6 exports following shadcn conventions
+- ErrorBoundary: extracted from App.tsx, design tokens, retry, onError callback
+- Toast helper: success/error/info/undo variants, SaveModal refactored
+- Dark mode: ThemeProvider in App.tsx, ThemeToggle in NavRail
+- 79 tests across 15 files, all passing. Coverage: 99.51%. Lint + type-check clean.
+
 ### Change Log
+
 - 2026-03-11: Story created. Recognized existing Quetzal redesign (PR #273) as partial completion. Scoped remaining work to gap closure: dual-accent palette alignment, content-type icon extraction, Card component, ErrorBoundary upgrade, toast helper, dark mode toggle, and comprehensive component test coverage.
 - 2026-03-11: Elicitation rounds — Persona focus group (practical toast/icon feedback), Critique & Refine (removed redundant AC1, merged AC8 into tests, restructured tasks). Added dark mode toggle (AC6/Task 6). Added Card vs SaveRow UX spec tension note. Noted agent-friendly web surface as out-of-scope future work.
+- 2026-03-11: Implementation completed — all 7 tasks, all 7 ACs satisfied.
 
 ### File List
+
+- frontend/src/index.css (MODIFIED)
+- frontend/src/App.tsx (MODIFIED)
+- frontend/src/components/SaveRow.tsx (MODIFIED)
+- frontend/src/components/SaveModal.tsx (MODIFIED)
+- frontend/src/components/NavRail.tsx (MODIFIED)
+- frontend/src/lib/content-type-icons.ts (NEW)
+- frontend/src/lib/toast.ts (NEW)
+- frontend/src/components/ui/card.tsx (NEW)
+- frontend/src/components/ui/error-boundary.tsx (NEW)
+- frontend/src/components/ThemeToggle.tsx (NEW)
+- frontend/test/lib/content-type-icons.test.ts (NEW)
+- frontend/test/components/ui/card.test.tsx (NEW)
+- frontend/test/components/ui/error-boundary.test.tsx (NEW)
+- frontend/test/components/ui/toast.test.tsx (NEW)
+- frontend/test/components/ui/button.test.tsx (NEW)
+- frontend/test/components/ui/dialog.test.tsx (NEW)
+- frontend/test/components/ui/badge.test.tsx (NEW)
+- frontend/test/components/ui/skeleton.test.tsx (NEW)
+- frontend/test/components/AppLayout.test.tsx (NEW)
+- frontend/test/components/NavRail.test.tsx (NEW)
+- frontend/test/components/EmptyState.test.tsx (NEW)
+- frontend/test/components/ThemeToggle.test.tsx (NEW)
